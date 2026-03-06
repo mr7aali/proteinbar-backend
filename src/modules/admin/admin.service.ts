@@ -42,6 +42,39 @@ const planFlowOrder: Record<string, number> = {
   preset: 1
 };
 
+function toSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function toPriceNumber(value: unknown) {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return 0;
+
+  const normalized = value.replace(/[^0-9.]+/g, "");
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatProduct(raw: Record<string, unknown>) {
+  const sku = String(raw.sku ?? "");
+  const name = String(raw.name ?? "");
+
+  return {
+    ...raw,
+    id: String(raw._id ?? raw.id ?? ""),
+    sku,
+    handle: toSlug(sku || name) || "product",
+    title: name,
+    description: String(raw.description ?? raw.category ?? ""),
+    priceMad: toPriceNumber(raw.priceMad ?? raw.price),
+    image: String(raw.image ?? raw.imageUrl ?? "")
+  };
+}
+
 async function ensurePlanFlowsSeeded() {
   const existing = await PlanFlowModel.find({}, { flowType: 1 }).lean();
   const existingTypes = new Set(existing.map((row) => String(row.flowType)));
@@ -83,15 +116,16 @@ export const adminService = {
 
   async listProducts() {
     const rows = await ProductModel.find().sort({ createdAt: -1 }).lean();
-    return rows.map((r) => ({ ...r, id: r._id, sku: r.sku }));
+    return rows.map((row) => formatProduct(row as unknown as Record<string, unknown>));
   },
   async createProduct(payload: Record<string, unknown>) {
-    return ProductModel.create(payload);
+    const row = await ProductModel.create(payload);
+    return formatProduct(row.toObject() as Record<string, unknown>);
   },
   async updateProduct(id: string, payload: Record<string, unknown>) {
     const row = await ProductModel.findByIdAndUpdate(id, payload, { new: true });
     if (!row) throw new AppError(404, "Product not found");
-    return row;
+    return formatProduct(row.toObject() as Record<string, unknown>);
   },
   async deleteProduct(id: string) {
     const row = await ProductModel.findByIdAndDelete(id);
