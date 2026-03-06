@@ -1,0 +1,1375 @@
+{
+  "info": {
+    "_postman_id": "2f3fe3fb-7e35-45a7-8db2-bf0d18f12a7a",
+    "name": "Proteinbar Backend API",
+    "description": "Generated from backend routes under /api/v1 (auth, admin, public). Includes sample request payloads and optional admin auth header.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "apiBase",
+      "value": "{{baseUrl}}/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "demo-admin-token",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "REPLACE_WITH_PRODUCT_DOC_ID",
+      "type": "string"
+    },
+    {
+      "key": "menuItemId",
+      "value": "REPLACE_WITH_MENU_ITEM_DOC_ID",
+      "type": "string"
+    },
+    {
+      "key": "locationIdDoc",
+      "value": "REPLACE_WITH_LOCATION_DOC_ID",
+      "type": "string"
+    },
+    {
+      "key": "monthlyPlanDocId",
+      "value": "REPLACE_WITH_MONTHLY_PLAN_DOC_ID",
+      "type": "string"
+    },
+    {
+      "key": "planFlowType",
+      "value": "custom",
+      "type": "string"
+    },
+    {
+      "key": "ingredientDocId",
+      "value": "REPLACE_WITH_INGREDIENT_DOC_ID",
+      "type": "string"
+    },
+    {
+      "key": "orderDocId",
+      "value": "REPLACE_WITH_ORDER_DOC_ID",
+      "type": "string"
+    },
+    {
+      "key": "subscriptionDocId",
+      "value": "REPLACE_WITH_SUBSCRIPTION_DOC_ID",
+      "type": "string"
+    },
+    {
+      "key": "notificationDocId",
+      "value": "REPLACE_WITH_NOTIFICATION_DOC_ID",
+      "type": "string"
+    },
+    {
+      "key": "publicPlanId",
+      "value": "PLAN-001",
+      "type": "string"
+    },
+    {
+      "key": "productHandle",
+      "value": "protein-bar-choco",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Service health endpoint."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Send Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{apiBase}}/auth/send-code",
+              "host": ["{{apiBase}}"],
+              "path": ["auth", "send-code"]
+            },
+            "description": "Send 6-digit verification code to email (10 minute expiry).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"email\":  \"user@example.com\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{apiBase}}/auth/verify-code",
+              "host": ["{{apiBase}}"],
+              "path": ["auth", "verify-code"]
+            },
+            "description": "Verify code and create/get customer user.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"email\":  \"user@example.com\",\r\n    \"code\":  \"123456\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{apiBase}}/auth/admin-login",
+              "host": ["{{apiBase}}"],
+              "path": ["auth", "admin-login"]
+            },
+            "description": "Admin login. Returns demo token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"email\":  \"admin@example.com\",\r\n    \"password\":  \"secret123\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{apiBase}}/auth/reset-password",
+              "host": ["{{apiBase}}"],
+              "path": ["auth", "reset-password"]
+            },
+            "description": "Create/update admin password for email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"email\":  \"admin@example.com\",\r\n    \"newPassword\":  \"new-secret123\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Dashboard",
+          "item": [
+            {
+              "name": "Get Dashboard",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/dashboard",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "dashboard"]
+                },
+                "description": "Get dashboard stats and latest orders."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Products",
+          "item": [
+            {
+              "name": "List Products",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/products",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "products"]
+                },
+                "description": "List products."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Product",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/products",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "products"]
+                },
+                "description": "Create product.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"allergens\":  [\r\n                      \"nuts\"\r\n                  ],\r\n    \"category\":  \"Lunch\",\r\n    \"tags\":  [\r\n                 \"high-protein\"\r\n             ],\r\n    \"name\":  \"Chicken Bowl\",\r\n    \"sku\":  \"SKU-1001\",\r\n    \"availability\":  \"Active\",\r\n    \"imageUrl\":  \"https://example.com/chicken-bowl.jpg\",\r\n    \"price\":  \"$12.00\",\r\n    \"protein\":  \"35g\",\r\n    \"fat\":  \"12g\",\r\n    \"carbs\":  \"30g\",\r\n    \"kcal\":  450\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Product",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/products/{{productId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "products", "{{productId}}"]
+                },
+                "description": "Update product by Mongo _id.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"name\":  \"Chicken Bowl XL\",\r\n    \"price\":  \"$13.00\",\r\n    \"availability\":  \"Inactive\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Product",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/products/{{productId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "products", "{{productId}}"]
+                },
+                "description": "Delete product by Mongo _id."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Menu Items",
+          "item": [
+            {
+              "name": "List Menu Items",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/menu-items",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "menu-items"]
+                },
+                "description": "List menu items."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Menu Item",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/menu-items",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "menu-items"]
+                },
+                "description": "Create menu item.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"visibleDays\":  [\r\n                        \"Mon\",\r\n                        \"Tue\",\r\n                        \"Wed\"\r\n                    ],\r\n    \"linkedProductSkus\":  [\r\n                              \"SKU-1001\",\r\n                              \"SKU-1002\"\r\n                          ],\r\n    \"status\":  \"Visible\",\r\n    \"mealTypes\":  [\r\n                      \"Main\"\r\n                  ],\r\n    \"planCompatibility\":  [\r\n                              \"custom\",\r\n                              \"preset\"\r\n                          ],\r\n    \"title\":  \"Weekday Lunch Set\",\r\n    \"menuId\":  \"MENU-001\",\r\n    \"timeSlots\":  [\r\n                      \"Lunch\"\r\n                  ],\r\n    \"priority\":  1\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Menu Item",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/menu-items/{{menuItemId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "menu-items", "{{menuItemId}}"]
+                },
+                "description": "Update menu item by Mongo _id.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"priority\":  2,\r\n    \"title\":  \"Updated Lunch Set\",\r\n    \"status\":  \"Hidden\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Menu Item",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/menu-items/{{menuItemId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "menu-items", "{{menuItemId}}"]
+                },
+                "description": "Delete menu item by Mongo _id."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Locations",
+          "item": [
+            {
+              "name": "List Locations",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/locations",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "locations"]
+                },
+                "description": "List admin locations."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Location",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/locations",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "locations"]
+                },
+                "description": "Create admin location.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"deliveryFee\":  \"$5.00\",\r\n    \"workingDays\":  [\r\n                        \"Mon\",\r\n                        \"Tue\",\r\n                        \"Wed\",\r\n                        \"Thu\",\r\n                        \"Fri\"\r\n                    ],\r\n    \"cutoffTime\":  \"10:00 PM\",\r\n    \"mapLink\":  \"https://maps.google.com\",\r\n    \"name\":  \"Marina Pickup\",\r\n    \"timeSlots\":  [\r\n                      \"Morning\",\r\n                      \"Evening\"\r\n                  ],\r\n    \"locationId\":  \"LOC-001\",\r\n    \"pickupAddress\":  \"Marina, Dubai\",\r\n    \"deliveryZone\":  \"Zone A\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Location",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/locations/{{locationIdDoc}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "locations", "{{locationIdDoc}}"]
+                },
+                "description": "Update location by Mongo _id.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"deliveryFee\":  \"$6.00\",\r\n    \"name\":  \"Marina Pickup Updated\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Location",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/locations/{{locationIdDoc}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "locations", "{{locationIdDoc}}"]
+                },
+                "description": "Delete location by Mongo _id."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Monthly Plans",
+          "item": [
+            {
+              "name": "List Monthly Plans",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/monthly-plans",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "monthly-plans"]
+                },
+                "description": "List monthly plans."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Monthly Plan",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/monthly-plans",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "monthly-plans"]
+                },
+                "description": "Create monthly plan.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"members\":  25,\r\n    \"name\":  \"Keto Monthly\",\r\n    \"isNew\":  true,\r\n    \"planId\":  \"PLAN-001\",\r\n    \"basePrice\":  \"$399\",\r\n    \"status\":  \"Active\",\r\n    \"imageUrl\":  \"https://example.com/plan-keto.jpg\",\r\n    \"description\":  \"Low-carb monthly plan\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Monthly Plan",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/monthly-plans/{{monthlyPlanDocId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "monthly-plans", "{{monthlyPlanDocId}}"]
+                },
+                "description": "Update monthly plan by Mongo _id.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"basePrice\":  \"$429\",\r\n    \"name\":  \"Keto Monthly Plus\",\r\n    \"status\":  \"Inactive\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Monthly Plan",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/monthly-plans/{{monthlyPlanDocId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "monthly-plans", "{{monthlyPlanDocId}}"]
+                },
+                "description": "Delete monthly plan by Mongo _id."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Plan Flows",
+          "item": [
+            {
+              "name": "List Plan Flows",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/plan-flows",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "plan-flows"]
+                },
+                "description": "List custom/preset plan flows. Seeds defaults if missing."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Plan Flow",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/plan-flows/{{planFlowType}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "plan-flows", "{{planFlowType}}"]
+                },
+                "description": "Upsert plan flow by flowType (custom or preset).",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"steps\":  [\r\n                  {\r\n                      \"step\":  \"Step 1\",\r\n                      \"title\":  \"Set number of meals\"\r\n                  },\r\n                  {\r\n                      \"step\":  \"Step 2\",\r\n                      \"title\":  \"Pick start date\"\r\n                  }\r\n              ]\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Ingredients",
+          "item": [
+            {
+              "name": "List Ingredients",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/ingredients",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "ingredients"]
+                },
+                "description": "List ingredients."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Ingredient",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/ingredients",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "ingredients"]
+                },
+                "description": "Create ingredient.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"category\":  \"Protein\",\r\n    \"quantityLabel\":  \"150g\",\r\n    \"carbs\":  0,\r\n    \"fat\":  5,\r\n    \"kcal\":  200,\r\n    \"ingredientId\":  \"ING-001\",\r\n    \"protein\":  35,\r\n    \"item\":  \"Chicken Breast\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Ingredient",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/ingredients/{{ingredientDocId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "ingredients", "{{ingredientDocId}}"]
+                },
+                "description": "Update ingredient by Mongo _id.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"kcal\":  240,\r\n    \"quantityLabel\":  \"180g\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Ingredient",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/ingredients/{{ingredientDocId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "ingredients", "{{ingredientDocId}}"]
+                },
+                "description": "Delete ingredient by Mongo _id."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Orders",
+          "item": [
+            {
+              "name": "List Orders",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/orders",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "orders"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "Pending",
+                      "description": "Exact match",
+                      "disabled": true
+                    },
+                    {
+                      "key": "payment",
+                      "value": "Paid",
+                      "description": "Exact match",
+                      "disabled": true
+                    },
+                    {
+                      "key": "mode",
+                      "value": "Delivery",
+                      "description": "Mapped to orderType",
+                      "disabled": true
+                    },
+                    {
+                      "key": "client",
+                      "value": "john",
+                      "description": "Case-insensitive contains",
+                      "disabled": true
+                    },
+                    {
+                      "key": "location",
+                      "value": "Marina",
+                      "description": "Case-insensitive contains",
+                      "disabled": true
+                    },
+                    {
+                      "key": "plan",
+                      "value": "Keto",
+                      "description": "Case-insensitive contains",
+                      "disabled": true
+                    },
+                    {
+                      "key": "date",
+                      "value": "2026-03-07",
+                      "description": "Case-insensitive contains",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List orders with optional filters."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Order",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/orders/{{orderDocId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "orders", "{{orderDocId}}"]
+                },
+                "description": "Update order by Mongo _id and append audit log.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"notes\":  \"Leave at door\",\r\n    \"payment\":  \"Paid\",\r\n    \"location\":  \"Marina\",\r\n    \"status\":  \"Completed\",\r\n    \"schedule\":  \"Mon-Fri\",\r\n    \"confirmationStatus\":  \"Confirmed\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "List Orders Of Day",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/orders-of-day",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "orders-of-day"]
+                },
+                "description": "List latest 20 orders."
+              },
+              "response": []
+            },
+            {
+              "name": "List Printable Orders",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/printing",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "printing"]
+                },
+                "description": "Flattened printable meals from latest 50 orders."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Subscriptions",
+          "item": [
+            {
+              "name": "List Subscriptions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/subscriptions",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "subscriptions"]
+                },
+                "description": "List subscriptions."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Subscription",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/subscriptions/{{subscriptionDocId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "subscriptions", "{{subscriptionDocId}}"]
+                },
+                "description": "Update subscription by Mongo _id and prepend log entry.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"dayProgress\":  \"Day 8/30\",\r\n    \"remainingMeals\":  18,\r\n    \"totalWeeks\":  4,\r\n    \"currentWeek\":  2,\r\n    \"status\":  \"Paused\",\r\n    \"logMessage\":  \"Paused by support\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Notifications",
+          "item": [
+            {
+              "name": "List Notifications",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/notifications",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "notifications"]
+                },
+                "description": "List notifications."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Notification",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{authToken}}",
+                    "type": "text",
+                    "disabled": true,
+                    "description": "Currently optional in backend code (no auth middleware on admin routes)."
+                  }
+                ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/notifications/{{notificationDocId}}",
+                  "host": ["{{apiBase}}"],
+                  "path": ["admin", "notifications", "{{notificationDocId}}"]
+                },
+                "description": "Delete notification by Mongo _id."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "List Menu Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/public/menu-categories",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "menu-categories"]
+            },
+            "description": "List menu categories."
+          },
+          "response": []
+        },
+        {
+          "name": "List Monthly Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/public/monthly-plans",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "monthly-plans"]
+            },
+            "description": "List monthly plans."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Monthly Plan By PlanId",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/public/monthly-plans/{{publicPlanId}}",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "monthly-plans", "{{publicPlanId}}"]
+            },
+            "description": "Get monthly plan by planId (not Mongo _id)."
+          },
+          "response": []
+        },
+        {
+          "name": "List Store Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/public/products",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "products"]
+            },
+            "description": "List store products."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Store Product By Handle",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/public/products/{{productHandle}}",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "products", "{{productHandle}}"]
+            },
+            "description": "Get store product by handle."
+          },
+          "response": []
+        },
+        {
+          "name": "List Public Locations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/public/locations",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "locations"]
+            },
+            "description": "List public pickup/delivery locations."
+          },
+          "response": []
+        },
+        {
+          "name": "List Builder Ingredients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/public/builder-ingredients",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "builder-ingredients"]
+            },
+            "description": "List builder ingredients."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Contact Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{apiBase}}/public/contact",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "contact"]
+            },
+            "description": "Submit contact form message.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"message\":  \"I would like more details about your plans.\",\r\n    \"name\":  \"John Doe\",\r\n    \"email\":  \"john@example.com\",\r\n    \"phone\":  \"+971500000000\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{apiBase}}/public/checkout",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "checkout"]
+            },
+            "description": "Create customer subscription and customer order in one request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"order\":  {\r\n                  \"customer\":  {\r\n                                   \"firstName\":  \"John\",\r\n                                   \"lastName\":  \"Doe\",\r\n                                   \"email\":  \"john@example.com\",\r\n                                   \"phone\":  \"+971500000000\",\r\n                                   \"emirate\":  \"Dubai\",\r\n                                   \"area\":  \"Marina\"\r\n                               },\r\n                  \"delivery\":  {\r\n                                   \"optionId\":  \"delivery\",\r\n                                   \"address\":  \"Dubai Marina\",\r\n                                   \"pickupLocation\":  {\r\n                                                          \"id\":  \"LOC-001\",\r\n                                                          \"name\":  \"Marina Pickup\",\r\n                                                          \"address\":  \"Marina, Dubai\"\r\n                                                      }\r\n                               },\r\n                  \"totals\":  {\r\n                                 \"subtotal\":  100,\r\n                                 \"giftDiscount\":  0,\r\n                                 \"vat\":  5,\r\n                                 \"safetyBag\":  2,\r\n                                 \"grandTotal\":  107\r\n                             }\r\n              },\r\n    \"subscription\":  {\r\n                         \"plan\":  {\r\n                                      \"id\":  \"PLAN-001\",\r\n                                      \"title\":  \"Keto Monthly\"\r\n                                  },\r\n                         \"selection\":  {\r\n                                           \"meals\":  \"3\",\r\n                                           \"days\":  \"5\",\r\n                                           \"snacks\":  \"1\",\r\n                                           \"startDate\":  \"2026-03-10\",\r\n                                           \"planType\":  \"custom\"\r\n                                       },\r\n                         \"delivery\":  {\r\n                                          \"optionId\":  \"delivery\",\r\n                                          \"address\":  \"Dubai Marina\",\r\n                                          \"pickupLocation\":  {\r\n                                                                 \"id\":  \"LOC-001\",\r\n                                                                 \"name\":  \"Marina Pickup\",\r\n                                                                 \"address\":  \"Marina, Dubai\"\r\n                                                             }\r\n                                      }\r\n                     }\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Store Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{apiBase}}/public/store-orders",
+              "host": ["{{apiBase}}"],
+              "path": ["public", "store-orders"]
+            },
+            "description": "Create one-time store order.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"customer\":  {\r\n                     \"firstName\":  \"John\",\r\n                     \"lastName\":  \"Doe\",\r\n                     \"email\":  \"john@example.com\",\r\n                     \"phone\":  \"+971500000000\",\r\n                     \"cityArea\":  \"Marina\",\r\n                     \"address\":  \"Street 1\"\r\n                 },\r\n    \"items\":  [\r\n                  {\r\n                      \"handle\":  \"protein-bar-choco\",\r\n                      \"title\":  \"Protein Bar Choco\",\r\n                      \"priceMad\":  20,\r\n                      \"quantity\":  2\r\n                  }\r\n              ],\r\n    \"totals\":  {\r\n                   \"subtotal\":  40,\r\n                   \"vat\":  2,\r\n                   \"total\":  42\r\n               }\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

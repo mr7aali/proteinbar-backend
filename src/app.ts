@@ -9,16 +9,22 @@ import { errorHandler, notFound } from "./common/middleware/errorHandler";
 export const app = express();
 
 app.use(helmet());
+// app.use(
+//   cors({
+//     origin(origin, callback) {
+//       if (!origin || env.allowedOrigins.includes(origin)) {
+//         return callback(null, true);
+//       }
+//       return callback(new Error("CORS origin not allowed"));
+//     },
+//     credentials: true,
+//   }),
+// );
 app.use(
   cors({
-    origin(origin, callback) {
-      if (!origin || env.allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error("CORS origin not allowed"));
-    },
-    credentials: true
-  })
+    origin: true, // reflect request origin (allows all)
+    credentials: true,
+  }),
 );
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
