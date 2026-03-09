@@ -23,6 +23,14 @@ exports.adminRouter.get("/monthly-plans", admin_controller_1.adminController.lis
 exports.adminRouter.post("/monthly-plans", (0, validate_1.validate)(admin_validation_1.monthlyPlanSchema), admin_controller_1.adminController.createMonthlyPlan);
 exports.adminRouter.patch("/monthly-plans/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanSchema.partial()), admin_controller_1.adminController.updateMonthlyPlan);
 exports.adminRouter.delete("/monthly-plans/:id", admin_controller_1.adminController.deleteMonthlyPlan);
+exports.adminRouter.get("/admin/monthly-plan/overview", admin_controller_1.adminController.getMonthlyPlanOverview);
+exports.adminRouter.get("/admin/monthly-plan/plans", (0, validate_1.validate)(admin_validation_1.monthlyPlanAdminFiltersSchema, "query"), admin_controller_1.adminController.listMonthlyPlanAdmin);
+exports.adminRouter.get("/admin/monthly-plan/plans/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.getMonthlyPlanDetails);
+exports.adminRouter.put("/admin/monthly-plan/plans/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsUpsertSchema), admin_controller_1.adminController.upsertMonthlyPlanDetails);
+exports.adminRouter.patch("/admin/monthly-plan/plans/:id/archive", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.archiveMonthlyPlan);
+exports.adminRouter.get("/admin/monthly-plan/meals", admin_controller_1.adminController.listMealLibraryAdmin);
+exports.adminRouter.put("/admin/monthly-plan/meals/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), (0, validate_1.validate)(admin_validation_1.mealLibraryItemSchema), admin_controller_1.adminController.upsertMealLibraryAdmin);
+exports.adminRouter.delete("/admin/monthly-plan/meals/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.deleteMealLibraryAdmin);
 exports.adminRouter.get("/plan-flows", admin_controller_1.adminController.listPlanFlows);
 exports.adminRouter.put("/plan-flows/:flowType", (0, validate_1.validate)(admin_validation_1.flowTypeParamSchema, "params"), (0, validate_1.validate)(admin_validation_1.planFlowSchema), admin_controller_1.adminController.updatePlanFlow);
 exports.adminRouter.get("/ingredients", admin_controller_1.adminController.listIngredients);

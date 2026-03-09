@@ -97,3 +97,41 @@ export const planFlowSchema = z.object({
     )
     .min(1)
 });
+
+export const monthlyPlanAdminFiltersSchema = z.object({
+  kind: z.enum(["custom", "normal", "all"]).optional(),
+  status: z.enum(["draft", "active", "inactive", "archived", "all"]).optional(),
+  search: z.string().optional()
+});
+
+export const monthlyPlanDetailsParamSchema = z.object({
+  id: z.string().min(1)
+});
+
+export const monthlyPlanDetailsUpsertSchema = z.object({
+  plan: z
+    .object({
+      id: z.string().min(1),
+      title: z.string().min(1),
+      description: z.string().optional().default(""),
+      planKind: z.enum(["custom", "normal"]).optional(),
+      status: z.string().optional()
+    })
+    .passthrough(),
+  rules: z.object({}).passthrough(),
+  pricing: z.object({}).passthrough(),
+  weekAssignments: z.array(z.unknown()).optional().default([])
+});
+
+export const mealLibraryItemSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  mealType: z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]),
+  calories: z.number(),
+  protein: z.number(),
+  carbs: z.number(),
+  fat: z.number(),
+  tags: z.array(z.string()).optional().default([]),
+  status: z.enum(["active", "inactive"]),
+  image: z.string().optional()
+});

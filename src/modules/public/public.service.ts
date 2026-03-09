@@ -104,19 +104,11 @@ export const publicService = {
   },
 
   async listMonthlyPlans() {
-    return adminService.listMonthlyPlans();
+    return adminService.listPublicMonthlyPlans();
   },
 
   async getMonthlyPlanById(planId: string) {
-    const normalizedPlanId = planId.trim().toLowerCase();
-    const rows = await adminService.listMonthlyPlans();
-    const row = rows.find((plan) => {
-      const source = plan as Record<string, unknown>;
-      return [source.planId, source.id, source._id].some((value) => String(value ?? "").toLowerCase() === normalizedPlanId);
-    });
-
-    if (!row) throw new AppError(404, "Monthly plan not found");
-    return row;
+    return adminService.getPublicMonthlyPlanById(planId.trim());
   },
 
   async listProducts() {

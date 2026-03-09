@@ -5,7 +5,11 @@ import {
   flowTypeParamSchema,
   ingredientSchema,
   locationSchema,
+  mealLibraryItemSchema,
   menuItemSchema,
+  monthlyPlanAdminFiltersSchema,
+  monthlyPlanDetailsParamSchema,
+  monthlyPlanDetailsUpsertSchema,
   monthlyPlanSchema,
   orderUpdateSchema,
   planFlowSchema,
@@ -36,6 +40,26 @@ adminRouter.get("/monthly-plans", adminController.listMonthlyPlans);
 adminRouter.post("/monthly-plans", validate(monthlyPlanSchema), adminController.createMonthlyPlan);
 adminRouter.patch("/monthly-plans/:id", validate(monthlyPlanSchema.partial()), adminController.updateMonthlyPlan);
 adminRouter.delete("/monthly-plans/:id", adminController.deleteMonthlyPlan);
+
+adminRouter.get("/admin/monthly-plan/overview", adminController.getMonthlyPlanOverview);
+adminRouter.get("/admin/monthly-plan/plans", validate(monthlyPlanAdminFiltersSchema, "query"), adminController.listMonthlyPlanAdmin);
+adminRouter.get("/admin/monthly-plan/plans/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.getMonthlyPlanDetails);
+adminRouter.put(
+  "/admin/monthly-plan/plans/:id",
+  validate(monthlyPlanDetailsParamSchema, "params"),
+  validate(monthlyPlanDetailsUpsertSchema),
+  adminController.upsertMonthlyPlanDetails
+);
+adminRouter.patch("/admin/monthly-plan/plans/:id/archive", validate(monthlyPlanDetailsParamSchema, "params"), adminController.archiveMonthlyPlan);
+adminRouter.delete("/admin/monthly-plan/plans/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteMonthlyPlanAdmin);
+adminRouter.get("/admin/monthly-plan/meals", adminController.listMealLibraryAdmin);
+adminRouter.put(
+  "/admin/monthly-plan/meals/:id",
+  validate(monthlyPlanDetailsParamSchema, "params"),
+  validate(mealLibraryItemSchema),
+  adminController.upsertMealLibraryAdmin
+);
+adminRouter.delete("/admin/monthly-plan/meals/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteMealLibraryAdmin);
 
 adminRouter.get("/plan-flows", adminController.listPlanFlows);
 adminRouter.put("/plan-flows/:flowType", validate(flowTypeParamSchema, "params"), validate(planFlowSchema), adminController.updatePlanFlow);

@@ -7,6 +7,12 @@ export const contactSchema = z.object({
   message: z.string().min(10)
 });
 
+const selectedMealSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  date: z.string().optional()
+});
+
 export const checkoutSchema = z.object({
   subscription: z.object({
     plan: z.object({
@@ -18,7 +24,8 @@ export const checkoutSchema = z.object({
       days: z.string().min(1),
       snacks: z.string().min(1),
       startDate: z.string().min(1),
-      planType: z.string().optional()
+      planType: z.string().optional(),
+      selectedMeals: z.array(selectedMealSchema).optional()
     }),
     delivery: z.object({
       optionId: z.string().min(1),
@@ -52,6 +59,7 @@ export const checkoutSchema = z.object({
         })
         .optional()
     }),
+    selectedMeals: z.array(selectedMealSchema).optional(),
     totals: z.object({
       subtotal: z.number(),
       giftDiscount: z.number(),

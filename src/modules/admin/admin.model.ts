@@ -59,6 +59,37 @@ const MonthlyPlanSchema = new Schema(
     description: { type: String, default: "" },
     imageUrl: { type: String, default: "" }
   },
+  { timestamps: true, suppressReservedKeysWarning: true }
+);
+
+const MonthlyPlanDetailsSchema = new Schema(
+  {
+    planId: { type: String, required: true, unique: true, trim: true },
+    planKind: { type: String, default: "normal", trim: true },
+    status: { type: String, default: "draft", trim: true },
+    title: { type: String, default: "", trim: true },
+    description: { type: String, default: "", trim: true },
+    plan: { type: Schema.Types.Mixed, required: true },
+    rules: { type: Schema.Types.Mixed, required: true },
+    pricing: { type: Schema.Types.Mixed, required: true },
+    weekAssignments: { type: [Schema.Types.Mixed], default: [] }
+  },
+  { timestamps: true }
+);
+
+const MealLibraryItemSchema = new Schema(
+  {
+    mealId: { type: String, required: true, unique: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    mealType: { type: String, required: true, trim: true },
+    calories: { type: Number, default: 0 },
+    protein: { type: Number, default: 0 },
+    carbs: { type: Number, default: 0 },
+    fat: { type: Number, default: 0 },
+    tags: { type: [String], default: [] },
+    status: { type: String, default: "active", trim: true },
+    image: { type: String, default: "" }
+  },
   { timestamps: true }
 );
 
@@ -169,6 +200,8 @@ export const ProductModel = mongoose.model("Product", ProductSchema);
 export const MenuItemModel = mongoose.model("MenuItem", MenuItemSchema);
 export const LocationModel = mongoose.model("Location", LocationSchema);
 export const MonthlyPlanModel = mongoose.model("MonthlyPlan", MonthlyPlanSchema);
+export const MonthlyPlanDetailsModel = mongoose.model("MonthlyPlanDetails", MonthlyPlanDetailsSchema);
+export const MealLibraryItemModel = mongoose.model("MealLibraryItem", MealLibraryItemSchema);
 export const IngredientModel = mongoose.model("Ingredient", IngredientSchema);
 export const OrderModel = mongoose.model("Order", OrderSchema);
 export const SubscriptionModel = mongoose.model("Subscription", SubscriptionSchema);

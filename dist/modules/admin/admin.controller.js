@@ -72,6 +72,44 @@ exports.adminController = {
         await admin_service_1.adminService.deleteMonthlyPlan(req.params.id);
         res.status(204).send();
     }),
+    getMonthlyPlanOverview: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.getMonthlyPlanOverview();
+        res.json({ success: true, data });
+    }),
+    listMonthlyPlanAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.listMonthlyPlanAdmin(req.query);
+        res.json({ success: true, data });
+    }),
+    getMonthlyPlanDetails: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.getMonthlyPlanDetails(req.params.id);
+        res.json({ success: true, data });
+    }),
+    upsertMonthlyPlanDetails: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        if (req.body?.plan && typeof req.body.plan === "object") {
+            req.body.plan.id = req.params.id;
+        }
+        const data = await admin_service_1.adminService.upsertMonthlyPlanDetails(req.body);
+        res.json({ success: true, data });
+    }),
+    archiveMonthlyPlan: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.archiveMonthlyPlan(req.params.id);
+        res.json({ success: true, data });
+    }),
+    listMealLibraryAdmin: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listMealLibraryAdmin();
+        res.json({ success: true, data });
+    }),
+    upsertMealLibraryAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        if (req.body && typeof req.body === "object") {
+            req.body.id = req.params.id;
+        }
+        const data = await admin_service_1.adminService.upsertMealLibraryAdmin(req.body);
+        res.json({ success: true, data });
+    }),
+    deleteMealLibraryAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        await admin_service_1.adminService.deleteMealLibraryAdmin(req.params.id);
+        res.status(204).send();
+    }),
     listPlanFlows: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await admin_service_1.adminService.listPlanFlows();
         res.json({ success: true, data });
