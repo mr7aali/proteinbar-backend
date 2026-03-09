@@ -99,6 +99,10 @@ export const adminController = {
     const data = await adminService.archiveMonthlyPlan(req.params.id);
     res.json({ success: true, data });
   }),
+  deleteMonthlyPlanAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.deleteMonthlyPlanAdmin(req.params.id);
+    res.json({ success: true, data });
+  }),
 
   listMealLibraryAdmin: asyncHandler(async (_req: Request, res: Response) => {
     const data = await adminService.listMealLibraryAdmin();

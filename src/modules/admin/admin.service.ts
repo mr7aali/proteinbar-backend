@@ -511,6 +511,22 @@ export const adminService = {
     };
   },
 
+  async deleteMonthlyPlanAdmin(planId: string) {
+    const deletedDetails = await MonthlyPlanDetailsModel.findOneAndDelete({ planId });
+    const deletedLegacyByPlanId = await MonthlyPlanModel.findOneAndDelete({ planId });
+
+    let deletedLegacyById = null;
+    if (!deletedLegacyByPlanId && isValidObjectId(planId)) {
+      deletedLegacyById = await MonthlyPlanModel.findByIdAndDelete(planId);
+    }
+
+    if (!deletedDetails && !deletedLegacyByPlanId && !deletedLegacyById) {
+      throw new AppError(404, "Plan not found");
+    }
+
+    return { id: planId };
+  },
+
   async listMealLibraryAdmin() {
     const rows = await MealLibraryItemModel.find().sort({ name: 1 }).lean();
     return rows.map((row) => toMealLibraryItem(row as unknown as Record<string, unknown>));

@@ -51,6 +51,7 @@ adminRouter.put(
   adminController.upsertMonthlyPlanDetails
 );
 adminRouter.patch("/admin/monthly-plan/plans/:id/archive", validate(monthlyPlanDetailsParamSchema, "params"), adminController.archiveMonthlyPlan);
+adminRouter.delete("/admin/monthly-plan/plans/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteMonthlyPlanAdmin);
 adminRouter.get("/admin/monthly-plan/meals", adminController.listMealLibraryAdmin);
 adminRouter.put(
   "/admin/monthly-plan/meals/:id",
