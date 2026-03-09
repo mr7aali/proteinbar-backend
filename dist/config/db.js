@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.connectDb = connectDb;
 const mongoose_1 = __importDefault(require("mongoose"));
 const env_1 = require("./env");
+const dns_1 = __importDefault(require("dns"));
+dns_1.default.setServers(["4.4.4.4", "8.8.8.8"]);
 async function connectDb() {
     await mongoose_1.default.connect(env_1.env.MONGODB_URI);
 }

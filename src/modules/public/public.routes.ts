@@ -6,6 +6,8 @@ import { checkoutSchema, contactSchema, storeOrderSchema } from "./public.valida
 export const publicRouter = Router();
 
 publicRouter.get("/menu-categories", publicController.listMenuCategories);
+publicRouter.get("/public/monthly-plan/plans", publicController.listMonthlyPlans);
+publicRouter.get("/public/monthly-plan/plans/:planId", publicController.getMonthlyPlanById);
 publicRouter.get("/monthly-plans/:planId", publicController.getMonthlyPlanById);
 publicRouter.get("/products/:handle", publicController.getProductByHandle);
 publicRouter.post("/contact", validate(contactSchema), publicController.createContactMessage);

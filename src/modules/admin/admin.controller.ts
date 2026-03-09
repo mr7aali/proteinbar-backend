@@ -76,6 +76,46 @@ export const adminController = {
     res.status(204).send();
   }),
 
+  getMonthlyPlanOverview: asyncHandler(async (_req: Request, res: Response) => {
+    const data = await adminService.getMonthlyPlanOverview();
+    res.json({ success: true, data });
+  }),
+  listMonthlyPlanAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.listMonthlyPlanAdmin(req.query as Record<string, string | undefined>);
+    res.json({ success: true, data });
+  }),
+  getMonthlyPlanDetails: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.getMonthlyPlanDetails(req.params.id);
+    res.json({ success: true, data });
+  }),
+  upsertMonthlyPlanDetails: asyncHandler(async (req: Request, res: Response) => {
+    if (req.body?.plan && typeof req.body.plan === "object") {
+      req.body.plan.id = req.params.id;
+    }
+    const data = await adminService.upsertMonthlyPlanDetails(req.body);
+    res.json({ success: true, data });
+  }),
+  archiveMonthlyPlan: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.archiveMonthlyPlan(req.params.id);
+    res.json({ success: true, data });
+  }),
+
+  listMealLibraryAdmin: asyncHandler(async (_req: Request, res: Response) => {
+    const data = await adminService.listMealLibraryAdmin();
+    res.json({ success: true, data });
+  }),
+  upsertMealLibraryAdmin: asyncHandler(async (req: Request, res: Response) => {
+    if (req.body && typeof req.body === "object") {
+      req.body.id = req.params.id;
+    }
+    const data = await adminService.upsertMealLibraryAdmin(req.body);
+    res.json({ success: true, data });
+  }),
+  deleteMealLibraryAdmin: asyncHandler(async (req: Request, res: Response) => {
+    await adminService.deleteMealLibraryAdmin(req.params.id);
+    res.status(204).send();
+  }),
+
   listPlanFlows: asyncHandler(async (_req: Request, res: Response) => {
     const data = await adminService.listPlanFlows();
     res.json({ success: true, data });

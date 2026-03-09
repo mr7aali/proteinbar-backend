@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.planFlowSchema = exports.flowTypeParamSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
+exports.mealLibraryItemSchema = exports.monthlyPlanDetailsUpsertSchema = exports.monthlyPlanDetailsParamSchema = exports.monthlyPlanAdminFiltersSchema = exports.planFlowSchema = exports.flowTypeParamSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
 const zod_1 = require("zod");
 const optionalString = zod_1.z.string().trim().optional();
 exports.mongoIdParamSchema = zod_1.z.object({ id: zod_1.z.string().min(1) });
@@ -86,4 +86,38 @@ exports.planFlowSchema = zod_1.z.object({
         title: zod_1.z.string().min(1)
     }))
         .min(1)
+});
+exports.monthlyPlanAdminFiltersSchema = zod_1.z.object({
+    kind: zod_1.z.enum(["custom", "normal", "all"]).optional(),
+    status: zod_1.z.enum(["draft", "active", "inactive", "archived", "all"]).optional(),
+    search: zod_1.z.string().optional()
+});
+exports.monthlyPlanDetailsParamSchema = zod_1.z.object({
+    id: zod_1.z.string().min(1)
+});
+exports.monthlyPlanDetailsUpsertSchema = zod_1.z.object({
+    plan: zod_1.z
+        .object({
+        id: zod_1.z.string().min(1),
+        title: zod_1.z.string().min(1),
+        description: zod_1.z.string().optional().default(""),
+        planKind: zod_1.z.enum(["custom", "normal"]).optional(),
+        status: zod_1.z.string().optional()
+    })
+        .passthrough(),
+    rules: zod_1.z.object({}).passthrough(),
+    pricing: zod_1.z.object({}).passthrough(),
+    weekAssignments: zod_1.z.array(zod_1.z.unknown()).optional().default([])
+});
+exports.mealLibraryItemSchema = zod_1.z.object({
+    id: zod_1.z.string().min(1),
+    name: zod_1.z.string().min(1),
+    mealType: zod_1.z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]),
+    calories: zod_1.z.number(),
+    protein: zod_1.z.number(),
+    carbs: zod_1.z.number(),
+    fat: zod_1.z.number(),
+    tags: zod_1.z.array(zod_1.z.string()).optional().default([]),
+    status: zod_1.z.enum(["active", "inactive"]),
+    image: zod_1.z.string().optional()
 });
