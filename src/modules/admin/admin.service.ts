@@ -37,6 +37,18 @@ type MealLibraryItemPayload = {
   image?: string;
 };
 
+function normalizeMealImage(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  // Backward-compatibility for bad saved values like "data:image/jpeg;base64AAAA..."
+  if (raw.startsWith("data:image/") && raw.includes(";base64") && !raw.includes(";base64,")) {
+    return raw.replace(/^([^,]*;base64)(.*)$/, "$1,$2");
+  }
+
+  return raw;
+}
+
 function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): MonthlyPlanDetailsPayload {
   const now = new Date().toISOString();
   const weekAssignments = Array.isArray(payload.weekAssignments) ? payload.weekAssignments : [];
@@ -84,7 +96,7 @@ function toMealLibraryItem(row: Record<string, unknown>): MealLibraryItemPayload
     fat: Number(row.fat ?? 0),
     tags: Array.isArray(row.tags) ? row.tags.map((item) => String(item)) : [],
     status: String(row.status ?? "active") === "inactive" ? "inactive" : "active",
-    image: String(row.image ?? "")
+    image: normalizeMealImage(row.image)
   };
 }
 
@@ -533,6 +545,7 @@ export const adminService = {
   },
 
   async upsertMealLibraryAdmin(payload: MealLibraryItemPayload) {
+    const normalizedImage = normalizeMealImage(payload.image);
     const row = await MealLibraryItemModel.findOneAndUpdate(
       { mealId: payload.id },
       {
@@ -545,7 +558,7 @@ export const adminService = {
         fat: Number(payload.fat),
         tags: payload.tags ?? [],
         status: payload.status,
-        image: payload.image ?? ""
+        image: normalizedImage
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     ).lean();
