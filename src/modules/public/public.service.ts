@@ -102,6 +102,7 @@ export const publicService = {
       .map((menuItem) => {
         const row = menuItem as Record<string, unknown>;
         const linkedSkus = Array.isArray(row.linkedProductSkus) ? row.linkedProductSkus : [];
+        const categoryImage = String(row.image ?? "");
 
         const items = linkedSkus
           .map((sku) => productsBySku.get(String(sku)))
@@ -111,13 +112,15 @@ export const publicService = {
             name: String(product.name ?? product.title ?? ""),
             description: buildMenuItemDescription(product),
             priceMad: toPriceNumber(product.priceMad ?? product.price),
-            calories: Number(product.kcal ?? 0)
+            calories: Number(product.kcal ?? 0),
+            image: String(product.image ?? product.imageUrl ?? categoryImage)
           }));
 
         return {
           categoryId: String(row.menuId ?? row._id ?? ""),
           name: String(row.title ?? row.menuId ?? "Menu"),
           description: String(row.title ?? ""),
+          image: categoryImage,
           items
         };
       })

@@ -29,7 +29,7 @@ adminRouter.delete("/products/:id", adminController.deleteProduct);
 
 adminRouter.get("/menu-items", adminController.listMenuItems);
 adminRouter.post("/menu-items", validate(menuItemSchema), adminController.createMenuItem);
-adminRouter.patch("/menu-items/:id", validate(menuItemSchema.partial()), adminController.updateMenuItem);
+adminRouter.patch("/menu-items/:id", validate(menuItemSchema), adminController.updateMenuItem);
 adminRouter.delete("/menu-items/:id", adminController.deleteMenuItem);
 
 adminRouter.get("/locations", adminController.listLocations);

@@ -22,6 +22,7 @@ const MenuItemSchema = new Schema(
   {
     menuId: { type: String, required: true, unique: true, trim: true },
     title: { type: String, required: true, trim: true },
+    image: { type: String, required: true, trim: true },
     linkedProductSkus: { type: [String], default: [] },
     visibleDays: { type: [String], default: [] },
     timeSlots: { type: [String], default: [] },
