@@ -52,6 +52,7 @@ const ProductSchema = new mongoose_1.Schema({
 const MenuItemSchema = new mongoose_1.Schema({
     menuId: { type: String, required: true, unique: true, trim: true },
     title: { type: String, required: true, trim: true },
+    image: { type: String, required: true, trim: true },
     linkedProductSkus: { type: [String], default: [] },
     visibleDays: { type: [String], default: [] },
     timeSlots: { type: [String], default: [] },
@@ -80,7 +81,7 @@ const MonthlyPlanSchema = new mongoose_1.Schema({
     isNew: { type: Boolean, default: false },
     description: { type: String, default: "" },
     imageUrl: { type: String, default: "" }
-}, { timestamps: true });
+}, { timestamps: true, suppressReservedKeysWarning: true });
 const MonthlyPlanDetailsSchema = new mongoose_1.Schema({
     planId: { type: String, required: true, unique: true, trim: true },
     planKind: { type: String, default: "normal", trim: true },

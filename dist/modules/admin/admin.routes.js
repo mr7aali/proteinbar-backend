@@ -13,7 +13,7 @@ exports.adminRouter.patch("/products/:id", (0, validate_1.validate)(admin_valida
 exports.adminRouter.delete("/products/:id", admin_controller_1.adminController.deleteProduct);
 exports.adminRouter.get("/menu-items", admin_controller_1.adminController.listMenuItems);
 exports.adminRouter.post("/menu-items", (0, validate_1.validate)(admin_validation_1.menuItemSchema), admin_controller_1.adminController.createMenuItem);
-exports.adminRouter.patch("/menu-items/:id", (0, validate_1.validate)(admin_validation_1.menuItemSchema.partial()), admin_controller_1.adminController.updateMenuItem);
+exports.adminRouter.patch("/menu-items/:id", (0, validate_1.validate)(admin_validation_1.menuItemSchema), admin_controller_1.adminController.updateMenuItem);
 exports.adminRouter.delete("/menu-items/:id", admin_controller_1.adminController.deleteMenuItem);
 exports.adminRouter.get("/locations", admin_controller_1.adminController.listLocations);
 exports.adminRouter.post("/locations", (0, validate_1.validate)(admin_validation_1.locationSchema), admin_controller_1.adminController.createLocation);
@@ -28,6 +28,7 @@ exports.adminRouter.get("/admin/monthly-plan/plans", (0, validate_1.validate)(ad
 exports.adminRouter.get("/admin/monthly-plan/plans/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.getMonthlyPlanDetails);
 exports.adminRouter.put("/admin/monthly-plan/plans/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsUpsertSchema), admin_controller_1.adminController.upsertMonthlyPlanDetails);
 exports.adminRouter.patch("/admin/monthly-plan/plans/:id/archive", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.archiveMonthlyPlan);
+exports.adminRouter.delete("/admin/monthly-plan/plans/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.deleteMonthlyPlanAdmin);
 exports.adminRouter.get("/admin/monthly-plan/meals", admin_controller_1.adminController.listMealLibraryAdmin);
 exports.adminRouter.put("/admin/monthly-plan/meals/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), (0, validate_1.validate)(admin_validation_1.mealLibraryItemSchema), admin_controller_1.adminController.upsertMealLibraryAdmin);
 exports.adminRouter.delete("/admin/monthly-plan/meals/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.deleteMealLibraryAdmin);
@@ -38,10 +39,12 @@ exports.adminRouter.post("/ingredients", (0, validate_1.validate)(admin_validati
 exports.adminRouter.patch("/ingredients/:id", (0, validate_1.validate)(admin_validation_1.ingredientSchema.partial()), admin_controller_1.adminController.updateIngredient);
 exports.adminRouter.delete("/ingredients/:id", admin_controller_1.adminController.deleteIngredient);
 exports.adminRouter.get("/orders", admin_controller_1.adminController.listOrders);
+exports.adminRouter.get("/orders/:id", (0, validate_1.validate)(admin_validation_1.mongoIdParamSchema, "params"), admin_controller_1.adminController.getOrderById);
 exports.adminRouter.patch("/orders/:id", (0, validate_1.validate)(admin_validation_1.orderUpdateSchema), admin_controller_1.adminController.updateOrder);
 exports.adminRouter.get("/orders-of-day", admin_controller_1.adminController.listOrdersOfDay);
 exports.adminRouter.get("/printing", admin_controller_1.adminController.listPrintableOrders);
 exports.adminRouter.get("/subscriptions", admin_controller_1.adminController.listSubscriptions);
+exports.adminRouter.get("/subscriptions/:id", (0, validate_1.validate)(admin_validation_1.mongoIdParamSchema, "params"), admin_controller_1.adminController.getSubscriptionById);
 exports.adminRouter.patch("/subscriptions/:id", (0, validate_1.validate)(admin_validation_1.subscriptionUpdateSchema), admin_controller_1.adminController.updateSubscription);
 exports.adminRouter.get("/notifications", admin_controller_1.adminController.listNotifications);
 exports.adminRouter.delete("/notifications/:id", admin_controller_1.adminController.deleteNotification);

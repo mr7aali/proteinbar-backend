@@ -95,6 +95,10 @@ exports.adminController = {
         const data = await admin_service_1.adminService.archiveMonthlyPlan(req.params.id);
         res.json({ success: true, data });
     }),
+    deleteMonthlyPlanAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deleteMonthlyPlanAdmin(req.params.id);
+        res.json({ success: true, data });
+    }),
     listMealLibraryAdmin: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await admin_service_1.adminService.listMealLibraryAdmin();
         res.json({ success: true, data });
@@ -138,12 +142,20 @@ exports.adminController = {
         const data = await admin_service_1.adminService.listOrders(req.query);
         res.json({ success: true, data });
     }),
+    getOrderById: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.getOrderById(req.params.id);
+        res.json({ success: true, data });
+    }),
     updateOrder: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const data = await admin_service_1.adminService.updateOrder(req.params.id, req.body);
         res.json({ success: true, data });
     }),
     listSubscriptions: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await admin_service_1.adminService.listSubscriptions();
+        res.json({ success: true, data });
+    }),
+    getSubscriptionById: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.getSubscriptionById(req.params.id);
         res.json({ success: true, data });
     }),
     updateSubscription: (0, asyncHandler_1.asyncHandler)(async (req, res) => {

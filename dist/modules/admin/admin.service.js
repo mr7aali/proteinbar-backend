@@ -1,8 +1,23 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminService = void 0;
+const mongoose_1 = require("mongoose");
 const AppError_1 = require("../../common/utils/AppError");
+const cloudinary_1 = require("../../common/utils/cloudinary");
 const admin_model_1 = require("./admin.model");
+function normalizeMealImage(value) {
+    return (0, cloudinary_1.normalizeImageInput)(value);
+}
+async function uploadImageField(payload, options) {
+    const imageSource = payload[options.sourceKey] ??
+        (options.fallbackKey ? payload[options.fallbackKey] : undefined);
+    if (imageSource === undefined)
+        return payload;
+    return {
+        ...payload,
+        [options.targetKey]: await (0, cloudinary_1.uploadImageIfNeeded)(imageSource, { folder: options.folder })
+    };
+}
 function normalizePlanDetailsPayload(payload) {
     const now = new Date().toISOString();
     const weekAssignments = Array.isArray(payload.weekAssignments) ? payload.weekAssignments : [];
@@ -14,6 +29,9 @@ function normalizePlanDetailsPayload(payload) {
         status: payload.plan.status ?? "draft",
         title: String(payload.plan.title ?? ""),
         description: String(payload.plan.description ?? ""),
+        ...(Object.prototype.hasOwnProperty.call(payload.plan, "image")
+            ? { image: (0, cloudinary_1.normalizeImageInput)(payload.plan.image) }
+            : {}),
         updatedAt: now,
         createdAt: String(payload.plan.createdAt ?? now),
         weekAssignmentIds: weekAssignments
@@ -28,8 +46,14 @@ function normalizePlanDetailsPayload(payload) {
     };
 }
 function toMonthlyPlanDetailsPayload(row) {
+    const plan = (row.plan ?? { id: String(row.planId ?? "") });
     return {
-        plan: row.plan ?? { id: String(row.planId ?? "") },
+        plan: {
+            ...plan,
+            ...(Object.prototype.hasOwnProperty.call(plan, "image")
+                ? { image: (0, cloudinary_1.normalizeImageInput)(plan.image) }
+                : {})
+        },
         rules: row.rules ?? {},
         pricing: row.pricing ?? {},
         weekAssignments: row.weekAssignments ?? []
@@ -46,7 +70,7 @@ function toMealLibraryItem(row) {
         fat: Number(row.fat ?? 0),
         tags: Array.isArray(row.tags) ? row.tags.map((item) => String(item)) : [],
         status: String(row.status ?? "active") === "inactive" ? "inactive" : "active",
-        image: String(row.image ?? "")
+        image: normalizeMealImage(row.image)
     };
 }
 function toPlanStatus(value) {
@@ -60,7 +84,7 @@ function buildDefaultMonthlyPlanDetails(raw) {
     const id = String(raw.planId ?? raw.id ?? "");
     const title = String(raw.name ?? raw.title ?? "Monthly Plan");
     const description = String(raw.description ?? "");
-    const image = String(raw.imageUrl ?? raw.image ?? "");
+    const image = (0, cloudinary_1.normalizeImageInput)(raw.imageUrl ?? raw.image ?? "");
     const isCustom = String(raw.type ?? "").trim().toLowerCase() === "custom" ||
         id.toLowerCase().includes("custom") ||
         title.toLowerCase().includes("custom");
@@ -142,9 +166,11 @@ async function ensureMonthlyPlanDetails(planId) {
     const existing = await admin_model_1.MonthlyPlanDetailsModel.findOne({ planId }).lean();
     if (existing)
         return existing;
-    const legacy = await admin_model_1.MonthlyPlanModel.findOne({
-        $or: [{ planId }, { _id: planId }]
-    }).lean();
+    const legacy = (0, mongoose_1.isValidObjectId)(planId)
+        ? await admin_model_1.MonthlyPlanModel.findOne({
+            $or: [{ planId }, { _id: planId }]
+        }).lean()
+        : await admin_model_1.MonthlyPlanModel.findOne({ planId }).lean();
     if (!legacy)
         return null;
     const payload = buildDefaultMonthlyPlanDetails(legacy);
@@ -217,7 +243,7 @@ function formatProduct(raw) {
         title: name,
         description: String(raw.description ?? raw.category ?? ""),
         priceMad: toPriceNumber(raw.priceMad ?? raw.price),
-        image: String(raw.image ?? raw.imageUrl ?? "")
+        image: (0, cloudinary_1.normalizeImageInput)(raw.image ?? raw.imageUrl ?? "")
     };
 }
 async function ensurePlanFlowsSeeded() {
@@ -259,11 +285,23 @@ exports.adminService = {
         return rows.map((row) => formatProduct(row));
     },
     async createProduct(payload) {
-        const row = await admin_model_1.ProductModel.create(payload);
+        const normalizedPayload = await uploadImageField(payload, {
+            sourceKey: "imageUrl",
+            fallbackKey: "image",
+            targetKey: "imageUrl",
+            folder: "proteinbar/products"
+        });
+        const row = await admin_model_1.ProductModel.create(normalizedPayload);
         return formatProduct(row.toObject());
     },
     async updateProduct(id, payload) {
-        const row = await admin_model_1.ProductModel.findByIdAndUpdate(id, payload, { new: true });
+        const normalizedPayload = await uploadImageField(payload, {
+            sourceKey: "imageUrl",
+            fallbackKey: "image",
+            targetKey: "imageUrl",
+            folder: "proteinbar/products"
+        });
+        const row = await admin_model_1.ProductModel.findByIdAndUpdate(id, normalizedPayload, { new: true });
         if (!row)
             throw new AppError_1.AppError(404, "Product not found");
         return formatProduct(row.toObject());
@@ -274,13 +312,30 @@ exports.adminService = {
             throw new AppError_1.AppError(404, "Product not found");
     },
     async listMenuItems() {
-        return admin_model_1.MenuItemModel.find().sort({ priority: 1, createdAt: -1 }).lean();
+        const rows = await admin_model_1.MenuItemModel.find().sort({ priority: 1, createdAt: -1 }).lean();
+        return rows.map((row) => {
+            const item = row;
+            return {
+                ...item,
+                image: (0, cloudinary_1.normalizeImageInput)(item.image)
+            };
+        });
     },
     async createMenuItem(payload) {
-        return admin_model_1.MenuItemModel.create(payload);
+        const normalizedPayload = await uploadImageField(payload, {
+            sourceKey: "image",
+            targetKey: "image",
+            folder: "proteinbar/menu-items"
+        });
+        return admin_model_1.MenuItemModel.create(normalizedPayload);
     },
     async updateMenuItem(id, payload) {
-        const row = await admin_model_1.MenuItemModel.findByIdAndUpdate(id, payload, { new: true });
+        const normalizedPayload = await uploadImageField(payload, {
+            sourceKey: "image",
+            targetKey: "image",
+            folder: "proteinbar/menu-items"
+        });
+        const row = await admin_model_1.MenuItemModel.findByIdAndUpdate(id, normalizedPayload, { new: true });
         if (!row)
             throw new AppError_1.AppError(404, "Menu item not found");
         return row;
@@ -308,13 +363,32 @@ exports.adminService = {
             throw new AppError_1.AppError(404, "Location not found");
     },
     async listMonthlyPlans() {
-        return admin_model_1.MonthlyPlanModel.find().sort({ createdAt: -1 }).lean();
+        const rows = await admin_model_1.MonthlyPlanModel.find().sort({ createdAt: -1 }).lean();
+        return rows.map((row) => {
+            const item = row;
+            return {
+                ...item,
+                imageUrl: (0, cloudinary_1.normalizeImageInput)(item.imageUrl)
+            };
+        });
     },
     async createMonthlyPlan(payload) {
-        return admin_model_1.MonthlyPlanModel.create(payload);
+        const normalizedPayload = await uploadImageField(payload, {
+            sourceKey: "imageUrl",
+            fallbackKey: "image",
+            targetKey: "imageUrl",
+            folder: "proteinbar/monthly-plans"
+        });
+        return admin_model_1.MonthlyPlanModel.create(normalizedPayload);
     },
     async updateMonthlyPlan(id, payload) {
-        const row = await admin_model_1.MonthlyPlanModel.findByIdAndUpdate(id, payload, { new: true });
+        const normalizedPayload = await uploadImageField(payload, {
+            sourceKey: "imageUrl",
+            fallbackKey: "image",
+            targetKey: "imageUrl",
+            folder: "proteinbar/monthly-plans"
+        });
+        const row = await admin_model_1.MonthlyPlanModel.findByIdAndUpdate(id, normalizedPayload, { new: true });
         if (!row)
             throw new AppError_1.AppError(404, "Plan not found");
         return row;
@@ -392,6 +466,13 @@ exports.adminService = {
         const planId = normalized.plan.id;
         if (!planId)
             throw new AppError_1.AppError(400, "Plan id is required");
+        const hasPlanImage = Object.prototype.hasOwnProperty.call(normalized.plan, "image");
+        if (hasPlanImage) {
+            normalized.plan = {
+                ...normalized.plan,
+                image: await (0, cloudinary_1.uploadImageIfNeeded)(normalized.plan.image, { folder: "proteinbar/monthly-plans" })
+            };
+        }
         const row = await admin_model_1.MonthlyPlanDetailsModel.findOneAndUpdate({ planId }, {
             planId,
             planKind: normalized.plan.planKind,
@@ -428,12 +509,28 @@ exports.adminService = {
             status: "archived"
         };
     },
+    async deleteMonthlyPlanAdmin(planId) {
+        const deletedDetails = await admin_model_1.MonthlyPlanDetailsModel.findOneAndDelete({ planId });
+        const deletedLegacyByPlanId = await admin_model_1.MonthlyPlanModel.findOneAndDelete({ planId });
+        let deletedLegacyById = null;
+        if (!deletedLegacyByPlanId && (0, mongoose_1.isValidObjectId)(planId)) {
+            deletedLegacyById = await admin_model_1.MonthlyPlanModel.findByIdAndDelete(planId);
+        }
+        if (!deletedDetails && !deletedLegacyByPlanId && !deletedLegacyById) {
+            throw new AppError_1.AppError(404, "Plan not found");
+        }
+        return { id: planId };
+    },
     async listMealLibraryAdmin() {
         const rows = await admin_model_1.MealLibraryItemModel.find().sort({ name: 1 }).lean();
         return rows.map((row) => toMealLibraryItem(row));
     },
     async upsertMealLibraryAdmin(payload) {
-        const row = await admin_model_1.MealLibraryItemModel.findOneAndUpdate({ mealId: payload.id }, {
+        const hasImage = payload.image !== undefined;
+        const normalizedImage = hasImage
+            ? await (0, cloudinary_1.uploadImageIfNeeded)(normalizeMealImage(payload.image), { folder: "proteinbar/meals" })
+            : undefined;
+        const updatePayload = {
             mealId: payload.id,
             name: payload.name.trim(),
             mealType: payload.mealType,
@@ -442,9 +539,12 @@ exports.adminService = {
             carbs: Number(payload.carbs),
             fat: Number(payload.fat),
             tags: payload.tags ?? [],
-            status: payload.status,
-            image: payload.image ?? ""
-        }, { new: true, upsert: true, setDefaultsOnInsert: true }).lean();
+            status: payload.status
+        };
+        if (hasImage) {
+            updatePayload.image = normalizedImage;
+        }
+        const row = await admin_model_1.MealLibraryItemModel.findOneAndUpdate({ mealId: payload.id }, updatePayload, { new: true, upsert: true, setDefaultsOnInsert: true }).lean();
         return toMealLibraryItem(row);
     },
     async deleteMealLibraryAdmin(id) {
@@ -453,7 +553,7 @@ exports.adminService = {
             throw new AppError_1.AppError(404, "Meal not found");
     },
     async listPublicMonthlyPlans() {
-        const rows = await admin_model_1.MonthlyPlanDetailsModel.find({ status: "active" }).sort({ updatedAt: -1 }).lean();
+        const rows = await admin_model_1.MonthlyPlanDetailsModel.find({ status: { $ne: "archived" } }).sort({ updatedAt: -1 }).lean();
         if (rows.length > 0) {
             return rows.map((row) => toMonthlyPlanDetailsPayload(row).plan);
         }
@@ -468,7 +568,7 @@ exports.adminService = {
             if (!migrated)
                 continue;
             const plan = toMonthlyPlanDetailsPayload(migrated).plan;
-            if (String(plan.status ?? "") === "active") {
+            if (String(plan.status ?? "") !== "archived") {
                 plans.push(plan);
             }
         }
@@ -479,7 +579,7 @@ exports.adminService = {
         if (!row)
             throw new AppError_1.AppError(404, "Monthly plan not found");
         const details = toMonthlyPlanDetailsPayload(row);
-        if (String(details.plan.status ?? "") !== "active") {
+        if (String(details.plan.status ?? "") === "archived") {
             throw new AppError_1.AppError(404, "Monthly plan not found");
         }
         const mealRows = await admin_model_1.MealLibraryItemModel.find({ status: "active" }).lean();
@@ -536,6 +636,12 @@ exports.adminService = {
             query.date = { $regex: filters.date, $options: "i" };
         return admin_model_1.OrderModel.find(query).sort({ createdAt: -1 }).lean();
     },
+    async getOrderById(id) {
+        const order = await admin_model_1.OrderModel.findById(id).lean();
+        if (!order)
+            throw new AppError_1.AppError(404, "Order not found");
+        return order;
+    },
     async updateOrder(id, patch) {
         const order = await admin_model_1.OrderModel.findById(id);
         if (!order)
@@ -559,6 +665,12 @@ exports.adminService = {
     },
     async listSubscriptions() {
         return admin_model_1.SubscriptionModel.find().sort({ createdAt: -1 }).lean();
+    },
+    async getSubscriptionById(id) {
+        const subscription = await admin_model_1.SubscriptionModel.findById(id).lean();
+        if (!subscription)
+            throw new AppError_1.AppError(404, "Subscription not found");
+        return subscription;
     },
     async updateSubscription(id, patch) {
         const subscription = await admin_model_1.SubscriptionModel.findById(id);

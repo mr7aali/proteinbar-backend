@@ -21,6 +21,7 @@ exports.productSchema = zod_1.z.object({
 exports.menuItemSchema = zod_1.z.object({
     menuId: zod_1.z.string().min(1),
     title: zod_1.z.string().min(1),
+    image: zod_1.z.string().min(1),
     linkedProductSkus: zod_1.z.array(zod_1.z.string()).optional().default([]),
     visibleDays: zod_1.z.array(zod_1.z.string()).optional().default([]),
     timeSlots: zod_1.z.array(zod_1.z.string()).optional().default([]),
