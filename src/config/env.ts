@@ -9,7 +9,11 @@ const envSchema = z.object({
   MONGODB_URI: z.string().min(1),
   JWT_SECRET: z.string().min(8),
   JWT_EXPIRES_IN: z.string().default("7d"),
-  FRONTEND_ORIGINS: z.string().default("http://localhost:3000,http://localhost:3001")
+  FRONTEND_ORIGINS: z.string().default("http://localhost:3000,http://localhost:3001"),
+  CLOUDINARY_CLOUD_NAME: z.string().optional().default(""),
+  CLOUDINARY_API_KEY: z.string().optional().default(""),
+  CLOUDINARY_API_SECRET: z.string().optional().default(""),
+  CLOUDINARY_FOLDER: z.string().default("proteinbar")
 });
 
 const parsed = envSchema.safeParse(process.env);

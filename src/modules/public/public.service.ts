@@ -1,4 +1,5 @@
 import { AppError } from "../../common/utils/AppError";
+import { normalizeImageInput } from "../../common/utils/cloudinary";
 import { OrderModel, SubscriptionModel } from "../admin/admin.model";
 import { adminService } from "../admin/admin.service";
 import {
@@ -102,7 +103,7 @@ export const publicService = {
       .map((menuItem) => {
         const row = menuItem as Record<string, unknown>;
         const linkedSkus = Array.isArray(row.linkedProductSkus) ? row.linkedProductSkus : [];
-        const categoryImage = String(row.image ?? "");
+        const categoryImage = normalizeImageInput(row.image);
 
         const items = linkedSkus
           .map((sku) => productsBySku.get(String(sku)))
@@ -113,7 +114,7 @@ export const publicService = {
             description: buildMenuItemDescription(product),
             priceMad: toPriceNumber(product.priceMad ?? product.price),
             calories: Number(product.kcal ?? 0),
-            image: String(product.image ?? product.imageUrl ?? categoryImage)
+            image: normalizeImageInput(product.image ?? product.imageUrl ?? categoryImage)
           }));
 
         return {
