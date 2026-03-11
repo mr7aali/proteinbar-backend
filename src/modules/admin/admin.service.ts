@@ -1,5 +1,6 @@
 import { FilterQuery, isValidObjectId } from "mongoose";
 import { AppError } from "../../common/utils/AppError";
+import { normalizeImageInput, uploadImageIfNeeded } from "../../common/utils/cloudinary";
 import {
   MealLibraryItemModel,
   IngredientModel,
@@ -37,6 +38,26 @@ type MealLibraryItemPayload = {
   image?: string;
 };
 
+function normalizeMealImage(value: unknown) {
+  return normalizeImageInput(value);
+}
+
+async function uploadImageField(
+  payload: Record<string, unknown>,
+  options: { sourceKey: string; fallbackKey?: string; targetKey: string; folder: string }
+) {
+  const imageSource =
+    payload[options.sourceKey] ??
+    (options.fallbackKey ? payload[options.fallbackKey] : undefined);
+
+  if (imageSource === undefined) return payload;
+
+  return {
+    ...payload,
+    [options.targetKey]: await uploadImageIfNeeded(imageSource, { folder: options.folder })
+  };
+}
+
 function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): MonthlyPlanDetailsPayload {
   const now = new Date().toISOString();
   const weekAssignments = Array.isArray(payload.weekAssignments) ? payload.weekAssignments : [];
@@ -49,6 +70,9 @@ function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): Monthl
     status: (payload.plan.status as PlanStatus | undefined) ?? "draft",
     title: String(payload.plan.title ?? ""),
     description: String(payload.plan.description ?? ""),
+    ...(Object.prototype.hasOwnProperty.call(payload.plan, "image")
+      ? { image: normalizeImageInput(payload.plan.image) }
+      : {}),
     updatedAt: now,
     createdAt: String(payload.plan.createdAt ?? now),
     weekAssignmentIds: weekAssignments
@@ -65,8 +89,15 @@ function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): Monthl
 }
 
 function toMonthlyPlanDetailsPayload(row: Record<string, unknown>): MonthlyPlanDetailsPayload {
+  const plan = ((row.plan as MonthlyPlanDetailsPayload["plan"]) ?? { id: String(row.planId ?? "") }) as MonthlyPlanDetailsPayload["plan"];
+
   return {
-    plan: (row.plan as MonthlyPlanDetailsPayload["plan"]) ?? { id: String(row.planId ?? "") },
+    plan: {
+      ...plan,
+      ...(Object.prototype.hasOwnProperty.call(plan, "image")
+        ? { image: normalizeImageInput(plan.image) }
+        : {})
+    },
     rules: (row.rules as Record<string, unknown>) ?? {},
     pricing: (row.pricing as Record<string, unknown>) ?? {},
     weekAssignments: (row.weekAssignments as Array<Record<string, unknown>>) ?? []
@@ -84,7 +115,7 @@ function toMealLibraryItem(row: Record<string, unknown>): MealLibraryItemPayload
     fat: Number(row.fat ?? 0),
     tags: Array.isArray(row.tags) ? row.tags.map((item) => String(item)) : [],
     status: String(row.status ?? "active") === "inactive" ? "inactive" : "active",
-    image: String(row.image ?? "")
+    image: normalizeMealImage(row.image)
   };
 }
 
@@ -100,7 +131,7 @@ function buildDefaultMonthlyPlanDetails(raw: Record<string, unknown>): MonthlyPl
   const id = String(raw.planId ?? raw.id ?? "");
   const title = String(raw.name ?? raw.title ?? "Monthly Plan");
   const description = String(raw.description ?? "");
-  const image = String(raw.imageUrl ?? raw.image ?? "");
+  const image = normalizeImageInput(raw.imageUrl ?? raw.image ?? "");
   const isCustom =
     String(raw.type ?? "").trim().toLowerCase() === "custom" ||
     id.toLowerCase().includes("custom") ||
@@ -270,7 +301,7 @@ function formatProduct(raw: Record<string, unknown>) {
     title: name,
     description: String(raw.description ?? raw.category ?? ""),
     priceMad: toPriceNumber(raw.priceMad ?? raw.price),
-    image: String(raw.image ?? raw.imageUrl ?? "")
+    image: normalizeImageInput(raw.image ?? raw.imageUrl ?? "")
   };
 }
 
@@ -318,11 +349,23 @@ export const adminService = {
     return rows.map((row) => formatProduct(row as unknown as Record<string, unknown>));
   },
   async createProduct(payload: Record<string, unknown>) {
-    const row = await ProductModel.create(payload);
+    const normalizedPayload = await uploadImageField(payload, {
+      sourceKey: "imageUrl",
+      fallbackKey: "image",
+      targetKey: "imageUrl",
+      folder: "proteinbar/products"
+    });
+    const row = await ProductModel.create(normalizedPayload);
     return formatProduct(row.toObject() as Record<string, unknown>);
   },
   async updateProduct(id: string, payload: Record<string, unknown>) {
-    const row = await ProductModel.findByIdAndUpdate(id, payload, { new: true });
+    const normalizedPayload = await uploadImageField(payload, {
+      sourceKey: "imageUrl",
+      fallbackKey: "image",
+      targetKey: "imageUrl",
+      folder: "proteinbar/products"
+    });
+    const row = await ProductModel.findByIdAndUpdate(id, normalizedPayload, { new: true });
     if (!row) throw new AppError(404, "Product not found");
     return formatProduct(row.toObject() as Record<string, unknown>);
   },
@@ -332,13 +375,30 @@ export const adminService = {
   },
 
   async listMenuItems() {
-    return MenuItemModel.find().sort({ priority: 1, createdAt: -1 }).lean();
+    const rows = await MenuItemModel.find().sort({ priority: 1, createdAt: -1 }).lean();
+    return rows.map((row) => {
+      const item = row as unknown as Record<string, unknown>;
+      return {
+        ...item,
+        image: normalizeImageInput(item.image)
+      };
+    });
   },
   async createMenuItem(payload: Record<string, unknown>) {
-    return MenuItemModel.create(payload);
+    const normalizedPayload = await uploadImageField(payload, {
+      sourceKey: "image",
+      targetKey: "image",
+      folder: "proteinbar/menu-items"
+    });
+    return MenuItemModel.create(normalizedPayload);
   },
   async updateMenuItem(id: string, payload: Record<string, unknown>) {
-    const row = await MenuItemModel.findByIdAndUpdate(id, payload, { new: true });
+    const normalizedPayload = await uploadImageField(payload, {
+      sourceKey: "image",
+      targetKey: "image",
+      folder: "proteinbar/menu-items"
+    });
+    const row = await MenuItemModel.findByIdAndUpdate(id, normalizedPayload, { new: true });
     if (!row) throw new AppError(404, "Menu item not found");
     return row;
   },
@@ -364,13 +424,32 @@ export const adminService = {
   },
 
   async listMonthlyPlans() {
-    return MonthlyPlanModel.find().sort({ createdAt: -1 }).lean();
+    const rows = await MonthlyPlanModel.find().sort({ createdAt: -1 }).lean();
+    return rows.map((row) => {
+      const item = row as unknown as Record<string, unknown>;
+      return {
+        ...item,
+        imageUrl: normalizeImageInput(item.imageUrl)
+      };
+    });
   },
   async createMonthlyPlan(payload: Record<string, unknown>) {
-    return MonthlyPlanModel.create(payload);
+    const normalizedPayload = await uploadImageField(payload, {
+      sourceKey: "imageUrl",
+      fallbackKey: "image",
+      targetKey: "imageUrl",
+      folder: "proteinbar/monthly-plans"
+    });
+    return MonthlyPlanModel.create(normalizedPayload);
   },
   async updateMonthlyPlan(id: string, payload: Record<string, unknown>) {
-    const row = await MonthlyPlanModel.findByIdAndUpdate(id, payload, { new: true });
+    const normalizedPayload = await uploadImageField(payload, {
+      sourceKey: "imageUrl",
+      fallbackKey: "image",
+      targetKey: "imageUrl",
+      folder: "proteinbar/monthly-plans"
+    });
+    const row = await MonthlyPlanModel.findByIdAndUpdate(id, normalizedPayload, { new: true });
     if (!row) throw new AppError(404, "Plan not found");
     return row;
   },
@@ -457,6 +536,14 @@ export const adminService = {
 
     if (!planId) throw new AppError(400, "Plan id is required");
 
+    const hasPlanImage = Object.prototype.hasOwnProperty.call(normalized.plan, "image");
+    if (hasPlanImage) {
+      normalized.plan = {
+        ...normalized.plan,
+        image: await uploadImageIfNeeded(normalized.plan.image, { folder: "proteinbar/monthly-plans" })
+      };
+    }
+
     const row = await MonthlyPlanDetailsModel.findOneAndUpdate(
       { planId },
       {
@@ -533,20 +620,27 @@ export const adminService = {
   },
 
   async upsertMealLibraryAdmin(payload: MealLibraryItemPayload) {
+    const hasImage = payload.image !== undefined;
+    const normalizedImage = hasImage
+      ? await uploadImageIfNeeded(normalizeMealImage(payload.image), { folder: "proteinbar/meals" })
+      : undefined;
+    const updatePayload: Record<string, unknown> = {
+      mealId: payload.id,
+      name: payload.name.trim(),
+      mealType: payload.mealType,
+      calories: Number(payload.calories),
+      protein: Number(payload.protein),
+      carbs: Number(payload.carbs),
+      fat: Number(payload.fat),
+      tags: payload.tags ?? [],
+      status: payload.status
+    };
+    if (hasImage) {
+      updatePayload.image = normalizedImage;
+    }
     const row = await MealLibraryItemModel.findOneAndUpdate(
       { mealId: payload.id },
-      {
-        mealId: payload.id,
-        name: payload.name.trim(),
-        mealType: payload.mealType,
-        calories: Number(payload.calories),
-        protein: Number(payload.protein),
-        carbs: Number(payload.carbs),
-        fat: Number(payload.fat),
-        tags: payload.tags ?? [],
-        status: payload.status,
-        image: payload.image ?? ""
-      },
+      updatePayload,
       { new: true, upsert: true, setDefaultsOnInsert: true }
     ).lean();
 
@@ -650,6 +744,11 @@ export const adminService = {
 
     return OrderModel.find(query).sort({ createdAt: -1 }).lean();
   },
+  async getOrderById(id: string) {
+    const order = await OrderModel.findById(id).lean();
+    if (!order) throw new AppError(404, "Order not found");
+    return order;
+  },
   async updateOrder(id: string, patch: Record<string, unknown>) {
     const order = await OrderModel.findById(id);
     if (!order) throw new AppError(404, "Order not found");
@@ -679,6 +778,11 @@ export const adminService = {
 
   async listSubscriptions() {
     return SubscriptionModel.find().sort({ createdAt: -1 }).lean();
+  },
+  async getSubscriptionById(id: string) {
+    const subscription = await SubscriptionModel.findById(id).lean();
+    if (!subscription) throw new AppError(404, "Subscription not found");
+    return subscription;
   },
   async updateSubscription(id: string, patch: Record<string, unknown>) {
     const subscription = await SubscriptionModel.findById(id);

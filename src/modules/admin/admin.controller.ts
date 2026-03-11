@@ -150,6 +150,10 @@ export const adminController = {
     const data = await adminService.listOrders(req.query as Record<string, string | undefined>);
     res.json({ success: true, data });
   }),
+  getOrderById: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.getOrderById(req.params.id);
+    res.json({ success: true, data });
+  }),
   updateOrder: asyncHandler(async (req: Request, res: Response) => {
     const data = await adminService.updateOrder(req.params.id, req.body);
     res.json({ success: true, data });
@@ -157,6 +161,10 @@ export const adminController = {
 
   listSubscriptions: asyncHandler(async (_req: Request, res: Response) => {
     const data = await adminService.listSubscriptions();
+    res.json({ success: true, data });
+  }),
+  getSubscriptionById: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.getSubscriptionById(req.params.id);
     res.json({ success: true, data });
   }),
   updateSubscription: asyncHandler(async (req: Request, res: Response) => {

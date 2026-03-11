@@ -22,6 +22,7 @@ export const productSchema = z.object({
 export const menuItemSchema = z.object({
   menuId: z.string().min(1),
   title: z.string().min(1),
+  image: z.string().min(1),
   linkedProductSkus: z.array(z.string()).optional().default([]),
   visibleDays: z.array(z.string()).optional().default([]),
   timeSlots: z.array(z.string()).optional().default([]),

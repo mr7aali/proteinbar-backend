@@ -1,4 +1,6 @@
 import { AppError } from "../../common/utils/AppError";
+import { normalizeImageInput } from "../../common/utils/cloudinary";
+import { OrderModel, SubscriptionModel } from "../admin/admin.model";
 import { adminService } from "../admin/admin.service";
 import {
   ContactMessageModel,
@@ -38,6 +40,26 @@ function toPriceNumber(value: unknown) {
   const normalized = value.replace(/[^0-9.]+/g, "");
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toSafeNumber(value: unknown, fallback = 0) {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseFloat(value)
+        : Number.NaN;
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function toOrderType(optionId: unknown) {
+  const normalized = String(optionId ?? "").toLowerCase();
+  return normalized.includes("pickup") ? "Pickup" : "Delivery";
+}
+
+function formatMoney(value: unknown) {
+  return `$${toSafeNumber(value, 0).toFixed(2)}`;
 }
 
 function buildMenuItemDescription(product: Record<string, unknown>) {
@@ -81,6 +103,7 @@ export const publicService = {
       .map((menuItem) => {
         const row = menuItem as Record<string, unknown>;
         const linkedSkus = Array.isArray(row.linkedProductSkus) ? row.linkedProductSkus : [];
+        const categoryImage = normalizeImageInput(row.image);
 
         const items = linkedSkus
           .map((sku) => productsBySku.get(String(sku)))
@@ -90,13 +113,15 @@ export const publicService = {
             name: String(product.name ?? product.title ?? ""),
             description: buildMenuItemDescription(product),
             priceMad: toPriceNumber(product.priceMad ?? product.price),
-            calories: Number(product.kcal ?? 0)
+            calories: Number(product.kcal ?? 0),
+            image: normalizeImageInput(product.image ?? product.imageUrl ?? categoryImage)
           }));
 
         return {
           categoryId: String(row.menuId ?? row._id ?? ""),
           name: String(row.title ?? row.menuId ?? "Menu"),
           description: String(row.title ?? ""),
+          image: categoryImage,
           items
         };
       })
@@ -143,15 +168,94 @@ export const publicService = {
     const subscriptionId = buildId("SUB");
     const orderId = buildId("ORD");
 
+    const subscriptionPayload = payload.subscription ?? {};
+    const orderPayload = payload.order ?? {};
+    const customer = orderPayload.customer ?? {};
+    const delivery = orderPayload.delivery ?? {};
+    const selection = subscriptionPayload.selection ?? {};
+    const totals = orderPayload.totals ?? {};
+    const selectedMeals = Array.isArray(orderPayload.selectedMeals)
+      ? orderPayload.selectedMeals
+      : [];
+
+    const mealsPerDay = Math.max(1, toSafeNumber(selection.meals, 1));
+    const daysPerWeek = Math.max(1, toSafeNumber(selection.days, 1));
+    const totalWeeks = 4;
+    const totalPlannedMeals = mealsPerDay * daysPerWeek * totalWeeks;
+    const customerName = `${String(customer.firstName ?? "").trim()} ${String(
+      customer.lastName ?? "",
+    ).trim()}`.trim();
+    const locationLabel =
+      String(delivery.pickupLocation?.name ?? "").trim() ||
+      String(customer.area ?? "").trim() ||
+      String(customer.emirate ?? "").trim() ||
+      "N/A";
+
+    // Public-facing records used by checkout success and customer history.
     const subscription = await CustomerSubscriptionModel.create({
       subscriptionId,
-      ...payload.subscription
+      ...subscriptionPayload,
     });
 
     const order = await CustomerOrderModel.create({
       orderId,
       subscriptionId,
-      ...payload.order
+      ...orderPayload,
+    });
+
+    // Admin-facing records so checkouts show in Admin Orders/Subscriptions pages.
+    await SubscriptionModel.create({
+      subscriptionId,
+      client: customerName || "Customer",
+      plan: String(subscriptionPayload.plan?.title ?? "Monthly Plan"),
+      totalWeeks,
+      currentWeek: 1,
+      dayProgress: `0/${daysPerWeek}`,
+      remainingMeals: totalPlannedMeals,
+      status: "active",
+      log: [
+        `Checkout created on ${new Date().toLocaleString("en-US")}`,
+        `Delivery option: ${String(delivery.optionId ?? "n/a")}`,
+      ],
+    });
+
+    await OrderModel.create({
+      orderId,
+      client: customerName || "Customer",
+      phone: String(customer.phone ?? "N/A"),
+      status: "pending",
+      confirmationStatus: "pending",
+      plan: String(subscriptionPayload.plan?.title ?? "Monthly Plan"),
+      orderType: toOrderType(delivery.optionId),
+      location: locationLabel,
+      deliveryAddress: String(delivery.address ?? ""),
+      pickupLocation: String(delivery.pickupLocation?.name ?? ""),
+      payment: "paid",
+      schedule: String(delivery.optionId ?? ""),
+      date: new Date().toISOString().split("T")[0],
+      total: formatMoney(totals.grandTotal),
+      items: selectedMeals.map((item: Record<string, unknown>) => ({
+        name: String(item?.title ?? "Meal"),
+        qty: 1,
+        macros: "-"
+      })),
+      notes: `Customer email: ${String(customer.email ?? "N/A")}`,
+      subscriptionId,
+      subscriptionInfo: `${String(subscriptionPayload.plan?.id ?? "")} / ${String(
+        delivery.optionId ?? "",
+      )}`,
+      subscriptionDetails: {
+        daysPerWeek,
+        durationWeeks: totalWeeks,
+        meals: totalPlannedMeals,
+      },
+      auditLog: [
+        {
+          at: new Date().toLocaleString("en-US"),
+          by: "Checkout API",
+          action: "Order created"
+        }
+      ]
     });
 
     return {
