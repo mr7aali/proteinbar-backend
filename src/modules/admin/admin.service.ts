@@ -663,6 +663,11 @@ export const adminService = {
 
     return OrderModel.find(query).sort({ createdAt: -1 }).lean();
   },
+  async getOrderById(id: string) {
+    const order = await OrderModel.findById(id).lean();
+    if (!order) throw new AppError(404, "Order not found");
+    return order;
+  },
   async updateOrder(id: string, patch: Record<string, unknown>) {
     const order = await OrderModel.findById(id);
     if (!order) throw new AppError(404, "Order not found");
@@ -692,6 +697,11 @@ export const adminService = {
 
   async listSubscriptions() {
     return SubscriptionModel.find().sort({ createdAt: -1 }).lean();
+  },
+  async getSubscriptionById(id: string) {
+    const subscription = await SubscriptionModel.findById(id).lean();
+    if (!subscription) throw new AppError(404, "Subscription not found");
+    return subscription;
   },
   async updateSubscription(id: string, patch: Record<string, unknown>) {
     const subscription = await SubscriptionModel.findById(id);

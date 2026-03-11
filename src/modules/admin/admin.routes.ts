@@ -7,6 +7,7 @@ import {
   locationSchema,
   mealLibraryItemSchema,
   menuItemSchema,
+  mongoIdParamSchema,
   monthlyPlanAdminFiltersSchema,
   monthlyPlanDetailsParamSchema,
   monthlyPlanDetailsUpsertSchema,
@@ -70,11 +71,13 @@ adminRouter.patch("/ingredients/:id", validate(ingredientSchema.partial()), admi
 adminRouter.delete("/ingredients/:id", adminController.deleteIngredient);
 
 adminRouter.get("/orders", adminController.listOrders);
+adminRouter.get("/orders/:id", validate(mongoIdParamSchema, "params"), adminController.getOrderById);
 adminRouter.patch("/orders/:id", validate(orderUpdateSchema), adminController.updateOrder);
 adminRouter.get("/orders-of-day", adminController.listOrdersOfDay);
 adminRouter.get("/printing", adminController.listPrintableOrders);
 
 adminRouter.get("/subscriptions", adminController.listSubscriptions);
+adminRouter.get("/subscriptions/:id", validate(mongoIdParamSchema, "params"), adminController.getSubscriptionById);
 adminRouter.patch("/subscriptions/:id", validate(subscriptionUpdateSchema), adminController.updateSubscription);
 
 adminRouter.get("/notifications", adminController.listNotifications);
