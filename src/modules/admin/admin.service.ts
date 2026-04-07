@@ -12,6 +12,7 @@ import {
   OrderModel,
   PlanFlowModel,
   ProductModel,
+  RestaurantModel,
   SubscriptionModel
 } from "./admin.model";
 
@@ -40,6 +41,54 @@ type MealLibraryItemPayload = {
 
 function normalizeMealImage(value: unknown) {
   return normalizeImageInput(value);
+}
+
+function normalizeStringList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  return value.reduce<string[]>((acc, item) => {
+    const normalized = String(item ?? "").trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) return acc;
+    seen.add(key);
+    acc.push(normalized);
+    return acc;
+  }, []);
+}
+
+function findRestaurantIdByName(
+  restaurantIdByName: Map<string, string>,
+  names: string[]
+) {
+  return names.reduce<string[]>((acc, name) => {
+    const restaurantId = restaurantIdByName.get(name.toLowerCase());
+    if (restaurantId && !acc.includes(restaurantId)) {
+      acc.push(restaurantId);
+    }
+    return acc;
+  }, []);
+}
+
+async function getRestaurantNamesByIds(restaurantIds: string[]) {
+  if (restaurantIds.length === 0) {
+    return [];
+  }
+
+  const restaurants = await RestaurantModel.find(
+    { restaurantId: { $in: restaurantIds } },
+    { restaurantId: 1, name: 1 }
+  ).lean();
+  const restaurantNameById = new Map(
+    restaurants.map((restaurant) => [
+      String((restaurant as Record<string, unknown>).restaurantId ?? ""),
+      String((restaurant as Record<string, unknown>).name ?? "")
+    ])
+  );
+
+  return restaurantIds
+    .map((restaurantId) => restaurantNameById.get(restaurantId) ?? "")
+    .filter(Boolean);
 }
 
 async function uploadImageField(
@@ -375,14 +424,57 @@ export const adminService = {
   },
 
   async listMenuItems() {
-    const rows = await MenuItemModel.find().sort({ priority: 1, createdAt: -1 }).lean();
+    const [rows, restaurants] = await Promise.all([
+      MenuItemModel.find().sort({ priority: 1, createdAt: -1 }).lean(),
+      RestaurantModel.find({}, { restaurantId: 1, name: 1 }).lean()
+    ]);
+    const restaurantNameById = new Map(
+      restaurants.map((restaurant) => [
+        String((restaurant as Record<string, unknown>).restaurantId ?? ""),
+        String((restaurant as Record<string, unknown>).name ?? "")
+      ])
+    );
+    const restaurantIdByName = new Map(
+      restaurants.map((restaurant) => [
+        String((restaurant as Record<string, unknown>).name ?? "").trim().toLowerCase(),
+        String((restaurant as Record<string, unknown>).restaurantId ?? "")
+      ])
+    );
+
     return rows.map((row) => {
       const item = row as unknown as Record<string, unknown>;
+      const legacyRestaurantNames = normalizeStringList(item.restaurants);
+      const restaurantIds = normalizeStringList(item.restaurantIds);
+      const resolvedRestaurantIds =
+        restaurantIds.length > 0
+          ? restaurantIds
+          : findRestaurantIdByName(restaurantIdByName, legacyRestaurantNames);
+      const restaurants = resolvedRestaurantIds
+        .map((restaurantId) => restaurantNameById.get(restaurantId) ?? restaurantId)
+        .filter(Boolean);
+
       return {
         ...item,
-        image: normalizeImageInput(item.image)
+        image: normalizeImageInput(item.image),
+        restaurantIds: resolvedRestaurantIds,
+        restaurants: restaurants.length > 0 ? restaurants : legacyRestaurantNames
       };
     });
+  },
+  async listRestaurants() {
+    return RestaurantModel.find().sort({ createdAt: -1 }).lean();
+  },
+  async createRestaurant(payload: Record<string, unknown>) {
+    return RestaurantModel.create(payload);
+  },
+  async updateRestaurant(id: string, payload: Record<string, unknown>) {
+    const row = await RestaurantModel.findByIdAndUpdate(id, payload, { new: true });
+    if (!row) throw new AppError(404, "Restaurant not found");
+    return row;
+  },
+  async deleteRestaurant(id: string) {
+    const row = await RestaurantModel.findByIdAndDelete(id);
+    if (!row) throw new AppError(404, "Restaurant not found");
   },
   async createMenuItem(payload: Record<string, unknown>) {
     const normalizedPayload = await uploadImageField(payload, {
@@ -390,7 +482,12 @@ export const adminService = {
       targetKey: "image",
       folder: "proteinbar/menu-items"
     });
-    return MenuItemModel.create(normalizedPayload);
+    const restaurantIds = normalizeStringList(normalizedPayload.restaurantIds);
+    return MenuItemModel.create({
+      ...normalizedPayload,
+      restaurantIds,
+      restaurants: await getRestaurantNamesByIds(restaurantIds)
+    });
   },
   async updateMenuItem(id: string, payload: Record<string, unknown>) {
     const normalizedPayload = await uploadImageField(payload, {
@@ -398,7 +495,16 @@ export const adminService = {
       targetKey: "image",
       folder: "proteinbar/menu-items"
     });
-    const row = await MenuItemModel.findByIdAndUpdate(id, normalizedPayload, { new: true });
+    const restaurantIds = normalizeStringList(normalizedPayload.restaurantIds);
+    const row = await MenuItemModel.findByIdAndUpdate(
+      id,
+      {
+        ...normalizedPayload,
+        restaurantIds,
+        restaurants: await getRestaurantNamesByIds(restaurantIds)
+      },
+      { new: true }
+    );
     if (!row) throw new AppError(404, "Menu item not found");
     return row;
   },

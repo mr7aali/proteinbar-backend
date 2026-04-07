@@ -8,6 +8,7 @@ import {
   mealLibraryItemSchema,
   menuItemSchema,
   mongoIdParamSchema,
+  restaurantSchema,
   monthlyPlanAdminFiltersSchema,
   monthlyPlanDetailsParamSchema,
   monthlyPlanDetailsUpsertSchema,
@@ -31,6 +32,11 @@ adminRouter.get("/menu-items", adminController.listMenuItems);
 adminRouter.post("/menu-items", validate(menuItemSchema), adminController.createMenuItem);
 adminRouter.patch("/menu-items/:id", validate(menuItemSchema), adminController.updateMenuItem);
 adminRouter.delete("/menu-items/:id", adminController.deleteMenuItem);
+
+adminRouter.get("/restaurants", adminController.listRestaurants);
+adminRouter.post("/restaurants", validate(restaurantSchema), adminController.createRestaurant);
+adminRouter.patch("/restaurants/:id", validate(restaurantSchema.partial()), adminController.updateRestaurant);
+adminRouter.delete("/restaurants/:id", adminController.deleteRestaurant);
 
 adminRouter.get("/locations", adminController.listLocations);
 adminRouter.post("/locations", validate(locationSchema), adminController.createLocation);

@@ -7,6 +7,10 @@ export const publicController = {
     const data = await publicService.listMenuCategories();
     res.json({ success: true, data });
   }),
+  listRestaurants: asyncHandler(async (_req: Request, res: Response) => {
+    const data = await publicService.listRestaurants();
+    res.json({ success: true, data });
+  }),
   listMonthlyPlans: asyncHandler(async (_req: Request, res: Response) => {
     const data = await publicService.listMonthlyPlans();
     res.json({ success: true, data });

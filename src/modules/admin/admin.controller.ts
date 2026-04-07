@@ -42,6 +42,23 @@ export const adminController = {
     res.status(204).send();
   }),
 
+  listRestaurants: asyncHandler(async (_req: Request, res: Response) => {
+    const data = await adminService.listRestaurants();
+    res.json({ success: true, data });
+  }),
+  createRestaurant: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.createRestaurant(req.body);
+    res.status(201).json({ success: true, data });
+  }),
+  updateRestaurant: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.updateRestaurant(req.params.id, req.body);
+    res.json({ success: true, data });
+  }),
+  deleteRestaurant: asyncHandler(async (req: Request, res: Response) => {
+    await adminService.deleteRestaurant(req.params.id);
+    res.status(204).send();
+  }),
+
   listLocations: asyncHandler(async (_req: Request, res: Response) => {
     const data = await adminService.listLocations();
     res.json({ success: true, data });

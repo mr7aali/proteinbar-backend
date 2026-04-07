@@ -23,6 +23,8 @@ const MenuItemSchema = new Schema(
     menuId: { type: String, required: true, unique: true, trim: true },
     title: { type: String, required: true, trim: true },
     image: { type: String, required: true, trim: true },
+    restaurantIds: { type: [String], default: [] },
+    restaurants: { type: [String], default: [] },
     linkedProductSkus: { type: [String], default: [] },
     visibleDays: { type: [String], default: [] },
     timeSlots: { type: [String], default: [] },
@@ -30,6 +32,18 @@ const MenuItemSchema = new Schema(
     planCompatibility: { type: [String], default: [] },
     priority: { type: Number, default: 1 },
     status: { type: String, default: "Visible" }
+  },
+  { timestamps: true }
+);
+
+const RestaurantSchema = new Schema(
+  {
+    restaurantId: { type: String, required: true, unique: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    address: { type: String, default: "", trim: true },
+    workingDays: { type: [String], default: [] },
+    openingHours: { type: String, default: "", trim: true },
+    status: { type: String, default: "Active", trim: true }
   },
   { timestamps: true }
 );
@@ -199,6 +213,7 @@ const PlanFlowSchema = new Schema(
 
 export const ProductModel = mongoose.model("Product", ProductSchema);
 export const MenuItemModel = mongoose.model("MenuItem", MenuItemSchema);
+export const RestaurantModel = mongoose.model("Restaurant", RestaurantSchema);
 export const LocationModel = mongoose.model("Location", LocationSchema);
 export const MonthlyPlanModel = mongoose.model("MonthlyPlan", MonthlyPlanSchema);
 export const MonthlyPlanDetailsModel = mongoose.model("MonthlyPlanDetails", MonthlyPlanDetailsSchema);

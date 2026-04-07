@@ -23,6 +23,8 @@ export const menuItemSchema = z.object({
   menuId: z.string().min(1),
   title: z.string().min(1),
   image: z.string().min(1),
+  restaurantIds: z.array(z.string()).optional().default([]),
+  restaurants: z.array(z.string()).optional().default([]),
   linkedProductSkus: z.array(z.string()).optional().default([]),
   visibleDays: z.array(z.string()).optional().default([]),
   timeSlots: z.array(z.string()).optional().default([]),
@@ -30,6 +32,15 @@ export const menuItemSchema = z.object({
   planCompatibility: z.array(z.string()).optional().default([]),
   priority: z.number().optional().default(1),
   status: z.string().optional().default("Visible")
+});
+
+export const restaurantSchema = z.object({
+  restaurantId: z.string().min(1),
+  name: z.string().min(1),
+  address: optionalString.default(""),
+  workingDays: z.array(z.string()).optional().default([]),
+  openingHours: optionalString.default(""),
+  status: z.string().optional().default("Active")
 });
 
 export const locationSchema = z.object({
