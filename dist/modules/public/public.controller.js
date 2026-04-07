@@ -8,6 +8,10 @@ exports.publicController = {
         const data = await public_service_1.publicService.listMenuCategories();
         res.json({ success: true, data });
     }),
+    listRestaurants: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await public_service_1.publicService.listRestaurants();
+        res.json({ success: true, data });
+    }),
     listMonthlyPlans: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await public_service_1.publicService.listMonthlyPlans();
         res.json({ success: true, data });

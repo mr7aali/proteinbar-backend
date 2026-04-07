@@ -80,7 +80,17 @@ const CustomerSubscriptionSchema = new mongoose_1.Schema({
         days: { type: String, required: true },
         snacks: { type: String, required: true },
         startDate: { type: String, required: true },
-        planType: { type: String, default: "" }
+        planType: { type: String, default: "" },
+        selectedMeals: {
+            type: [
+                {
+                    id: { type: String, required: true },
+                    title: { type: String, required: true },
+                    date: { type: String, default: "" }
+                }
+            ],
+            default: []
+        }
     },
     delivery: {
         optionId: { type: String, required: true },
@@ -112,6 +122,16 @@ const CustomerOrderSchema = new mongoose_1.Schema({
             name: { type: String, default: "" },
             address: { type: String, default: "" }
         }
+    },
+    selectedMeals: {
+        type: [
+            {
+                id: { type: String, required: true },
+                title: { type: String, required: true },
+                date: { type: String, default: "" }
+            }
+        ],
+        default: []
     },
     totals: {
         subtotal: { type: Number, required: true },

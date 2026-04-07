@@ -7,6 +7,7 @@ const public_controller_1 = require("./public.controller");
 const public_validation_1 = require("./public.validation");
 exports.publicRouter = (0, express_1.Router)();
 exports.publicRouter.get("/menu-categories", public_controller_1.publicController.listMenuCategories);
+exports.publicRouter.get("/restaurants", public_controller_1.publicController.listRestaurants);
 exports.publicRouter.get("/public/monthly-plan/plans", public_controller_1.publicController.listMonthlyPlans);
 exports.publicRouter.get("/public/monthly-plan/plans/:planId", public_controller_1.publicController.getMonthlyPlanById);
 exports.publicRouter.get("/monthly-plans/:planId", public_controller_1.publicController.getMonthlyPlanById);
