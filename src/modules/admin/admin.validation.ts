@@ -46,13 +46,19 @@ export const restaurantSchema = z.object({
 export const locationSchema = z.object({
   locationId: z.string().min(1),
   name: z.string().min(1),
+  type: z.enum(["pickup", "delivery", "both"]).optional().default("both"),
   pickupAddress: z.string().min(1),
+  image: optionalString.default(""),
+  phone: optionalString.default(""),
   mapLink: optionalString.default(""),
+  ratingText: optionalString.default(""),
+  isActive: z.boolean().optional().default(true),
   deliveryZone: optionalString.default("N/A"),
   deliveryFee: optionalString.default("$0.00"),
   workingDays: z.array(z.string()).optional().default([]),
   cutoffTime: optionalString.default("-"),
-  timeSlots: z.array(z.string()).optional().default([])
+  timeSlots: z.array(z.string()).optional().default([]),
+  supportedOptions: z.array(z.string()).optional().default([])
 });
 
 export const monthlyPlanSchema = z.object({

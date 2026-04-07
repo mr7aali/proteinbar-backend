@@ -82,6 +82,39 @@ type CustomPlanFoodItemPayload = {
   sizes: CustomPlanFoodSizePayload[];
 };
 
+function toLocation(row: Record<string, unknown>) {
+  const rawDeliveryFee = row.deliveryFee;
+  const normalizedDeliveryFee =
+    typeof rawDeliveryFee === "number"
+      ? String(rawDeliveryFee)
+      : String(rawDeliveryFee ?? "").trim() || "$0.00";
+
+  return {
+    id: String(row.locationId ?? row.id ?? ""),
+    locationId: String(row.locationId ?? row.id ?? ""),
+    name: String(row.name ?? ""),
+    type:
+      String(row.type ?? "").trim().toLowerCase() === "pickup" ||
+      String(row.type ?? "").trim().toLowerCase() === "delivery"
+        ? String(row.type).trim().toLowerCase()
+        : "both",
+    address: String(row.address ?? row.pickupAddress ?? ""),
+    pickupAddress: String(row.pickupAddress ?? row.address ?? ""),
+    image: normalizeImageInput(row.image ?? row.imageUrl ?? ""),
+    phone: String(row.phone ?? ""),
+    googleMapsUrl: String(row.googleMapsUrl ?? row.mapLink ?? ""),
+    mapLink: String(row.mapLink ?? row.googleMapsUrl ?? ""),
+    ratingText: String(row.ratingText ?? ""),
+    isActive: Boolean(row.isActive ?? true),
+    deliveryZone: String(row.deliveryZone ?? "N/A"),
+    deliveryFee: normalizedDeliveryFee,
+    workingDays: normalizeStringList(row.workingDays),
+    cutoffTime: String(row.cutoffTime ?? "-"),
+    timeSlots: normalizeStringList(row.timeSlots),
+    supportedOptions: normalizeStringList(row.supportedOptions)
+  };
+}
+
 function normalizeMealImage(value: unknown) {
   return normalizeImageInput(value);
 }
@@ -615,18 +648,98 @@ export const adminService = {
   },
 
   async listLocations() {
-    return LocationModel.find().sort({ createdAt: -1 }).lean();
+    const rows = await LocationModel.find().sort({ createdAt: -1 }).lean();
+    return rows.map((row) => toLocation(row as unknown as Record<string, unknown>));
   },
   async createLocation(payload: Record<string, unknown>) {
-    return LocationModel.create(payload);
+    const uploadedImage = await uploadImageIfNeeded(
+      normalizeImageInput(payload.image ?? payload.imageUrl ?? ""),
+      { folder: "proteinbar/locations" }
+    );
+    const normalizedPayload = {
+      locationId: String(payload.locationId ?? payload.id ?? "").trim(),
+      name: String(payload.name ?? "").trim(),
+      type: String(payload.type ?? "both").trim() || "both",
+      pickupAddress: String(payload.pickupAddress ?? payload.address ?? "").trim(),
+      image: uploadedImage,
+      phone: String(payload.phone ?? "").trim(),
+      mapLink: String(payload.mapLink ?? payload.googleMapsUrl ?? "").trim(),
+      ratingText: String(payload.ratingText ?? "").trim(),
+      isActive: Boolean(payload.isActive ?? true),
+      deliveryZone: String(payload.deliveryZone ?? "N/A").trim() || "N/A",
+      deliveryFee: String(payload.deliveryFee ?? "$0.00").trim() || "$0.00",
+      workingDays: normalizeStringList(payload.workingDays),
+      cutoffTime: String(payload.cutoffTime ?? "-").trim() || "-",
+      timeSlots: normalizeStringList(payload.timeSlots),
+      supportedOptions: normalizeStringList(payload.supportedOptions)
+    };
+    const row = await LocationModel.create(normalizedPayload);
+    return toLocation(row.toObject() as Record<string, unknown>);
   },
   async updateLocation(id: string, payload: Record<string, unknown>) {
-    const row = await LocationModel.findByIdAndUpdate(id, payload, { new: true });
+    const updatePayload: Record<string, unknown> = {};
+
+    if (Object.prototype.hasOwnProperty.call(payload, "locationId") || Object.prototype.hasOwnProperty.call(payload, "id")) {
+      updatePayload.locationId = String(payload.locationId ?? payload.id ?? "").trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "name")) {
+      updatePayload.name = String(payload.name ?? "").trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "type")) {
+      updatePayload.type = String(payload.type ?? "both").trim() || "both";
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "pickupAddress") || Object.prototype.hasOwnProperty.call(payload, "address")) {
+      updatePayload.pickupAddress = String(payload.pickupAddress ?? payload.address ?? "").trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "image") || Object.prototype.hasOwnProperty.call(payload, "imageUrl")) {
+      updatePayload.image = await uploadImageIfNeeded(
+        normalizeImageInput(payload.image ?? payload.imageUrl ?? ""),
+        { folder: "proteinbar/locations" }
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "phone")) {
+      updatePayload.phone = String(payload.phone ?? "").trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "mapLink") || Object.prototype.hasOwnProperty.call(payload, "googleMapsUrl")) {
+      updatePayload.mapLink = String(payload.mapLink ?? payload.googleMapsUrl ?? "").trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "ratingText")) {
+      updatePayload.ratingText = String(payload.ratingText ?? "").trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "isActive")) {
+      updatePayload.isActive = Boolean(payload.isActive);
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "deliveryZone")) {
+      updatePayload.deliveryZone = String(payload.deliveryZone ?? "N/A").trim() || "N/A";
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "deliveryFee")) {
+      updatePayload.deliveryFee = String(payload.deliveryFee ?? "$0.00").trim() || "$0.00";
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "workingDays")) {
+      updatePayload.workingDays = normalizeStringList(payload.workingDays);
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "cutoffTime")) {
+      updatePayload.cutoffTime = String(payload.cutoffTime ?? "-").trim() || "-";
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "timeSlots")) {
+      updatePayload.timeSlots = normalizeStringList(payload.timeSlots);
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "supportedOptions")) {
+      updatePayload.supportedOptions = normalizeStringList(payload.supportedOptions);
+    }
+
+    const query = isValidObjectId(id)
+      ? { $or: [{ _id: id }, { locationId: id }] }
+      : { locationId: id };
+    const row = await LocationModel.findOneAndUpdate(query, updatePayload, { new: true });
     if (!row) throw new AppError(404, "Location not found");
-    return row;
+    return toLocation(row.toObject() as Record<string, unknown>);
   },
   async deleteLocation(id: string) {
-    const row = await LocationModel.findByIdAndDelete(id);
+    const query = isValidObjectId(id)
+      ? { $or: [{ _id: id }, { locationId: id }] }
+      : { locationId: id };
+    const row = await LocationModel.findOneAndDelete(query);
     if (!row) throw new AppError(404, "Location not found");
   },
 

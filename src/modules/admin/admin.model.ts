@@ -52,13 +52,19 @@ const LocationSchema = new Schema(
   {
     locationId: { type: String, required: true, unique: true, trim: true },
     name: { type: String, required: true, trim: true },
+    type: { type: String, default: "both", trim: true },
     pickupAddress: { type: String, required: true, trim: true },
+    image: { type: String, default: "" },
+    phone: { type: String, default: "", trim: true },
     mapLink: { type: String, default: "" },
+    ratingText: { type: String, default: "", trim: true },
+    isActive: { type: Boolean, default: true },
     deliveryZone: { type: String, default: "N/A" },
     deliveryFee: { type: String, default: "$0.00" },
     workingDays: { type: [String], default: [] },
     cutoffTime: { type: String, default: "-" },
-    timeSlots: { type: [String], default: [] }
+    timeSlots: { type: [String], default: [] },
+    supportedOptions: { type: [String], default: [] }
   },
   { timestamps: true }
 );
