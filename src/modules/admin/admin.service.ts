@@ -2,6 +2,8 @@ import { FilterQuery, isValidObjectId } from "mongoose";
 import { AppError } from "../../common/utils/AppError";
 import { normalizeImageInput, uploadImageIfNeeded } from "../../common/utils/cloudinary";
 import {
+  CustomPlanCategoryModel,
+  CustomPlanFoodItemModel,
   MealLibraryItemModel,
   IngredientModel,
   LocationModel,
@@ -39,8 +41,107 @@ type MealLibraryItemPayload = {
   image?: string;
 };
 
+type SelectionMode = "single" | "multi";
+
+type CustomPlanCategoryPayload = {
+  id?: string;
+  planId: string;
+  name: string;
+  slug?: string;
+  code?: string;
+  displayOrder?: number;
+  selectionMode: SelectionMode;
+  isActive: boolean;
+  isRequired: boolean;
+  minSelect: number;
+  maxSelect?: number | null;
+};
+
+type CustomPlanFoodSizePayload = {
+  id?: string;
+  label: string;
+  unit?: string;
+  price: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  displayOrder?: number;
+  isActive?: boolean;
+};
+
+type CustomPlanFoodItemPayload = {
+  id?: string;
+  planId: string;
+  categoryId: string;
+  name: string;
+  imageUrl: string;
+  description?: string;
+  displayOrder?: number;
+  isActive: boolean;
+  sizes: CustomPlanFoodSizePayload[];
+};
+
 function normalizeMealImage(value: unknown) {
   return normalizeImageInput(value);
+}
+
+function toSelectionMode(value: unknown): SelectionMode {
+  return String(value ?? "").trim().toLowerCase() === "multi" ? "multi" : "single";
+}
+
+function toCustomPlanCategory(row: Record<string, unknown>) {
+  const rawMaxSelect = row.maxSelect;
+  return {
+    id: String(row.categoryId ?? row.id ?? ""),
+    planId: String(row.planId ?? ""),
+    name: String(row.name ?? ""),
+    slug: String(row.slug ?? ""),
+    code: String(row.code ?? "").trim() || undefined,
+    displayOrder: Number(row.displayOrder ?? 1),
+    selectionMode: toSelectionMode(row.selectionMode),
+    isActive: Boolean(row.isActive ?? true),
+    isRequired: Boolean(row.isRequired ?? true),
+    minSelect: Number(row.minSelect ?? 0),
+    maxSelect:
+      rawMaxSelect === null || rawMaxSelect === undefined || rawMaxSelect === ""
+        ? null
+        : Number(rawMaxSelect)
+  };
+}
+
+function toCustomPlanFoodItem(row: Record<string, unknown>) {
+  const foodItemId = String(row.foodItemId ?? row.id ?? "");
+  const rawSizes = Array.isArray(row.sizes) ? row.sizes : [];
+
+  return {
+    id: foodItemId,
+    planId: String(row.planId ?? ""),
+    categoryId: String(row.categoryId ?? ""),
+    name: String(row.name ?? ""),
+    imageUrl: normalizeImageInput(row.imageUrl ?? row.image),
+    description: String(row.description ?? ""),
+    displayOrder: Number(row.displayOrder ?? 1),
+    isActive: Boolean(row.isActive ?? true),
+    sizes: rawSizes
+      .map((size) => {
+        const sizeRow = size as Record<string, unknown>;
+        return {
+          id: String(sizeRow.id ?? ""),
+          foodItemId,
+          label: String(sizeRow.label ?? ""),
+          unit: String(sizeRow.unit ?? "").trim() || undefined,
+          price: Number(sizeRow.price ?? 0),
+          calories: Number(sizeRow.calories ?? 0),
+          protein: Number(sizeRow.protein ?? 0),
+          carbs: Number(sizeRow.carbs ?? 0),
+          fat: Number(sizeRow.fat ?? 0),
+          displayOrder: Number(sizeRow.displayOrder ?? 1),
+          isActive: Boolean(sizeRow.isActive ?? true)
+        };
+      })
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+  };
 }
 
 function normalizeStringList(value: unknown) {
@@ -758,6 +859,167 @@ export const adminService = {
     if (!row) throw new AppError(404, "Meal not found");
   },
 
+  async listCustomPlanCategoriesAdmin(planId: string) {
+    const rows = await CustomPlanCategoryModel.find({ planId }).sort({ displayOrder: 1, createdAt: 1 }).lean();
+    return rows.map((row) => toCustomPlanCategory(row as unknown as Record<string, unknown>));
+  },
+
+  async upsertCustomPlanCategoryAdmin(payload: CustomPlanCategoryPayload) {
+    const planId = payload.planId.trim();
+    const name = payload.name.trim();
+    if (!planId) throw new AppError(400, "Plan is required for category.");
+    if (!name) throw new AppError(400, "Category name is required.");
+    if (payload.minSelect < 0) throw new AppError(400, "Minimum selection cannot be negative.");
+
+    const selectionMode = toSelectionMode(payload.selectionMode);
+    const maxSelect = selectionMode === "single" ? 1 : payload.maxSelect ?? null;
+    if (maxSelect !== null && payload.minSelect > maxSelect) {
+      throw new AppError(400, "Minimum selection cannot be greater than maximum selection.");
+    }
+
+    const existing = payload.id
+      ? await CustomPlanCategoryModel.findOne({ categoryId: payload.id }).lean()
+      : null;
+    const siblingCount = await CustomPlanCategoryModel.countDocuments({
+      planId,
+      ...(payload.id ? { categoryId: { $ne: payload.id } } : {})
+    });
+
+    const categoryId = payload.id || `custom-category-${Date.now()}`;
+    const row = await CustomPlanCategoryModel.findOneAndUpdate(
+      { categoryId },
+      {
+        categoryId,
+        planId,
+        name,
+        slug: payload.slug?.trim() || toSlug(name) || categoryId,
+        code: payload.code?.trim() || "",
+        displayOrder: payload.displayOrder ?? Number((existing as Record<string, unknown> | null)?.displayOrder ?? siblingCount + 1),
+        selectionMode,
+        isActive: payload.isActive,
+        isRequired: payload.isRequired,
+        minSelect: payload.minSelect,
+        maxSelect
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    return toCustomPlanCategory(row as unknown as Record<string, unknown>);
+  },
+
+  async deleteCustomPlanCategoryAdmin(id: string) {
+    const row = await CustomPlanCategoryModel.findOneAndDelete({ categoryId: id }).lean();
+    if (!row) throw new AppError(404, "Custom plan category not found");
+    await CustomPlanFoodItemModel.deleteMany({ categoryId: id });
+    return { id };
+  },
+
+  async reorderCustomPlanCategoriesAdmin(planId: string, categoryIds: string[]) {
+    await Promise.all(
+      categoryIds.map((categoryId, index) =>
+        CustomPlanCategoryModel.findOneAndUpdate(
+          { categoryId, planId },
+          { displayOrder: index + 1 }
+        )
+      )
+    );
+    return this.listCustomPlanCategoriesAdmin(planId);
+  },
+
+  async listCustomPlanFoodItemsAdmin(planId: string, categoryId?: string) {
+    const rows = await CustomPlanFoodItemModel.find({
+      planId,
+      ...(categoryId ? { categoryId } : {})
+    })
+      .sort({ displayOrder: 1, createdAt: 1 })
+      .lean();
+    return rows.map((row) => toCustomPlanFoodItem(row as unknown as Record<string, unknown>));
+  },
+
+  async upsertCustomPlanFoodItemAdmin(payload: CustomPlanFoodItemPayload) {
+    const planId = payload.planId.trim();
+    const categoryId = payload.categoryId.trim();
+    const name = payload.name.trim();
+    if (!planId) throw new AppError(400, "Plan is required for food item.");
+    if (!categoryId) throw new AppError(400, "Category is required for food item.");
+    if (!name) throw new AppError(400, "Food item name is required.");
+    if (!payload.sizes.length) throw new AppError(400, "At least one size is required.");
+
+    const category = await CustomPlanCategoryModel.findOne({ categoryId, planId }).lean();
+    if (!category) throw new AppError(400, "Selected category does not exist.");
+
+    payload.sizes.forEach((size) => {
+      if (!size.label.trim()) throw new AppError(400, "Size label is required.");
+      if ([size.price, size.calories, size.protein, size.carbs, size.fat].some((value) => Number(value) < 0)) {
+        throw new AppError(400, "Size values cannot be negative.");
+      }
+    });
+
+    const existing = payload.id
+      ? await CustomPlanFoodItemModel.findOne({ foodItemId: payload.id }).lean()
+      : null;
+    const siblingCount = await CustomPlanFoodItemModel.countDocuments({
+      planId,
+      categoryId,
+      ...(payload.id ? { foodItemId: { $ne: payload.id } } : {})
+    });
+    const foodItemId = payload.id || `custom-food-${Date.now()}`;
+    const uploadedImageUrl = await uploadImageIfNeeded(payload.imageUrl, {
+      folder: "proteinbar/custom-plan-items"
+    });
+
+    const row = await CustomPlanFoodItemModel.findOneAndUpdate(
+      { foodItemId },
+      {
+        foodItemId,
+        planId,
+        categoryId,
+        name,
+        imageUrl: uploadedImageUrl,
+        description: payload.description?.trim() || "",
+        displayOrder: payload.displayOrder ?? Number((existing as Record<string, unknown> | null)?.displayOrder ?? siblingCount + 1),
+        isActive: payload.isActive,
+        sizes: payload.sizes.map((size, index) => ({
+          id: size.id || `custom-size-${Date.now()}-${index}`,
+          foodItemId,
+          label: size.label.trim(),
+          unit: size.unit?.trim() || "",
+          price: Number(size.price),
+          calories: Number(size.calories),
+          protein: Number(size.protein),
+          carbs: Number(size.carbs),
+          fat: Number(size.fat),
+          displayOrder: size.displayOrder ?? index + 1,
+          isActive: size.isActive ?? true
+        }))
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    return toCustomPlanFoodItem(row as unknown as Record<string, unknown>);
+  },
+
+  async deleteCustomPlanFoodItemAdmin(id: string) {
+    const row = await CustomPlanFoodItemModel.findOneAndDelete({ foodItemId: id }).lean();
+    if (!row) throw new AppError(404, "Custom plan food item not found");
+    return { id };
+  },
+
+  async reorderCustomPlanFoodItemsAdmin(planId: string, categoryId: string, itemIds: string[]) {
+    await Promise.all(
+      itemIds.map((foodItemId, index) =>
+        CustomPlanFoodItemModel.findOneAndUpdate(
+          { foodItemId, planId },
+          {
+            categoryId,
+            displayOrder: index + 1
+          }
+        )
+      )
+    );
+    return this.listCustomPlanFoodItemsAdmin(planId, categoryId);
+  },
+
   async listPublicMonthlyPlans() {
     const rows = await MonthlyPlanDetailsModel.find({ status: { $ne: "archived" } }).sort({ updatedAt: -1 }).lean();
     if (rows.length > 0) {
@@ -792,11 +1054,25 @@ export const adminService = {
       throw new AppError(404, "Monthly plan not found");
     }
 
-    const mealRows = await MealLibraryItemModel.find({ status: "active" }).lean();
+    const [mealRows, customCategoryRows, customFoodRows] = await Promise.all([
+      MealLibraryItemModel.find({ status: "active" }).lean(),
+      CustomPlanCategoryModel.find({ planId, isActive: true }).sort({ displayOrder: 1, createdAt: 1 }).lean(),
+      CustomPlanFoodItemModel.find({ planId, isActive: true }).sort({ displayOrder: 1, createdAt: 1 }).lean()
+    ]);
 
     return {
       ...details,
-      mealLibrary: mealRows.map((item) => toMealLibraryItem(item as unknown as Record<string, unknown>))
+      mealLibrary: mealRows.map((item) => toMealLibraryItem(item as unknown as Record<string, unknown>)),
+      customPlanBuilder: {
+        categories: customCategoryRows.map((item) => toCustomPlanCategory(item as unknown as Record<string, unknown>)),
+        foodItems: customFoodRows
+          .map((item) => toCustomPlanFoodItem(item as unknown as Record<string, unknown>))
+          .map((item) => ({
+            ...item,
+            sizes: item.sizes.filter((size) => size.isActive)
+          }))
+          .filter((item) => item.sizes.length > 0)
+      }
     };
   },
 

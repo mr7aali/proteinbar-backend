@@ -147,3 +147,60 @@ export const mealLibraryItemSchema = z.object({
   status: z.enum(["active", "inactive"]),
   image: z.string().optional()
 });
+
+export const customPlanCategoryListQuerySchema = z.object({
+  planId: z.string().min(1)
+});
+
+export const customPlanCategorySchema = z.object({
+  planId: z.string().min(1),
+  name: z.string().min(1),
+  slug: z.string().optional(),
+  code: z.string().optional(),
+  displayOrder: z.number().optional(),
+  selectionMode: z.enum(["single", "multi"]),
+  isActive: z.boolean(),
+  isRequired: z.boolean(),
+  minSelect: z.number().int().min(0),
+  maxSelect: z.number().int().min(1).nullable().optional()
+});
+
+export const customPlanCategoryReorderSchema = z.object({
+  planId: z.string().min(1),
+  categoryIds: z.array(z.string().min(1)).default([])
+});
+
+export const customPlanFoodItemListQuerySchema = z.object({
+  planId: z.string().min(1),
+  categoryId: z.string().optional()
+});
+
+const customPlanFoodSizeSchema = z.object({
+  id: z.string().optional(),
+  label: z.string().min(1),
+  unit: z.string().optional(),
+  price: z.number(),
+  calories: z.number(),
+  protein: z.number(),
+  carbs: z.number(),
+  fat: z.number(),
+  displayOrder: z.number().optional(),
+  isActive: z.boolean().optional().default(true)
+});
+
+export const customPlanFoodItemSchema = z.object({
+  planId: z.string().min(1),
+  categoryId: z.string().min(1),
+  name: z.string().min(1),
+  imageUrl: z.string().min(1),
+  description: z.string().optional(),
+  displayOrder: z.number().optional(),
+  isActive: z.boolean(),
+  sizes: z.array(customPlanFoodSizeSchema).min(1)
+});
+
+export const customPlanFoodItemReorderSchema = z.object({
+  planId: z.string().min(1),
+  categoryId: z.string().min(1),
+  itemIds: z.array(z.string().min(1)).default([])
+});
