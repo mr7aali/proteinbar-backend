@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.mealLibraryItemSchema = exports.monthlyPlanDetailsUpsertSchema = exports.monthlyPlanDetailsParamSchema = exports.monthlyPlanAdminFiltersSchema = exports.planFlowSchema = exports.flowTypeParamSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
+exports.customPlanFoodItemReorderSchema = exports.customPlanFoodItemSchema = exports.customPlanFoodItemListQuerySchema = exports.customPlanCategoryReorderSchema = exports.customPlanCategorySchema = exports.customPlanCategoryListQuerySchema = exports.mealLibraryItemSchema = exports.monthlyPlanDetailsUpsertSchema = exports.monthlyPlanDetailsParamSchema = exports.monthlyPlanAdminFiltersSchema = exports.planFlowSchema = exports.flowTypeParamSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.restaurantSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
 const zod_1 = require("zod");
 const optionalString = zod_1.z.string().trim().optional();
 exports.mongoIdParamSchema = zod_1.z.object({ id: zod_1.z.string().min(1) });
@@ -21,6 +21,9 @@ exports.productSchema = zod_1.z.object({
 exports.menuItemSchema = zod_1.z.object({
     menuId: zod_1.z.string().min(1),
     title: zod_1.z.string().min(1),
+    image: zod_1.z.string().min(1),
+    restaurantIds: zod_1.z.array(zod_1.z.string()).optional().default([]),
+    restaurants: zod_1.z.array(zod_1.z.string()).optional().default([]),
     linkedProductSkus: zod_1.z.array(zod_1.z.string()).optional().default([]),
     visibleDays: zod_1.z.array(zod_1.z.string()).optional().default([]),
     timeSlots: zod_1.z.array(zod_1.z.string()).optional().default([]),
@@ -29,16 +32,30 @@ exports.menuItemSchema = zod_1.z.object({
     priority: zod_1.z.number().optional().default(1),
     status: zod_1.z.string().optional().default("Visible")
 });
+exports.restaurantSchema = zod_1.z.object({
+    restaurantId: zod_1.z.string().min(1),
+    name: zod_1.z.string().min(1),
+    address: optionalString.default(""),
+    workingDays: zod_1.z.array(zod_1.z.string()).optional().default([]),
+    openingHours: optionalString.default(""),
+    status: zod_1.z.string().optional().default("Active")
+});
 exports.locationSchema = zod_1.z.object({
     locationId: zod_1.z.string().min(1),
     name: zod_1.z.string().min(1),
+    type: zod_1.z.enum(["pickup", "delivery", "both"]).optional().default("both"),
     pickupAddress: zod_1.z.string().min(1),
+    image: optionalString.default(""),
+    phone: optionalString.default(""),
     mapLink: optionalString.default(""),
+    ratingText: optionalString.default(""),
+    isActive: zod_1.z.boolean().optional().default(true),
     deliveryZone: optionalString.default("N/A"),
     deliveryFee: optionalString.default("$0.00"),
     workingDays: zod_1.z.array(zod_1.z.string()).optional().default([]),
     cutoffTime: optionalString.default("-"),
-    timeSlots: zod_1.z.array(zod_1.z.string()).optional().default([])
+    timeSlots: zod_1.z.array(zod_1.z.string()).optional().default([]),
+    supportedOptions: zod_1.z.array(zod_1.z.string()).optional().default([])
 });
 exports.monthlyPlanSchema = zod_1.z.object({
     planId: zod_1.z.string().min(1),
@@ -120,4 +137,54 @@ exports.mealLibraryItemSchema = zod_1.z.object({
     tags: zod_1.z.array(zod_1.z.string()).optional().default([]),
     status: zod_1.z.enum(["active", "inactive"]),
     image: zod_1.z.string().optional()
+});
+exports.customPlanCategoryListQuerySchema = zod_1.z.object({
+    planId: zod_1.z.string().min(1)
+});
+exports.customPlanCategorySchema = zod_1.z.object({
+    planId: zod_1.z.string().min(1),
+    name: zod_1.z.string().min(1),
+    slug: zod_1.z.string().optional(),
+    code: zod_1.z.string().optional(),
+    displayOrder: zod_1.z.number().optional(),
+    selectionMode: zod_1.z.enum(["single", "multi"]),
+    isActive: zod_1.z.boolean(),
+    isRequired: zod_1.z.boolean(),
+    minSelect: zod_1.z.number().int().min(0),
+    maxSelect: zod_1.z.number().int().min(1).nullable().optional()
+});
+exports.customPlanCategoryReorderSchema = zod_1.z.object({
+    planId: zod_1.z.string().min(1),
+    categoryIds: zod_1.z.array(zod_1.z.string().min(1)).default([])
+});
+exports.customPlanFoodItemListQuerySchema = zod_1.z.object({
+    planId: zod_1.z.string().min(1),
+    categoryId: zod_1.z.string().optional()
+});
+const customPlanFoodSizeSchema = zod_1.z.object({
+    id: zod_1.z.string().optional(),
+    label: zod_1.z.string().min(1),
+    unit: zod_1.z.string().optional(),
+    price: zod_1.z.number(),
+    calories: zod_1.z.number(),
+    protein: zod_1.z.number(),
+    carbs: zod_1.z.number(),
+    fat: zod_1.z.number(),
+    displayOrder: zod_1.z.number().optional(),
+    isActive: zod_1.z.boolean().optional().default(true)
+});
+exports.customPlanFoodItemSchema = zod_1.z.object({
+    planId: zod_1.z.string().min(1),
+    categoryId: zod_1.z.string().min(1),
+    name: zod_1.z.string().min(1),
+    imageUrl: zod_1.z.string().min(1),
+    description: zod_1.z.string().optional(),
+    displayOrder: zod_1.z.number().optional(),
+    isActive: zod_1.z.boolean(),
+    sizes: zod_1.z.array(customPlanFoodSizeSchema).min(1)
+});
+exports.customPlanFoodItemReorderSchema = zod_1.z.object({
+    planId: zod_1.z.string().min(1),
+    categoryId: zod_1.z.string().min(1),
+    itemIds: zod_1.z.array(zod_1.z.string().min(1)).default([])
 });

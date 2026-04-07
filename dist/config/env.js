@@ -13,7 +13,11 @@ const envSchema = zod_1.z.object({
     MONGODB_URI: zod_1.z.string().min(1),
     JWT_SECRET: zod_1.z.string().min(8),
     JWT_EXPIRES_IN: zod_1.z.string().default("7d"),
-    FRONTEND_ORIGINS: zod_1.z.string().default("http://localhost:3000,http://localhost:3001")
+    FRONTEND_ORIGINS: zod_1.z.string().default("http://localhost:3000,http://localhost:3001"),
+    CLOUDINARY_CLOUD_NAME: zod_1.z.string().optional().default(""),
+    CLOUDINARY_API_KEY: zod_1.z.string().optional().default(""),
+    CLOUDINARY_API_SECRET: zod_1.z.string().optional().default(""),
+    CLOUDINARY_FOLDER: zod_1.z.string().default("proteinbar")
 });
 const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
