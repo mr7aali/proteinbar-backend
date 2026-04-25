@@ -42,6 +42,23 @@ export const adminController = {
     res.status(204).send();
   }),
 
+  listRestaurants: asyncHandler(async (_req: Request, res: Response) => {
+    const data = await adminService.listRestaurants();
+    res.json({ success: true, data });
+  }),
+  createRestaurant: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.createRestaurant(req.body);
+    res.status(201).json({ success: true, data });
+  }),
+  updateRestaurant: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.updateRestaurant(req.params.id, req.body);
+    res.json({ success: true, data });
+  }),
+  deleteRestaurant: asyncHandler(async (req: Request, res: Response) => {
+    await adminService.deleteRestaurant(req.params.id);
+    res.status(204).send();
+  }),
+
   listLocations: asyncHandler(async (_req: Request, res: Response) => {
     const data = await adminService.listLocations();
     res.json({ success: true, data });
@@ -118,6 +135,61 @@ export const adminController = {
   deleteMealLibraryAdmin: asyncHandler(async (req: Request, res: Response) => {
     await adminService.deleteMealLibraryAdmin(req.params.id);
     res.status(204).send();
+  }),
+
+  listCustomPlanCategoriesAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.listCustomPlanCategoriesAdmin(String(req.query.planId ?? ""));
+    res.json({ success: true, data });
+  }),
+  createCustomPlanCategoryAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.upsertCustomPlanCategoryAdmin(req.body);
+    res.status(201).json({ success: true, data });
+  }),
+  updateCustomPlanCategoryAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.upsertCustomPlanCategoryAdmin({
+      ...req.body,
+      id: req.params.id
+    });
+    res.json({ success: true, data });
+  }),
+  deleteCustomPlanCategoryAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.deleteCustomPlanCategoryAdmin(req.params.id);
+    res.json({ success: true, data });
+  }),
+  reorderCustomPlanCategoriesAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.reorderCustomPlanCategoriesAdmin(req.body.planId, req.body.categoryIds);
+    res.json({ success: true, data });
+  }),
+
+  listCustomPlanFoodItemsAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.listCustomPlanFoodItemsAdmin(
+      String(req.query.planId ?? ""),
+      typeof req.query.categoryId === "string" ? req.query.categoryId : undefined
+    );
+    res.json({ success: true, data });
+  }),
+  createCustomPlanFoodItemAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.upsertCustomPlanFoodItemAdmin(req.body);
+    res.status(201).json({ success: true, data });
+  }),
+  updateCustomPlanFoodItemAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.upsertCustomPlanFoodItemAdmin({
+      ...req.body,
+      id: req.params.id
+    });
+    res.json({ success: true, data });
+  }),
+  deleteCustomPlanFoodItemAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.deleteCustomPlanFoodItemAdmin(req.params.id);
+    res.json({ success: true, data });
+  }),
+  reorderCustomPlanFoodItemsAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.reorderCustomPlanFoodItemsAdmin(
+      req.body.planId,
+      req.body.categoryId,
+      req.body.itemIds
+    );
+    res.json({ success: true, data });
   }),
 
   listPlanFlows: asyncHandler(async (_req: Request, res: Response) => {

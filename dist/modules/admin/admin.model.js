@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PlanFlowModel = exports.NotificationModel = exports.SubscriptionModel = exports.OrderModel = exports.IngredientModel = exports.MealLibraryItemModel = exports.MonthlyPlanDetailsModel = exports.MonthlyPlanModel = exports.LocationModel = exports.MenuItemModel = exports.ProductModel = void 0;
+exports.PlanFlowModel = exports.NotificationModel = exports.SubscriptionModel = exports.OrderModel = exports.IngredientModel = exports.CustomPlanFoodItemModel = exports.CustomPlanCategoryModel = exports.MealLibraryItemModel = exports.MonthlyPlanDetailsModel = exports.MonthlyPlanModel = exports.LocationModel = exports.RestaurantModel = exports.MenuItemModel = exports.ProductModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const ProductSchema = new mongoose_1.Schema({
     sku: { type: String, required: true, unique: true, trim: true },
@@ -53,6 +53,8 @@ const MenuItemSchema = new mongoose_1.Schema({
     menuId: { type: String, required: true, unique: true, trim: true },
     title: { type: String, required: true, trim: true },
     image: { type: String, required: true, trim: true },
+    restaurantIds: { type: [String], default: [] },
+    restaurants: { type: [String], default: [] },
     linkedProductSkus: { type: [String], default: [] },
     visibleDays: { type: [String], default: [] },
     timeSlots: { type: [String], default: [] },
@@ -61,16 +63,30 @@ const MenuItemSchema = new mongoose_1.Schema({
     priority: { type: Number, default: 1 },
     status: { type: String, default: "Visible" }
 }, { timestamps: true });
+const RestaurantSchema = new mongoose_1.Schema({
+    restaurantId: { type: String, required: true, unique: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    address: { type: String, default: "", trim: true },
+    workingDays: { type: [String], default: [] },
+    openingHours: { type: String, default: "", trim: true },
+    status: { type: String, default: "Active", trim: true }
+}, { timestamps: true });
 const LocationSchema = new mongoose_1.Schema({
     locationId: { type: String, required: true, unique: true, trim: true },
     name: { type: String, required: true, trim: true },
+    type: { type: String, default: "both", trim: true },
     pickupAddress: { type: String, required: true, trim: true },
+    image: { type: String, default: "" },
+    phone: { type: String, default: "", trim: true },
     mapLink: { type: String, default: "" },
+    ratingText: { type: String, default: "", trim: true },
+    isActive: { type: Boolean, default: true },
     deliveryZone: { type: String, default: "N/A" },
     deliveryFee: { type: String, default: "$0.00" },
     workingDays: { type: [String], default: [] },
     cutoffTime: { type: String, default: "-" },
-    timeSlots: { type: [String], default: [] }
+    timeSlots: { type: [String], default: [] },
+    supportedOptions: { type: [String], default: [] }
 }, { timestamps: true });
 const MonthlyPlanSchema = new mongoose_1.Schema({
     planId: { type: String, required: true, unique: true, trim: true },
@@ -104,6 +120,43 @@ const MealLibraryItemSchema = new mongoose_1.Schema({
     tags: { type: [String], default: [] },
     status: { type: String, default: "active", trim: true },
     image: { type: String, default: "" }
+}, { timestamps: true });
+const CustomPlanCategorySchema = new mongoose_1.Schema({
+    categoryId: { type: String, required: true, unique: true, trim: true },
+    planId: { type: String, required: true, trim: true, index: true },
+    name: { type: String, required: true, trim: true },
+    slug: { type: String, required: true, trim: true },
+    code: { type: String, default: "", trim: true },
+    displayOrder: { type: Number, default: 1 },
+    selectionMode: { type: String, default: "single", trim: true },
+    isActive: { type: Boolean, default: true },
+    isRequired: { type: Boolean, default: true },
+    minSelect: { type: Number, default: 1 },
+    maxSelect: { type: Number, default: 1 }
+}, { timestamps: true });
+const CustomPlanFoodSizeSchema = new mongoose_1.Schema({
+    id: { type: String, required: true, trim: true },
+    foodItemId: { type: String, required: true, trim: true },
+    label: { type: String, required: true, trim: true },
+    unit: { type: String, default: "", trim: true },
+    price: { type: Number, default: 0 },
+    calories: { type: Number, default: 0 },
+    protein: { type: Number, default: 0 },
+    carbs: { type: Number, default: 0 },
+    fat: { type: Number, default: 0 },
+    displayOrder: { type: Number, default: 1 },
+    isActive: { type: Boolean, default: true }
+}, { _id: false });
+const CustomPlanFoodItemSchema = new mongoose_1.Schema({
+    foodItemId: { type: String, required: true, unique: true, trim: true },
+    planId: { type: String, required: true, trim: true, index: true },
+    categoryId: { type: String, required: true, trim: true, index: true },
+    name: { type: String, required: true, trim: true },
+    imageUrl: { type: String, default: "", trim: true },
+    description: { type: String, default: "", trim: true },
+    displayOrder: { type: Number, default: 1 },
+    isActive: { type: Boolean, default: true },
+    sizes: { type: [CustomPlanFoodSizeSchema], default: [] }
 }, { timestamps: true });
 const IngredientSchema = new mongoose_1.Schema({
     ingredientId: { type: String, required: true, unique: true, trim: true },
@@ -178,10 +231,13 @@ const PlanFlowSchema = new mongoose_1.Schema({
 }, { timestamps: true });
 exports.ProductModel = mongoose_1.default.model("Product", ProductSchema);
 exports.MenuItemModel = mongoose_1.default.model("MenuItem", MenuItemSchema);
+exports.RestaurantModel = mongoose_1.default.model("Restaurant", RestaurantSchema);
 exports.LocationModel = mongoose_1.default.model("Location", LocationSchema);
 exports.MonthlyPlanModel = mongoose_1.default.model("MonthlyPlan", MonthlyPlanSchema);
 exports.MonthlyPlanDetailsModel = mongoose_1.default.model("MonthlyPlanDetails", MonthlyPlanDetailsSchema);
 exports.MealLibraryItemModel = mongoose_1.default.model("MealLibraryItem", MealLibraryItemSchema);
+exports.CustomPlanCategoryModel = mongoose_1.default.model("CustomPlanCategory", CustomPlanCategorySchema);
+exports.CustomPlanFoodItemModel = mongoose_1.default.model("CustomPlanFoodItem", CustomPlanFoodItemSchema);
 exports.IngredientModel = mongoose_1.default.model("Ingredient", IngredientSchema);
 exports.OrderModel = mongoose_1.default.model("Order", OrderSchema);
 exports.SubscriptionModel = mongoose_1.default.model("Subscription", SubscriptionSchema);

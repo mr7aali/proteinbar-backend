@@ -2,12 +2,19 @@ import { Router } from "express";
 import { validate } from "../../common/middleware/validate";
 import { adminController } from "./admin.controller";
 import {
+  customPlanCategoryListQuerySchema,
+  customPlanCategoryReorderSchema,
+  customPlanCategorySchema,
+  customPlanFoodItemListQuerySchema,
+  customPlanFoodItemReorderSchema,
+  customPlanFoodItemSchema,
   flowTypeParamSchema,
   ingredientSchema,
   locationSchema,
   mealLibraryItemSchema,
   menuItemSchema,
   mongoIdParamSchema,
+  restaurantSchema,
   monthlyPlanAdminFiltersSchema,
   monthlyPlanDetailsParamSchema,
   monthlyPlanDetailsUpsertSchema,
@@ -31,6 +38,11 @@ adminRouter.get("/menu-items", adminController.listMenuItems);
 adminRouter.post("/menu-items", validate(menuItemSchema), adminController.createMenuItem);
 adminRouter.patch("/menu-items/:id", validate(menuItemSchema), adminController.updateMenuItem);
 adminRouter.delete("/menu-items/:id", adminController.deleteMenuItem);
+
+adminRouter.get("/restaurants", adminController.listRestaurants);
+adminRouter.post("/restaurants", validate(restaurantSchema), adminController.createRestaurant);
+adminRouter.patch("/restaurants/:id", validate(restaurantSchema.partial()), adminController.updateRestaurant);
+adminRouter.delete("/restaurants/:id", adminController.deleteRestaurant);
 
 adminRouter.get("/locations", adminController.listLocations);
 adminRouter.post("/locations", validate(locationSchema), adminController.createLocation);
@@ -61,6 +73,58 @@ adminRouter.put(
   adminController.upsertMealLibraryAdmin
 );
 adminRouter.delete("/admin/monthly-plan/meals/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteMealLibraryAdmin);
+adminRouter.get(
+  "/admin/monthly-plan/custom-categories",
+  validate(customPlanCategoryListQuerySchema, "query"),
+  adminController.listCustomPlanCategoriesAdmin
+);
+adminRouter.post(
+  "/admin/monthly-plan/custom-categories",
+  validate(customPlanCategorySchema),
+  adminController.createCustomPlanCategoryAdmin
+);
+adminRouter.post(
+  "/admin/monthly-plan/custom-categories/reorder",
+  validate(customPlanCategoryReorderSchema),
+  adminController.reorderCustomPlanCategoriesAdmin
+);
+adminRouter.patch(
+  "/admin/monthly-plan/custom-categories/:id",
+  validate(monthlyPlanDetailsParamSchema, "params"),
+  validate(customPlanCategorySchema),
+  adminController.updateCustomPlanCategoryAdmin
+);
+adminRouter.delete(
+  "/admin/monthly-plan/custom-categories/:id",
+  validate(monthlyPlanDetailsParamSchema, "params"),
+  adminController.deleteCustomPlanCategoryAdmin
+);
+adminRouter.get(
+  "/admin/monthly-plan/custom-food-items",
+  validate(customPlanFoodItemListQuerySchema, "query"),
+  adminController.listCustomPlanFoodItemsAdmin
+);
+adminRouter.post(
+  "/admin/monthly-plan/custom-food-items",
+  validate(customPlanFoodItemSchema),
+  adminController.createCustomPlanFoodItemAdmin
+);
+adminRouter.post(
+  "/admin/monthly-plan/custom-food-items/reorder",
+  validate(customPlanFoodItemReorderSchema),
+  adminController.reorderCustomPlanFoodItemsAdmin
+);
+adminRouter.patch(
+  "/admin/monthly-plan/custom-food-items/:id",
+  validate(monthlyPlanDetailsParamSchema, "params"),
+  validate(customPlanFoodItemSchema),
+  adminController.updateCustomPlanFoodItemAdmin
+);
+adminRouter.delete(
+  "/admin/monthly-plan/custom-food-items/:id",
+  validate(monthlyPlanDetailsParamSchema, "params"),
+  adminController.deleteCustomPlanFoodItemAdmin
+);
 
 adminRouter.get("/plan-flows", adminController.listPlanFlows);
 adminRouter.put("/plan-flows/:flowType", validate(flowTypeParamSchema, "params"), validate(planFlowSchema), adminController.updatePlanFlow);

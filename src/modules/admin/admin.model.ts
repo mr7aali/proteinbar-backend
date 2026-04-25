@@ -23,6 +23,8 @@ const MenuItemSchema = new Schema(
     menuId: { type: String, required: true, unique: true, trim: true },
     title: { type: String, required: true, trim: true },
     image: { type: String, required: true, trim: true },
+    restaurantIds: { type: [String], default: [] },
+    restaurants: { type: [String], default: [] },
     linkedProductSkus: { type: [String], default: [] },
     visibleDays: { type: [String], default: [] },
     timeSlots: { type: [String], default: [] },
@@ -34,17 +36,35 @@ const MenuItemSchema = new Schema(
   { timestamps: true }
 );
 
+const RestaurantSchema = new Schema(
+  {
+    restaurantId: { type: String, required: true, unique: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    address: { type: String, default: "", trim: true },
+    workingDays: { type: [String], default: [] },
+    openingHours: { type: String, default: "", trim: true },
+    status: { type: String, default: "Active", trim: true }
+  },
+  { timestamps: true }
+);
+
 const LocationSchema = new Schema(
   {
     locationId: { type: String, required: true, unique: true, trim: true },
     name: { type: String, required: true, trim: true },
+    type: { type: String, default: "both", trim: true },
     pickupAddress: { type: String, required: true, trim: true },
+    image: { type: String, default: "" },
+    phone: { type: String, default: "", trim: true },
     mapLink: { type: String, default: "" },
+    ratingText: { type: String, default: "", trim: true },
+    isActive: { type: Boolean, default: true },
     deliveryZone: { type: String, default: "N/A" },
     deliveryFee: { type: String, default: "$0.00" },
     workingDays: { type: [String], default: [] },
     cutoffTime: { type: String, default: "-" },
-    timeSlots: { type: [String], default: [] }
+    timeSlots: { type: [String], default: [] },
+    supportedOptions: { type: [String], default: [] }
   },
   { timestamps: true }
 );
@@ -90,6 +110,55 @@ const MealLibraryItemSchema = new Schema(
     tags: { type: [String], default: [] },
     status: { type: String, default: "active", trim: true },
     image: { type: String, default: "" }
+  },
+  { timestamps: true }
+);
+
+const CustomPlanCategorySchema = new Schema(
+  {
+    categoryId: { type: String, required: true, unique: true, trim: true },
+    planId: { type: String, required: true, trim: true, index: true },
+    name: { type: String, required: true, trim: true },
+    slug: { type: String, required: true, trim: true },
+    code: { type: String, default: "", trim: true },
+    displayOrder: { type: Number, default: 1 },
+    selectionMode: { type: String, default: "single", trim: true },
+    isActive: { type: Boolean, default: true },
+    isRequired: { type: Boolean, default: true },
+    minSelect: { type: Number, default: 1 },
+    maxSelect: { type: Number, default: 1 }
+  },
+  { timestamps: true }
+);
+
+const CustomPlanFoodSizeSchema = new Schema(
+  {
+    id: { type: String, required: true, trim: true },
+    foodItemId: { type: String, required: true, trim: true },
+    label: { type: String, required: true, trim: true },
+    unit: { type: String, default: "", trim: true },
+    price: { type: Number, default: 0 },
+    calories: { type: Number, default: 0 },
+    protein: { type: Number, default: 0 },
+    carbs: { type: Number, default: 0 },
+    fat: { type: Number, default: 0 },
+    displayOrder: { type: Number, default: 1 },
+    isActive: { type: Boolean, default: true }
+  },
+  { _id: false }
+);
+
+const CustomPlanFoodItemSchema = new Schema(
+  {
+    foodItemId: { type: String, required: true, unique: true, trim: true },
+    planId: { type: String, required: true, trim: true, index: true },
+    categoryId: { type: String, required: true, trim: true, index: true },
+    name: { type: String, required: true, trim: true },
+    imageUrl: { type: String, default: "", trim: true },
+    description: { type: String, default: "", trim: true },
+    displayOrder: { type: Number, default: 1 },
+    isActive: { type: Boolean, default: true },
+    sizes: { type: [CustomPlanFoodSizeSchema], default: [] }
   },
   { timestamps: true }
 );
@@ -199,10 +268,13 @@ const PlanFlowSchema = new Schema(
 
 export const ProductModel = mongoose.model("Product", ProductSchema);
 export const MenuItemModel = mongoose.model("MenuItem", MenuItemSchema);
+export const RestaurantModel = mongoose.model("Restaurant", RestaurantSchema);
 export const LocationModel = mongoose.model("Location", LocationSchema);
 export const MonthlyPlanModel = mongoose.model("MonthlyPlan", MonthlyPlanSchema);
 export const MonthlyPlanDetailsModel = mongoose.model("MonthlyPlanDetails", MonthlyPlanDetailsSchema);
 export const MealLibraryItemModel = mongoose.model("MealLibraryItem", MealLibraryItemSchema);
+export const CustomPlanCategoryModel = mongoose.model("CustomPlanCategory", CustomPlanCategorySchema);
+export const CustomPlanFoodItemModel = mongoose.model("CustomPlanFoodItem", CustomPlanFoodItemSchema);
 export const IngredientModel = mongoose.model("Ingredient", IngredientSchema);
 export const OrderModel = mongoose.model("Order", OrderSchema);
 export const SubscriptionModel = mongoose.model("Subscription", SubscriptionSchema);

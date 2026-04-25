@@ -74,6 +74,20 @@ function buildMenuItemDescription(product) {
     }
     return segments.join(" | ");
 }
+function toRestaurantList(value) {
+    if (!Array.isArray(value))
+        return [];
+    const seen = new Set();
+    return value.reduce((acc, item) => {
+        const normalized = String(item ?? "").trim();
+        const key = normalized.toLowerCase();
+        if (!normalized || seen.has(key))
+            return acc;
+        seen.add(key);
+        acc.push(normalized);
+        return acc;
+    }, []);
+}
 exports.publicService = {
     async listMenuCategories() {
         const [menuItemsRaw, productsRaw] = await Promise.all([admin_service_1.adminService.listMenuItems(), admin_service_1.adminService.listProducts()]);
@@ -107,10 +121,27 @@ exports.publicService = {
                 name: String(row.title ?? row.menuId ?? "Menu"),
                 description: String(row.title ?? ""),
                 image: categoryImage,
+                restaurants: toRestaurantList(row.restaurants),
                 items
             };
         })
             .filter((category) => category.items.length > 0);
+    },
+    async listRestaurants() {
+        const restaurants = await admin_service_1.adminService.listRestaurants();
+        return restaurants
+            .filter((restaurant) => String(restaurant.status ?? "Active").toLowerCase() !== "inactive")
+            .map((restaurant) => {
+            const item = restaurant;
+            return {
+                restaurantId: String(item.restaurantId ?? item._id ?? ""),
+                name: String(item.name ?? ""),
+                address: String(item.address ?? ""),
+                workingDays: Array.isArray(item.workingDays) ? item.workingDays.map((day) => String(day)) : [],
+                openingHours: String(item.openingHours ?? ""),
+                status: String(item.status ?? "Active")
+            };
+        });
     },
     async listMonthlyPlans() {
         return admin_service_1.adminService.listPublicMonthlyPlans();

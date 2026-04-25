@@ -40,6 +40,22 @@ exports.adminController = {
         await admin_service_1.adminService.deleteMenuItem(req.params.id);
         res.status(204).send();
     }),
+    listRestaurants: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listRestaurants();
+        res.json({ success: true, data });
+    }),
+    createRestaurant: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.createRestaurant(req.body);
+        res.status(201).json({ success: true, data });
+    }),
+    updateRestaurant: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.updateRestaurant(req.params.id, req.body);
+        res.json({ success: true, data });
+    }),
+    deleteRestaurant: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        await admin_service_1.adminService.deleteRestaurant(req.params.id);
+        res.status(204).send();
+    }),
     listLocations: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await admin_service_1.adminService.listLocations();
         res.json({ success: true, data });
@@ -113,6 +129,52 @@ exports.adminController = {
     deleteMealLibraryAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         await admin_service_1.adminService.deleteMealLibraryAdmin(req.params.id);
         res.status(204).send();
+    }),
+    listCustomPlanCategoriesAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.listCustomPlanCategoriesAdmin(String(req.query.planId ?? ""));
+        res.json({ success: true, data });
+    }),
+    createCustomPlanCategoryAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertCustomPlanCategoryAdmin(req.body);
+        res.status(201).json({ success: true, data });
+    }),
+    updateCustomPlanCategoryAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertCustomPlanCategoryAdmin({
+            ...req.body,
+            id: req.params.id
+        });
+        res.json({ success: true, data });
+    }),
+    deleteCustomPlanCategoryAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deleteCustomPlanCategoryAdmin(req.params.id);
+        res.json({ success: true, data });
+    }),
+    reorderCustomPlanCategoriesAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.reorderCustomPlanCategoriesAdmin(req.body.planId, req.body.categoryIds);
+        res.json({ success: true, data });
+    }),
+    listCustomPlanFoodItemsAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.listCustomPlanFoodItemsAdmin(String(req.query.planId ?? ""), typeof req.query.categoryId === "string" ? req.query.categoryId : undefined);
+        res.json({ success: true, data });
+    }),
+    createCustomPlanFoodItemAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertCustomPlanFoodItemAdmin(req.body);
+        res.status(201).json({ success: true, data });
+    }),
+    updateCustomPlanFoodItemAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertCustomPlanFoodItemAdmin({
+            ...req.body,
+            id: req.params.id
+        });
+        res.json({ success: true, data });
+    }),
+    deleteCustomPlanFoodItemAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deleteCustomPlanFoodItemAdmin(req.params.id);
+        res.json({ success: true, data });
+    }),
+    reorderCustomPlanFoodItemsAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.reorderCustomPlanFoodItemsAdmin(req.body.planId, req.body.categoryId, req.body.itemIds);
+        res.json({ success: true, data });
     }),
     listPlanFlows: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await admin_service_1.adminService.listPlanFlows();
