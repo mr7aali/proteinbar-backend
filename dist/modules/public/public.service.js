@@ -166,6 +166,12 @@ exports.publicService = {
     async listLocations() {
         return admin_service_1.adminService.listLocations();
     },
+    async getWebsitePage(slug) {
+        const page = await admin_service_1.adminService.getWebsitePageBySlug(slug.trim());
+        if (page.status !== "published")
+            throw new AppError_1.AppError(404, "Website page not found");
+        return page;
+    },
     async listBuilderIngredients() {
         return admin_service_1.adminService.listIngredients();
     },

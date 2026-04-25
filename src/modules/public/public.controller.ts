@@ -31,6 +31,10 @@ export const publicController = {
     const data = await publicService.listLocations();
     res.json({ success: true, data });
   }),
+  getWebsitePage: asyncHandler(async (req: Request, res: Response) => {
+    const data = await publicService.getWebsitePage(req.params.slug);
+    res.json({ success: true, data });
+  }),
   listBuilderIngredients: asyncHandler(async (_req: Request, res: Response) => {
     const data = await publicService.listBuilderIngredients();
     res.json({ success: true, data });

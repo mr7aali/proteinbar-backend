@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PlanFlowModel = exports.NotificationModel = exports.SubscriptionModel = exports.OrderModel = exports.IngredientModel = exports.CustomPlanFoodItemModel = exports.CustomPlanCategoryModel = exports.MealLibraryItemModel = exports.MonthlyPlanDetailsModel = exports.MonthlyPlanModel = exports.LocationModel = exports.RestaurantModel = exports.MenuItemModel = exports.ProductModel = void 0;
+exports.WebsitePageModel = exports.PlanFlowModel = exports.NotificationModel = exports.SubscriptionModel = exports.OrderModel = exports.IngredientModel = exports.CustomPlanFoodItemModel = exports.CustomPlanCategoryModel = exports.MealLibraryItemModel = exports.MonthlyPlanDetailsModel = exports.MonthlyPlanModel = exports.LocationModel = exports.RestaurantModel = exports.MenuItemModel = exports.ProductModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const ProductSchema = new mongoose_1.Schema({
     sku: { type: String, required: true, unique: true, trim: true },
@@ -229,6 +229,28 @@ const PlanFlowSchema = new mongoose_1.Schema({
     flowType: { type: String, required: true, unique: true, trim: true },
     steps: { type: [PlanFlowStepSchema], default: [] }
 }, { timestamps: true });
+const WebsitePageSchema = new mongoose_1.Schema({
+    pageId: { type: String, required: true, unique: true, trim: true },
+    slug: { type: String, required: true, unique: true, trim: true, index: true },
+    title: { type: String, required: true, trim: true },
+    navLabel: { type: String, default: "", trim: true },
+    summary: { type: String, default: "", trim: true },
+    kind: { type: String, default: "system", trim: true },
+    status: { type: String, default: "draft", trim: true, index: true },
+    showInTopNav: { type: Boolean, default: false },
+    heroEyebrow: { type: String, default: "", trim: true },
+    heroTitle: { type: String, default: "", trim: true },
+    heroSubtitle: { type: String, default: "", trim: true },
+    heroBody: { type: String, default: "", trim: true },
+    heroImage: { type: String, default: "" },
+    heroPrimaryCtaLabel: { type: String, default: "", trim: true },
+    heroPrimaryCtaLink: { type: String, default: "", trim: true },
+    heroSecondaryCtaLabel: { type: String, default: "", trim: true },
+    heroSecondaryCtaLink: { type: String, default: "", trim: true },
+    seoTitle: { type: String, default: "", trim: true },
+    seoDescription: { type: String, default: "", trim: true },
+    sections: { type: [mongoose_1.Schema.Types.Mixed], default: [] }
+}, { timestamps: true });
 exports.ProductModel = mongoose_1.default.model("Product", ProductSchema);
 exports.MenuItemModel = mongoose_1.default.model("MenuItem", MenuItemSchema);
 exports.RestaurantModel = mongoose_1.default.model("Restaurant", RestaurantSchema);
@@ -243,3 +265,4 @@ exports.OrderModel = mongoose_1.default.model("Order", OrderSchema);
 exports.SubscriptionModel = mongoose_1.default.model("Subscription", SubscriptionSchema);
 exports.NotificationModel = mongoose_1.default.model("Notification", NotificationSchema);
 exports.PlanFlowModel = mongoose_1.default.model("PlanFlow", PlanFlowSchema);
+exports.WebsitePageModel = mongoose_1.default.model("WebsitePage", WebsitePageSchema);

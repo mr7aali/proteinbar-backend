@@ -1,4 +1,4 @@
-import { connectDb } from "../config/db";
+﻿import { connectDb } from "../config/db";
 import {
   IngredientModel,
   LocationModel,
@@ -7,7 +7,8 @@ import {
   NotificationModel,
   OrderModel,
   ProductModel,
-  SubscriptionModel
+  SubscriptionModel,
+  WebsitePageModel
 } from "../modules/admin/admin.model";
 import { UserModel } from "../modules/auth/auth.model";
 import { MenuCategoryModel, PublicLocationModel, StoreProductModel } from "../modules/public/public.model";
@@ -24,6 +25,7 @@ async function seed() {
     OrderModel.deleteMany({}),
     SubscriptionModel.deleteMany({}),
     NotificationModel.deleteMany({}),
+    WebsitePageModel.deleteMany({}),
     MenuCategoryModel.deleteMany({}),
     StoreProductModel.deleteMany({}),
     PublicLocationModel.deleteMany({})
@@ -62,6 +64,7 @@ async function seed() {
     {
       menuId: "MENU-901",
       title: "High Protein Lunch Box",
+      image: "/food/food.png",
       linkedProductSkus: ["PRD-101"],
       visibleDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
       timeSlots: ["12:00-14:00", "14:00-16:00"],
@@ -180,11 +183,145 @@ async function seed() {
     }
   ]);
 
+  await WebsitePageModel.insertMany([
+    {
+      pageId: "home",
+      slug: "home",
+      title: "Home",
+      navLabel: "Home",
+      summary: "Homepage hero, trust-building content, and conversion sections.",
+      kind: "system",
+      status: "published",
+      showInTopNav: true,
+      heroEyebrow: "Since 2018",
+      heroTitle: "The Real Food Revolution",
+      heroSubtitle:
+        "Fresh ingredients. No oil. No trans fat. Casablanca's favorite healthy restaurant since 2018.",
+      heroBody: "Manage homepage text, images, CTAs, and every major section from the admin dashboard.",
+      heroImage: "/hero.png",
+      heroPrimaryCtaLabel: "See Our Menu",
+      heroPrimaryCtaLink: "/pages/menu",
+      heroSecondaryCtaLabel: "Start A Monthly Plan",
+      heroSecondaryCtaLink: "/plans",
+      seoTitle: "Proteinbar | Healthy Meals & Meal Plans",
+      seoDescription: "Fresh meals, flexible plans, and delivery that fits your week.",
+      sections: []
+    },
+    {
+      pageId: "menu",
+      slug: "menu",
+      title: "Menu",
+      navLabel: "Menu",
+      summary: "Hero and supporting CMS content around the menu.",
+      kind: "system",
+      status: "published",
+      showInTopNav: true,
+      heroEyebrow: "Discover",
+      heroTitle: "Menu",
+      heroSubtitle: "",
+      heroBody: "",
+      heroImage: "/location_hero.png",
+      heroPrimaryCtaLabel: "",
+      heroPrimaryCtaLink: "",
+      heroSecondaryCtaLabel: "",
+      heroSecondaryCtaLink: "",
+      seoTitle: "Proteinbar Menu",
+      seoDescription: "Browse menu categories and featured meals.",
+      sections: []
+    },
+    {
+      pageId: "about-us",
+      slug: "about-us",
+      title: "About Us",
+      navLabel: "About Us",
+      summary: "Brand story and trust-building content.",
+      kind: "system",
+      status: "published",
+      showInTopNav: true,
+      heroEyebrow: "Our Story",
+      heroTitle: "About us",
+      heroSubtitle: "",
+      heroBody: "",
+      heroImage: "/hero.png",
+      heroPrimaryCtaLabel: "",
+      heroPrimaryCtaLink: "",
+      heroSecondaryCtaLabel: "",
+      heroSecondaryCtaLink: "",
+      seoTitle: "About Proteinbar",
+      seoDescription: "Learn more about Proteinbar.",
+      sections: []
+    },
+    {
+      pageId: "contact",
+      slug: "contact",
+      title: "Contact",
+      navLabel: "Contact",
+      summary: "Support and contact page content.",
+      kind: "system",
+      status: "published",
+      showInTopNav: true,
+      heroEyebrow: "Get In Touch",
+      heroTitle: "Contact Us",
+      heroSubtitle: "",
+      heroBody: "",
+      heroImage: "/hero.png",
+      heroPrimaryCtaLabel: "",
+      heroPrimaryCtaLink: "",
+      heroSecondaryCtaLabel: "",
+      heroSecondaryCtaLink: "",
+      seoTitle: "Contact Proteinbar",
+      seoDescription: "Reach Proteinbar for support or questions.",
+      sections: []
+    },
+    {
+      pageId: "locations",
+      slug: "locations",
+      title: "Locations",
+      navLabel: "Locations",
+      summary: "Hero and support copy for the locations page.",
+      kind: "system",
+      status: "published",
+      showInTopNav: true,
+      heroEyebrow: "Visit Us",
+      heroTitle: "Locations",
+      heroSubtitle: "",
+      heroBody: "",
+      heroImage: "/location_hero.png",
+      heroPrimaryCtaLabel: "",
+      heroPrimaryCtaLink: "",
+      heroSecondaryCtaLabel: "",
+      heroSecondaryCtaLink: "",
+      seoTitle: "Proteinbar Locations",
+      seoDescription: "Pickup points, delivery zones, and branch guidance.",
+      sections: [
+        {
+          id: "locations-delivery-overview",
+          sectionKey: "delivery-overview",
+          sectionType: "stats",
+          isVisible: true,
+          sortOrder: 0,
+          heading: "2 Locations & Delivery All Over Casablanca",
+          body:
+            "Besides Our 2 Locations, We Focus Bringing Healthy, Delicious Meals Right To Your Doorstep, Wherever You Are In Casablanca.",
+          eyebrow: "",
+          image: "/healthy/image-7.png",
+          buttonLabel: "",
+          buttonLink: "",
+          items: [
+            { id: "delivery-stat-1", title: "Staff Members", subtitle: "+", body: "users", value: "14", image: "" },
+            { id: "delivery-stat-2", title: "Opens everyday", subtitle: "/7", body: "calendar", value: "7", image: "" },
+            { id: "delivery-stat-3", title: "Positive Reviews", subtitle: "+", body: "thumbs-up", value: "411", image: "" }
+          ]
+        }
+      ]
+    }
+  ]);
+
   await MenuCategoryModel.insertMany([
     {
       categoryId: "high-protein-breakfast",
       name: "BREAKFAST",
-      description: "Petits D�jeuners",
+      description: "Petits Déjeuners",
       items: [
         {
           id: "leggs-day",
@@ -240,3 +377,4 @@ seed().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+

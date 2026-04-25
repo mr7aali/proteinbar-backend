@@ -189,6 +189,12 @@ export const publicService = {
     return adminService.listLocations();
   },
 
+  async getWebsitePage(slug: string) {
+    const page = await adminService.getWebsitePageBySlug(slug.trim());
+    if (page.status !== "published") throw new AppError(404, "Website page not found");
+    return page;
+  },
+
   async listBuilderIngredients() {
     return adminService.listIngredients();
   },

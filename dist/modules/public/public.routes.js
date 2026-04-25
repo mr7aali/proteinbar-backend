@@ -11,6 +11,7 @@ exports.publicRouter.get("/restaurants", public_controller_1.publicController.li
 exports.publicRouter.get("/public/monthly-plan/plans", public_controller_1.publicController.listMonthlyPlans);
 exports.publicRouter.get("/public/monthly-plan/plans/:planId", public_controller_1.publicController.getMonthlyPlanById);
 exports.publicRouter.get("/monthly-plans/:planId", public_controller_1.publicController.getMonthlyPlanById);
+exports.publicRouter.get("/website-pages/:slug", public_controller_1.publicController.getWebsitePage);
 exports.publicRouter.get("/products/:handle", public_controller_1.publicController.getProductByHandle);
 exports.publicRouter.post("/contact", (0, validate_1.validate)(public_validation_1.contactSchema), public_controller_1.publicController.createContactMessage);
 exports.publicRouter.post("/checkout", (0, validate_1.validate)(public_validation_1.checkoutSchema), public_controller_1.publicController.checkout);

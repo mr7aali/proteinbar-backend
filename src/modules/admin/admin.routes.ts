@@ -22,7 +22,8 @@ import {
   orderUpdateSchema,
   planFlowSchema,
   productSchema,
-  subscriptionUpdateSchema
+  subscriptionUpdateSchema,
+  websitePageSchema
 } from "./admin.validation";
 
 export const adminRouter = Router();
@@ -146,3 +147,8 @@ adminRouter.patch("/subscriptions/:id", validate(subscriptionUpdateSchema), admi
 
 adminRouter.get("/notifications", adminController.listNotifications);
 adminRouter.delete("/notifications/:id", adminController.deleteNotification);
+
+adminRouter.get("/website-pages", adminController.listWebsitePages);
+adminRouter.get("/website-pages/:slug", adminController.getWebsitePageBySlug);
+adminRouter.post("/website-pages/upsert", validate(websitePageSchema), adminController.upsertWebsitePage);
+adminRouter.delete("/website-pages/:id", adminController.deleteWebsitePage);

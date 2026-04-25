@@ -32,6 +32,10 @@ exports.publicController = {
         const data = await public_service_1.publicService.listLocations();
         res.json({ success: true, data });
     }),
+    getWebsitePage: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await public_service_1.publicService.getWebsitePage(req.params.slug);
+        res.json({ success: true, data });
+    }),
     listBuilderIngredients: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await public_service_1.publicService.listBuilderIngredients();
         res.json({ success: true, data });

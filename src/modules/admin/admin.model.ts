@@ -266,6 +266,32 @@ const PlanFlowSchema = new Schema(
   { timestamps: true }
 );
 
+const WebsitePageSchema = new Schema(
+  {
+    pageId: { type: String, required: true, unique: true, trim: true },
+    slug: { type: String, required: true, unique: true, trim: true, index: true },
+    title: { type: String, required: true, trim: true },
+    navLabel: { type: String, default: "", trim: true },
+    summary: { type: String, default: "", trim: true },
+    kind: { type: String, default: "system", trim: true },
+    status: { type: String, default: "draft", trim: true, index: true },
+    showInTopNav: { type: Boolean, default: false },
+    heroEyebrow: { type: String, default: "", trim: true },
+    heroTitle: { type: String, default: "", trim: true },
+    heroSubtitle: { type: String, default: "", trim: true },
+    heroBody: { type: String, default: "", trim: true },
+    heroImage: { type: String, default: "" },
+    heroPrimaryCtaLabel: { type: String, default: "", trim: true },
+    heroPrimaryCtaLink: { type: String, default: "", trim: true },
+    heroSecondaryCtaLabel: { type: String, default: "", trim: true },
+    heroSecondaryCtaLink: { type: String, default: "", trim: true },
+    seoTitle: { type: String, default: "", trim: true },
+    seoDescription: { type: String, default: "", trim: true },
+    sections: { type: [Schema.Types.Mixed], default: [] }
+  },
+  { timestamps: true }
+);
+
 export const ProductModel = mongoose.model("Product", ProductSchema);
 export const MenuItemModel = mongoose.model("MenuItem", MenuItemSchema);
 export const RestaurantModel = mongoose.model("Restaurant", RestaurantSchema);
@@ -280,3 +306,4 @@ export const OrderModel = mongoose.model("Order", OrderSchema);
 export const SubscriptionModel = mongoose.model("Subscription", SubscriptionSchema);
 export const NotificationModel = mongoose.model("Notification", NotificationSchema);
 export const PlanFlowModel = mongoose.model("PlanFlow", PlanFlowSchema);
+export const WebsitePageModel = mongoose.model("WebsitePage", WebsitePageSchema);

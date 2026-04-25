@@ -372,6 +372,350 @@ async function ensurePlanFlowsSeeded() {
         await admin_model_1.PlanFlowModel.insertMany(missing);
     }
 }
+function createWebsiteSection(section) {
+    return {
+        isVisible: true,
+        sortOrder: 0,
+        heading: "",
+        body: "",
+        eyebrow: "",
+        image: "",
+        buttonLabel: "",
+        buttonLink: "",
+        items: [],
+        ...section
+    };
+}
+function getDefaultWebsitePages() {
+    return [
+        {
+            id: "home",
+            slug: "home",
+            title: "Home",
+            navLabel: "Home",
+            summary: "Homepage hero, trust-building content, and conversion sections.",
+            kind: "system",
+            status: "published",
+            showInTopNav: true,
+            heroEyebrow: "Since 2018",
+            heroTitle: "The Real Food Revolution",
+            heroSubtitle: "Fresh ingredients. No oil. No trans fat. Casablanca's favorite healthy restaurant since 2018.",
+            heroBody: "Manage homepage text, images, CTAs, and every major section from the admin dashboard.",
+            heroImage: "/hero.png",
+            heroPrimaryCtaLabel: "See Our Menu",
+            heroPrimaryCtaLink: "/pages/menu",
+            heroSecondaryCtaLabel: "Start A Monthly Plan",
+            heroSecondaryCtaLink: "/plans",
+            seoTitle: "Proteinbar | Healthy Meals & Meal Plans",
+            seoDescription: "Fresh meals, flexible plans, and delivery that fits your week.",
+            sections: [
+                createWebsiteSection({
+                    id: "home-intro",
+                    sectionKey: "intro-statement",
+                    sectionType: "richText",
+                    heading: "Intro Statement",
+                    body: "Founded in 2018, Proteinbar is dedicated to offering a wide array of wholesome and nutritious meals. Our restaurant prides itself on crafting delicious dishes that prioritize health and well-being, catering to a diverse clientele seeking flavorful options that support a balanced lifestyle.",
+                    buttonLabel: "See Our Menu",
+                    buttonLink: "/pages/menu"
+                }),
+                createWebsiteSection({
+                    id: "home-locations-preview",
+                    sectionKey: "locations-preview",
+                    sectionType: "dynamicEmbed",
+                    heading: "Our Locations",
+                    body: "Manage this heading and support text here while the actual location cards stay synced from the Locations module."
+                }),
+                createWebsiteSection({
+                    id: "home-mission",
+                    sectionKey: "mission",
+                    sectionType: "cards",
+                    heading: "Our Mission",
+                    body: "Proteinbar's core vision and mission is not just about providing delicious healthy meals to its customers, but also providing and promoting good health and make it accessible to whoever, wherever.",
+                    items: [
+                        { id: "mission-1", title: "Delicious & Healthy", body: "Provide delicious healthy meals to customers." },
+                        { id: "mission-2", title: "Promote good health", body: "Encourage well-being and fitness." },
+                        { id: "mission-3", title: "Accessibility", body: "Make health accessible to everyone, everywhere." }
+                    ]
+                }),
+                createWebsiteSection({
+                    id: "home-experience",
+                    sectionKey: "experience",
+                    sectionType: "cards",
+                    heading: "THE PROTEINBAR EXPERIENCE",
+                    items: [
+                        { id: "experience-1", title: "See Our Menu", label: "see Menu", link: "/pages/menu", image: "/location-2.png" },
+                        { id: "experience-2", title: "Need A Meal Plan", label: "Contact Us", link: "/pages/contact", image: "/location-1.png" },
+                        { id: "experience-3", title: "Catering Experiences", label: "Contact Us", link: "/pages/contact", image: "/hero.png" }
+                    ]
+                }),
+                createWebsiteSection({
+                    id: "home-brand-values",
+                    sectionKey: "brand-values",
+                    sectionType: "cards",
+                    heading: "PROTEINBAR",
+                    body: "Brand values and promises.",
+                    items: [
+                        { id: "value-1", title: "HONEST BUSINESS", body: "Fair trade practices and full transparency to earn your trust every step of the way.", image: "/icon/icon-1.webp" },
+                        { id: "value-2", title: "FRESH & HEALTHY FOOD", body: "Experience the goodness of our fresh, locally sourced ingredients promoting a healthier lifestyle.", image: "/icon/icon-2.webp" },
+                        { id: "value-3", title: "NO OIL", body: "Our meals are light, clean, and perfect for a balanced diet.", image: "/icon/icon-3.webp" },
+                        { id: "value-4", title: "COST-EFFECTIVE", body: "Get nutritious meals that do not break the bank to suit every budget & preference.", image: "/icon/icon-4.webp" },
+                        { id: "value-5", title: "MADE WITH LOVE", body: "Prepared with care and passion, every meal reflects our dedication to quality.", image: "/icon/icon-5.webp" },
+                        { id: "value-6", title: "NO TRANS FAT", body: "Our meals are oil-free, healthy, and full of flavor.", image: "/icon/icon-6.webp" }
+                    ]
+                }),
+                createWebsiteSection({
+                    id: "home-healthy-customers",
+                    sectionKey: "healthy-customers",
+                    sectionType: "cards",
+                    heading: "6 Years Of Happy Healthy Customers And Counting...",
+                    items: [
+                        { id: "healthy-1", image: "/healthy/image-1.png" },
+                        { id: "healthy-2", image: "/healthy/image-2.png" },
+                        { id: "healthy-3", image: "/healthy/image-3.png" },
+                        { id: "healthy-4", image: "/healthy/image-4.png" },
+                        { id: "healthy-5", image: "/healthy/image-5.png" },
+                        { id: "healthy-6", image: "/healthy/image-6.png" },
+                        { id: "healthy-7", image: "/healthy/image-7.png" },
+                        { id: "healthy-8", image: "/healthy/image-5.png" },
+                        { id: "healthy-9", image: "/healthy/image-4.png" },
+                        { id: "healthy-10", image: "/healthy/image-1.png" },
+                        { id: "healthy-11", image: "/healthy/image-6.png" },
+                        { id: "healthy-12", image: "/healthy/image-2.png" }
+                    ]
+                }),
+                createWebsiteSection({
+                    id: "home-testimonials",
+                    sectionKey: "testimonials",
+                    sectionType: "testimonials",
+                    heading: "Google Reviews",
+                    body: "Google Reviews *****",
+                    items: [
+                        { id: "testimonial-1", title: "Perfect place. Love the concept.", body: "Perfect place. Love the concept. Love the food. Friendly employees also.", subtitle: "Jememar" },
+                        { id: "testimonial-2", title: "Great experience I loved it there..", body: "Great experience I loved it there.. The menu comes with different dishes and calories count.. perfect for athletes.. it also says that it is made from athletes to athletes.. The cheesecake there is a real piece of art .. so delicious and perfectly baked..", subtitle: "Chaimaa Boutjim" },
+                        { id: "testimonial-3", title: "Amazing quality and super clean place.", body: "I always find fresh options and the staff are very friendly. The portions are good and the service is fast.", subtitle: "Salma R." },
+                        { id: "testimonial-4", title: "Best healthy food spot in town.", body: "Great atmosphere and delicious meals. It is one of my favorite places after workouts.", subtitle: "Karim N." }
+                    ]
+                })
+            ]
+        },
+        {
+            id: "menu",
+            slug: "menu",
+            title: "Menu",
+            navLabel: "Menu",
+            summary: "Hero and supporting CMS content around the menu.",
+            kind: "system",
+            status: "published",
+            showInTopNav: true,
+            heroTitle: "Browse our menu",
+            heroBody: "Manage the menu page hero and supporting copy from the admin dashboard.",
+            seoTitle: "Proteinbar Menu",
+            seoDescription: "Browse menu categories and featured meals.",
+            sections: []
+        },
+        {
+            id: "locations",
+            slug: "locations",
+            title: "Locations",
+            navLabel: "Locations",
+            summary: "Hero and support copy for the locations page.",
+            kind: "system",
+            status: "published",
+            showInTopNav: true,
+            heroTitle: "Our Locations",
+            heroBody: "Manage the locations page hero while the location cards stay data-driven.",
+            seoTitle: "Proteinbar Locations",
+            seoDescription: "Pickup points, delivery zones, and branch guidance.",
+            sections: []
+        },
+        {
+            id: "meal-prep",
+            slug: "meal-prep",
+            title: "Meal Prep",
+            navLabel: "Meal Prep",
+            summary: "Meal prep landing page content.",
+            kind: "system",
+            status: "published",
+            showInTopNav: true,
+            heroTitle: "Meal Prep",
+            heroBody: "Page-level content for your meal prep flow.",
+            seoTitle: "Proteinbar Meal Prep",
+            seoDescription: "Meal prep subscriptions and onboarding content.",
+            sections: []
+        },
+        {
+            id: "about-us",
+            slug: "about-us",
+            title: "About Us",
+            navLabel: "About Us",
+            summary: "Brand story and trust-building content.",
+            kind: "system",
+            status: "published",
+            showInTopNav: true,
+            heroTitle: "About Us",
+            heroBody: "Control brand story and trust-building copy.",
+            seoTitle: "About Proteinbar",
+            seoDescription: "Learn more about Proteinbar.",
+            sections: []
+        },
+        {
+            id: "contact",
+            slug: "contact",
+            title: "Contact",
+            navLabel: "Contact",
+            summary: "Support and contact page content.",
+            kind: "system",
+            status: "published",
+            showInTopNav: true,
+            heroTitle: "Contact",
+            heroBody: "Control support messaging and contact content.",
+            seoTitle: "Contact Proteinbar",
+            seoDescription: "Reach Proteinbar for support or questions.",
+            sections: []
+        }
+    ];
+}
+async function ensureWebsitePagesSeeded() {
+    const existing = await admin_model_1.WebsitePageModel.find({}, { pageId: 1 }).lean();
+    const existingIds = new Set(existing.map((row) => String(row.pageId ?? "")));
+    const missingPages = getDefaultWebsitePages().filter((page) => !existingIds.has(page.id));
+    if (missingPages.length === 0)
+        return;
+    await admin_model_1.WebsitePageModel.insertMany(missingPages.map((page) => ({
+        pageId: page.id,
+        slug: page.slug,
+        title: page.title,
+        navLabel: page.navLabel,
+        summary: page.summary,
+        kind: page.kind,
+        status: page.status,
+        showInTopNav: page.showInTopNav,
+        heroEyebrow: page.heroEyebrow ?? "",
+        heroTitle: page.heroTitle,
+        heroSubtitle: page.heroSubtitle ?? "",
+        heroBody: page.heroBody ?? "",
+        heroImage: page.heroImage ?? "",
+        heroPrimaryCtaLabel: page.heroPrimaryCtaLabel ?? "",
+        heroPrimaryCtaLink: page.heroPrimaryCtaLink ?? "",
+        heroSecondaryCtaLabel: page.heroSecondaryCtaLabel ?? "",
+        heroSecondaryCtaLink: page.heroSecondaryCtaLink ?? "",
+        seoTitle: page.seoTitle,
+        seoDescription: page.seoDescription,
+        sections: page.sections
+    })));
+}
+async function normalizeWebsiteRepeaterItem(item, index) {
+    return {
+        id: item.id?.trim() || `item-${Date.now()}-${index}`,
+        title: String(item.title ?? "").trim(),
+        subtitle: String(item.subtitle ?? "").trim(),
+        body: String(item.body ?? "").trim(),
+        label: String(item.label ?? "").trim(),
+        link: String(item.link ?? "").trim(),
+        value: String(item.value ?? "").trim(),
+        image: await (0, cloudinary_1.uploadImageIfNeeded)((0, cloudinary_1.normalizeImageInput)(item.image ?? ""), { folder: "proteinbar/website-pages/items" })
+    };
+}
+async function normalizeWebsiteSection(section, index) {
+    return {
+        id: section.id?.trim() || `section-${Date.now()}-${index}`,
+        sectionKey: toSlug(section.sectionKey || section.heading || `section-${index + 1}`),
+        sectionType: section.sectionType ?? "richText",
+        isVisible: section.isVisible ?? true,
+        sortOrder: Number.isFinite(section.sortOrder) ? Number(section.sortOrder) : index,
+        heading: String(section.heading ?? "").trim(),
+        body: String(section.body ?? "").trim(),
+        eyebrow: String(section.eyebrow ?? "").trim(),
+        image: await (0, cloudinary_1.uploadImageIfNeeded)((0, cloudinary_1.normalizeImageInput)(section.image ?? ""), { folder: "proteinbar/website-pages/sections" }),
+        buttonLabel: String(section.buttonLabel ?? "").trim(),
+        buttonLink: String(section.buttonLink ?? "").trim(),
+        items: await Promise.all((section.items ?? []).map((item, itemIndex) => normalizeWebsiteRepeaterItem(item, itemIndex)))
+    };
+}
+async function normalizeWebsitePagePayload(payload) {
+    const normalizedId = payload.id.trim();
+    const normalizedSlug = toSlug(payload.slug || payload.title) || normalizedId;
+    return {
+        ...payload,
+        id: normalizedId,
+        slug: normalizedSlug,
+        title: payload.title.trim(),
+        navLabel: payload.navLabel.trim() || payload.title.trim(),
+        summary: payload.summary.trim(),
+        heroEyebrow: String(payload.heroEyebrow ?? "").trim(),
+        heroTitle: payload.heroTitle.trim(),
+        heroSubtitle: String(payload.heroSubtitle ?? "").trim(),
+        heroBody: String(payload.heroBody ?? "").trim(),
+        heroImage: await (0, cloudinary_1.uploadImageIfNeeded)((0, cloudinary_1.normalizeImageInput)(payload.heroImage ?? ""), { folder: "proteinbar/website-pages/heroes" }),
+        heroPrimaryCtaLabel: String(payload.heroPrimaryCtaLabel ?? "").trim(),
+        heroPrimaryCtaLink: String(payload.heroPrimaryCtaLink ?? "").trim(),
+        heroSecondaryCtaLabel: String(payload.heroSecondaryCtaLabel ?? "").trim(),
+        heroSecondaryCtaLink: String(payload.heroSecondaryCtaLink ?? "").trim(),
+        seoTitle: payload.seoTitle.trim(),
+        seoDescription: payload.seoDescription.trim(),
+        sections: await Promise.all((payload.sections ?? []).map((section, index) => normalizeWebsiteSection(section, index)))
+    };
+}
+function toWebsitePageRecord(row) {
+    const sections = Array.isArray(row.sections) ? row.sections : [];
+    return {
+        id: String(row.pageId ?? row.id ?? ""),
+        slug: String(row.slug ?? ""),
+        title: String(row.title ?? ""),
+        navLabel: String(row.navLabel ?? row.title ?? ""),
+        summary: String(row.summary ?? ""),
+        kind: String(row.kind ?? "system") === "legal" ? "legal" : String(row.kind ?? "system") === "custom" ? "custom" : "system",
+        status: String(row.status ?? "draft") === "published" ? "published" : "draft",
+        showInTopNav: Boolean(row.showInTopNav),
+        heroEyebrow: String(row.heroEyebrow ?? ""),
+        heroTitle: String(row.heroTitle ?? ""),
+        heroSubtitle: String(row.heroSubtitle ?? ""),
+        heroBody: String(row.heroBody ?? ""),
+        heroImage: (0, cloudinary_1.normalizeImageInput)(row.heroImage ?? ""),
+        heroPrimaryCtaLabel: String(row.heroPrimaryCtaLabel ?? ""),
+        heroPrimaryCtaLink: String(row.heroPrimaryCtaLink ?? ""),
+        heroSecondaryCtaLabel: String(row.heroSecondaryCtaLabel ?? ""),
+        heroSecondaryCtaLink: String(row.heroSecondaryCtaLink ?? ""),
+        seoTitle: String(row.seoTitle ?? ""),
+        seoDescription: String(row.seoDescription ?? ""),
+        updatedAt: row.updatedAt instanceof Date
+            ? row.updatedAt.toISOString()
+            : String(row.updatedAt ?? new Date().toISOString()),
+        sections: sections
+            .map((section, index) => {
+            const item = section;
+            return {
+                id: String(item.id ?? `section-${index}`),
+                sectionKey: String(item.sectionKey ?? `section-${index + 1}`),
+                sectionType: item.sectionType,
+                isVisible: Boolean(item.isVisible ?? true),
+                sortOrder: Number(item.sortOrder ?? index),
+                heading: String(item.heading ?? ""),
+                body: String(item.body ?? ""),
+                eyebrow: String(item.eyebrow ?? ""),
+                image: (0, cloudinary_1.normalizeImageInput)(item.image ?? ""),
+                buttonLabel: String(item.buttonLabel ?? ""),
+                buttonLink: String(item.buttonLink ?? ""),
+                items: Array.isArray(item.items)
+                    ? item.items.map((child, childIndex) => {
+                        const childRow = child;
+                        return {
+                            id: String(childRow.id ?? `item-${index}-${childIndex}`),
+                            title: String(childRow.title ?? ""),
+                            subtitle: String(childRow.subtitle ?? ""),
+                            body: String(childRow.body ?? ""),
+                            label: String(childRow.label ?? ""),
+                            link: String(childRow.link ?? ""),
+                            value: String(childRow.value ?? ""),
+                            image: (0, cloudinary_1.normalizeImageInput)(childRow.image ?? "")
+                        };
+                    })
+                    : []
+            };
+        })
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+    };
+}
 exports.adminService = {
     async getDashboard() {
         const [ordersCount, productsCount, menuCount, subscribers] = await Promise.all([
@@ -1089,5 +1433,50 @@ exports.adminService = {
         const row = await admin_model_1.NotificationModel.findByIdAndDelete(id);
         if (!row)
             throw new AppError_1.AppError(404, "Notification not found");
+    },
+    async listWebsitePages() {
+        await ensureWebsitePagesSeeded();
+        const rows = await admin_model_1.WebsitePageModel.find().sort({ title: 1 }).lean();
+        return rows.map((row) => toWebsitePageRecord(row));
+    },
+    async getWebsitePageBySlug(slug) {
+        await ensureWebsitePagesSeeded();
+        const row = await admin_model_1.WebsitePageModel.findOne({ slug: slug.trim() }).lean();
+        if (!row)
+            throw new AppError_1.AppError(404, "Website page not found");
+        return toWebsitePageRecord(row);
+    },
+    async upsertWebsitePage(payload) {
+        await ensureWebsitePagesSeeded();
+        const normalized = await normalizeWebsitePagePayload(payload);
+        const row = await admin_model_1.WebsitePageModel.findOneAndUpdate({ pageId: normalized.id }, {
+            pageId: normalized.id,
+            slug: normalized.slug,
+            title: normalized.title,
+            navLabel: normalized.navLabel,
+            summary: normalized.summary,
+            kind: normalized.kind,
+            status: normalized.status,
+            showInTopNav: normalized.showInTopNav,
+            heroEyebrow: normalized.heroEyebrow ?? "",
+            heroTitle: normalized.heroTitle,
+            heroSubtitle: normalized.heroSubtitle ?? "",
+            heroBody: normalized.heroBody ?? "",
+            heroImage: normalized.heroImage ?? "",
+            heroPrimaryCtaLabel: normalized.heroPrimaryCtaLabel ?? "",
+            heroPrimaryCtaLink: normalized.heroPrimaryCtaLink ?? "",
+            heroSecondaryCtaLabel: normalized.heroSecondaryCtaLabel ?? "",
+            heroSecondaryCtaLink: normalized.heroSecondaryCtaLink ?? "",
+            seoTitle: normalized.seoTitle,
+            seoDescription: normalized.seoDescription,
+            sections: normalized.sections
+        }, { new: true, upsert: true, setDefaultsOnInsert: true }).lean();
+        return toWebsitePageRecord(row);
+    },
+    async deleteWebsitePage(id) {
+        const row = await admin_model_1.WebsitePageModel.findOneAndDelete({ pageId: id }).lean();
+        if (!row)
+            throw new AppError_1.AppError(404, "Website page not found");
+        return { id };
     }
 };

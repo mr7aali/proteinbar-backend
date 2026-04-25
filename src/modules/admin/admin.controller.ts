@@ -260,5 +260,22 @@ export const adminController = {
   deleteNotification: asyncHandler(async (req: Request, res: Response) => {
     await adminService.deleteNotification(req.params.id);
     res.status(204).send();
+  }),
+
+  listWebsitePages: asyncHandler(async (_req: Request, res: Response) => {
+    const data = await adminService.listWebsitePages();
+    res.json({ success: true, data });
+  }),
+  getWebsitePageBySlug: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.getWebsitePageBySlug(req.params.slug);
+    res.json({ success: true, data });
+  }),
+  upsertWebsitePage: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.upsertWebsitePage(req.body);
+    res.json({ success: true, data });
+  }),
+  deleteWebsitePage: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.deleteWebsitePage(req.params.id);
+    res.json({ success: true, data });
   })
 };
