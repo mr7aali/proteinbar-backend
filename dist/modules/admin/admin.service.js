@@ -526,7 +526,21 @@ function getDefaultWebsitePages() {
             heroBody: "Manage the locations page hero while the location cards stay data-driven.",
             seoTitle: "Proteinbar Locations",
             seoDescription: "Pickup points, delivery zones, and branch guidance.",
-            sections: []
+            sections: [
+                createWebsiteSection({
+                    id: "locations-delivery-overview",
+                    sectionKey: "delivery-overview",
+                    sectionType: "stats",
+                    heading: "2 Locations & Delivery All Over Casablanca",
+                    body: "Besides Our 2 Locations, We Focus Bringing Healthy, Delicious Meals Right To Your Doorstep, Wherever You Are In Casablanca.",
+                    image: "/healthy/image-7.png",
+                    items: [
+                        { id: "delivery-stat-1", title: "Staff Members", value: "14", subtitle: "+", body: "users" },
+                        { id: "delivery-stat-2", title: "Opens everyday", value: "7", subtitle: "/7", body: "calendar" },
+                        { id: "delivery-stat-3", title: "Positive Reviews", value: "411", subtitle: "+", body: "thumbs-up" }
+                    ]
+                })
+            ]
         },
         {
             id: "meal-prep",

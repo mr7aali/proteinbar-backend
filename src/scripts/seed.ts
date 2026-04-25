@@ -65,6 +65,8 @@ async function seed() {
       menuId: "MENU-901",
       title: "High Protein Lunch Box",
       image: "/food/food.png",
+      restaurantIds: ["REST-1"],
+      restaurants: ["Proteinbar Bourgogne"],
       linkedProductSkus: ["PRD-101"],
       visibleDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
       timeSlots: ["12:00-14:00", "14:00-16:00"],
