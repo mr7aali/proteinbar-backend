@@ -19,5 +19,16 @@ const UserSchema = new Schema(
   { timestamps: true }
 );
 
+const CustomerSessionSchema = new Schema(
+  {
+    token: { type: String, required: true, unique: true, trim: true, index: true },
+    userId: { type: Schema.Types.ObjectId, required: true, ref: "User", index: true },
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    expiresAt: { type: Date, required: true, index: true }
+  },
+  { timestamps: true }
+);
+
 export const AuthCodeModel = mongoose.model("AuthCode", AuthCodeSchema);
 export const UserModel = mongoose.model("User", UserSchema);
+export const CustomerSessionModel = mongoose.model("CustomerSession", CustomerSessionSchema);

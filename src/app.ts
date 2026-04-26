@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import type { Request, Response, NextFunction } from "express";
 import { env } from "./config/env";
 import { apiRouter } from "./routes";
 import { errorHandler, notFound } from "./common/middleware/errorHandler";
@@ -26,6 +27,10 @@ app.use(
     credentials: true,
   }),
 );
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.header("Vary", "Origin");
+  next();
+});
 app.use(express.json({ limit: "25mb" }));
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 

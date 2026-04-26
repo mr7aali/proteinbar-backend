@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.publicRouter = void 0;
 const express_1 = require("express");
 const validate_1 = require("../../common/middleware/validate");
+const requireCustomerSession_1 = require("../../common/middleware/requireCustomerSession");
 const public_controller_1 = require("./public.controller");
 const public_validation_1 = require("./public.validation");
 exports.publicRouter = (0, express_1.Router)();
@@ -17,5 +18,5 @@ exports.publicRouter.get("/website-pages/:slug", public_controller_1.publicContr
 exports.publicRouter.post("/promo-codes/validate", (0, validate_1.validate)(public_validation_1.validatePromoCodeSchema), public_controller_1.publicController.validatePromoCode);
 exports.publicRouter.get("/products/:handle", public_controller_1.publicController.getProductByHandle);
 exports.publicRouter.post("/contact", (0, validate_1.validate)(public_validation_1.contactSchema), public_controller_1.publicController.createContactMessage);
-exports.publicRouter.post("/checkout", (0, validate_1.validate)(public_validation_1.checkoutSchema), public_controller_1.publicController.checkout);
+exports.publicRouter.post("/checkout", requireCustomerSession_1.requireCustomerSession, (0, validate_1.validate)(public_validation_1.checkoutSchema), public_controller_1.publicController.checkout);
 exports.publicRouter.post("/store-orders", (0, validate_1.validate)(public_validation_1.storeOrderSchema), public_controller_1.publicController.createStoreOrder);

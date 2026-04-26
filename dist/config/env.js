@@ -14,6 +14,19 @@ const envSchema = zod_1.z.object({
     JWT_SECRET: zod_1.z.string().min(8),
     JWT_EXPIRES_IN: zod_1.z.string().default("7d"),
     FRONTEND_ORIGINS: zod_1.z.string().default("http://localhost:3000,http://localhost:3001"),
+    CUSTOMER_SESSION_COOKIE_NAME: zod_1.z.string().default("proteinbar_customer_session"),
+    CUSTOMER_SESSION_DAYS: zod_1.z.coerce.number().default(7),
+    SMTP_HOST: zod_1.z.string().optional().default(""),
+    SMTP_PORT: zod_1.z.coerce.number().default(587),
+    SMTP_SECURE: zod_1.z
+        .union([zod_1.z.boolean(), zod_1.z.string()])
+        .optional()
+        .transform((value) => value === true || value === "true")
+        .default(false),
+    SMTP_USER: zod_1.z.string().optional().default(""),
+    SMTP_PASS: zod_1.z.string().optional().default(""),
+    SMTP_FROM_EMAIL: zod_1.z.string().optional().default(""),
+    SMTP_FROM_NAME: zod_1.z.string().optional().default("Proteinbar"),
     CLOUDINARY_CLOUD_NAME: zod_1.z.string().optional().default(""),
     CLOUDINARY_API_KEY: zod_1.z.string().optional().default(""),
     CLOUDINARY_API_SECRET: zod_1.z.string().optional().default(""),

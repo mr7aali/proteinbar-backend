@@ -80,6 +80,13 @@
   dependencies:
     undici-types "~6.21.0"
 
+"@types/nodemailer@^8.0.0":
+  version "8.0.0"
+  resolved "https://registry.npmjs.org/@types/nodemailer/-/nodemailer-8.0.0.tgz"
+  integrity sha512-fyf8jWULsCo0d0BuoQ75i6IeoHs47qcqxWc7yUdUcV0pOZGjUTTOvwdG1PRXUDqN/8A64yQdQdnA2pZgcdi+cA==
+  dependencies:
+    "@types/node" "*"
+
 "@types/qs@*":
   version "6.15.0"
   resolved "https://registry.npmjs.org/@types/qs/-/qs-6.15.0.tgz"
@@ -604,6 +611,11 @@ negotiator@0.6.3:
   version "0.6.3"
   resolved "https://registry.npmjs.org/negotiator/-/negotiator-0.6.3.tgz"
   integrity sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==
+
+nodemailer@^8.0.6:
+  version "8.0.6"
+  resolved "https://registry.npmjs.org/nodemailer/-/nodemailer-8.0.6.tgz"
+  integrity sha512-Nm2XeuDwwy2wi5A+8jPWwQwNzcjNjhWdE3pVLoXEusxJqCnAPAgnBGkSmiLknbnWuOF9qraRpYZjfxqtKZ4tPw==
 
 object-assign@^4:
   version "4.1.1"

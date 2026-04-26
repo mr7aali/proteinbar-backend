@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserModel = exports.AuthCodeModel = void 0;
+exports.CustomerSessionModel = exports.UserModel = exports.AuthCodeModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const AuthCodeSchema = new mongoose_1.Schema({
     email: { type: String, required: true, index: true, lowercase: true, trim: true },
@@ -46,5 +46,12 @@ const UserSchema = new mongoose_1.Schema({
     role: { type: String, default: "customer" },
     password: { type: String, default: "" }
 }, { timestamps: true });
+const CustomerSessionSchema = new mongoose_1.Schema({
+    token: { type: String, required: true, unique: true, trim: true, index: true },
+    userId: { type: mongoose_1.Schema.Types.ObjectId, required: true, ref: "User", index: true },
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    expiresAt: { type: Date, required: true, index: true }
+}, { timestamps: true });
 exports.AuthCodeModel = mongoose_1.default.model("AuthCode", AuthCodeSchema);
 exports.UserModel = mongoose_1.default.model("User", UserSchema);
+exports.CustomerSessionModel = mongoose_1.default.model("CustomerSession", CustomerSessionSchema);

@@ -1,8 +1,15 @@
+import crypto from "crypto";
 import { AppError } from "../../common/utils/AppError";
-import { AuthCodeModel, UserModel } from "./auth.model";
+import { env } from "../../config/env";
+import { sendLoginCodeEmail } from "../../common/utils/mailer";
+import { AuthCodeModel, CustomerSessionModel, UserModel } from "./auth.model";
 
 function generateCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function generateSessionToken() {
+  return crypto.randomBytes(32).toString("hex");
 }
 
 export const authService = {
@@ -11,6 +18,11 @@ export const authService = {
     const code = generateCode();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+    await AuthCodeModel.updateMany(
+      { email: normalizedEmail, consumed: false },
+      { $set: { consumed: true } }
+    );
+
     await AuthCodeModel.create({
       email: normalizedEmail,
       code,
@@ -18,9 +30,13 @@ export const authService = {
       consumed: false
     });
 
+    await sendLoginCodeEmail({
+      email: normalizedEmail,
+      code
+    });
+
     return {
       email: normalizedEmail,
-      code,
       expiresAt
     };
   },
@@ -47,13 +63,73 @@ export const authService = {
       { upsert: true, new: true }
     );
 
+    await CustomerSessionModel.deleteMany({
+      email: normalizedEmail
+    });
+
+    const expiresAt = new Date(
+      Date.now() + env.CUSTOMER_SESSION_DAYS * 24 * 60 * 60 * 1000
+    );
+    const token = generateSessionToken();
+
+    await CustomerSessionModel.create({
+      token,
+      userId: user._id,
+      email: normalizedEmail,
+      expiresAt
+    });
+
     return {
       user: {
         id: user._id,
         email: user.email,
         role: user.role
+      },
+      session: {
+        token,
+        expiresAt
       }
     };
+  },
+
+  async getCustomerSession(token: string) {
+    const normalizedToken = token.trim();
+    if (!normalizedToken) {
+      throw new AppError(401, "Authentication required");
+    }
+
+    const session = await CustomerSessionModel.findOne({
+      token: normalizedToken,
+      expiresAt: { $gt: new Date() }
+    }).lean();
+
+    if (!session) {
+      throw new AppError(401, "Authentication required");
+    }
+
+    const user = await UserModel.findById(session.userId).lean();
+    if (!user) {
+      throw new AppError(401, "Authentication required");
+    }
+
+    return {
+      user: {
+        id: String(user._id),
+        email: user.email,
+        role: user.role
+      },
+      session: {
+        token: normalizedToken,
+        expiresAt: session.expiresAt
+      }
+    };
+  },
+
+  async logoutCustomerSession(token: string) {
+    const normalizedToken = token.trim();
+    if (!normalizedToken) return;
+
+    await CustomerSessionModel.deleteOne({ token: normalizedToken });
   },
 
   async adminLogin(email: string, password: string) {
