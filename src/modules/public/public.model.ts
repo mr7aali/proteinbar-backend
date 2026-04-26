@@ -129,6 +129,10 @@ const CustomerOrderSchema = new Schema(
       vat: { type: Number, required: true },
       safetyBag: { type: Number, required: true },
       grandTotal: { type: Number, required: true }
+    },
+    promoCode: {
+      code: { type: String, default: "" },
+      discountAmount: { type: Number, default: 0 }
     }
   },
   { timestamps: true }

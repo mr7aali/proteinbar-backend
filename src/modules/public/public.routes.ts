@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validate } from "../../common/middleware/validate";
 import { publicController } from "./public.controller";
-import { checkoutSchema, contactSchema, storeOrderSchema } from "./public.validation";
+import { checkoutSchema, contactSchema, storeOrderSchema, validatePromoCodeSchema } from "./public.validation";
 
 export const publicRouter = Router();
 
@@ -13,6 +13,7 @@ publicRouter.get("/public/monthly-plan/plans/:planId", publicController.getMonth
 publicRouter.get("/monthly-plans/:planId", publicController.getMonthlyPlanById);
 publicRouter.get("/website-navigation", publicController.listWebsiteNavigation);
 publicRouter.get("/website-pages/:slug", publicController.getWebsitePage);
+publicRouter.post("/promo-codes/validate", validate(validatePromoCodeSchema), publicController.validatePromoCode);
 publicRouter.get("/products/:handle", publicController.getProductByHandle);
 publicRouter.post("/contact", validate(contactSchema), publicController.createContactMessage);
 publicRouter.post("/checkout", validate(checkoutSchema), publicController.checkout);

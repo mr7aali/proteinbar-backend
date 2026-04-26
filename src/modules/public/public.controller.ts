@@ -39,6 +39,10 @@ export const publicController = {
     const data = await publicService.listWebsiteNavigation();
     res.json({ success: true, data });
   }),
+  validatePromoCode: asyncHandler(async (req: Request, res: Response) => {
+    const data = await publicService.validatePromoCode(req.body);
+    res.json({ success: true, data });
+  }),
   listBuilderIngredients: asyncHandler(async (_req: Request, res: Response) => {
     const data = await publicService.listBuilderIngredients();
     res.json({ success: true, data });

@@ -139,6 +139,10 @@ const CustomerOrderSchema = new mongoose_1.Schema({
         vat: { type: Number, required: true },
         safetyBag: { type: Number, required: true },
         grandTotal: { type: Number, required: true }
+    },
+    promoCode: {
+        code: { type: String, default: "" },
+        discountAmount: { type: Number, default: 0 }
     }
 }, { timestamps: true });
 const StoreOrderSchema = new mongoose_1.Schema({

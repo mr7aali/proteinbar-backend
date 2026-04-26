@@ -60,6 +60,11 @@ export const checkoutSchema = z.object({
         .optional()
     }),
     selectedMeals: z.array(selectedMealSchema).optional(),
+    promoCode: z
+      .object({
+        code: z.string().min(1)
+      })
+      .optional(),
     totals: z.object({
       subtotal: z.number(),
       giftDiscount: z.number(),
@@ -92,4 +97,10 @@ export const storeOrderSchema = z.object({
     vat: z.number(),
     total: z.number()
   })
+});
+
+export const validatePromoCodeSchema = z.object({
+  code: z.string().min(1),
+  subtotal: z.number().positive(),
+  scope: z.enum(["monthly-plan", "direct-order"]).optional().default("monthly-plan")
 });

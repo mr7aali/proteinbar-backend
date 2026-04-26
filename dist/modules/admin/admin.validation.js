@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.websitePageSchema = exports.customPlanFoodItemReorderSchema = exports.customPlanFoodItemSchema = exports.customPlanFoodItemListQuerySchema = exports.customPlanCategoryReorderSchema = exports.customPlanCategorySchema = exports.customPlanCategoryListQuerySchema = exports.mealLibraryItemSchema = exports.monthlyPlanDetailsUpsertSchema = exports.monthlyPlanDetailsParamSchema = exports.monthlyPlanAdminFiltersSchema = exports.planFlowSchema = exports.flowTypeParamSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.restaurantSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
+exports.websitePageSchema = exports.customPlanFoodItemReorderSchema = exports.customPlanFoodItemSchema = exports.customPlanFoodItemListQuerySchema = exports.customPlanCategoryReorderSchema = exports.customPlanCategorySchema = exports.customPlanCategoryListQuerySchema = exports.mealLibraryItemSchema = exports.monthlyPlanDetailsUpsertSchema = exports.monthlyPlanDetailsParamSchema = exports.monthlyPlanAdminFiltersSchema = exports.planFlowSchema = exports.flowTypeParamSchema = exports.promoCodeSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.restaurantSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
 const zod_1 = require("zod");
 const optionalString = zod_1.z.string().trim().optional();
 exports.mongoIdParamSchema = zod_1.z.object({ id: zod_1.z.string().min(1) });
@@ -92,6 +92,24 @@ exports.subscriptionUpdateSchema = zod_1.z.object({
     currentWeek: zod_1.z.number().optional(),
     remainingMeals: zod_1.z.number().optional(),
     logMessage: zod_1.z.string().optional()
+});
+exports.promoCodeSchema = zod_1.z.object({
+    id: zod_1.z.string().optional(),
+    code: zod_1.z.string().min(1),
+    description: zod_1.z.string().optional().default(""),
+    discountType: zod_1.z.enum(["percent", "fixed"]),
+    discountValue: zod_1.z.number().positive(),
+    maxDiscount: zod_1.z.number().nonnegative().nullable().optional(),
+    startDate: zod_1.z.string().min(1),
+    endDate: zod_1.z.string().optional().default(""),
+    usageLimit: zod_1.z.number().int().positive().nullable().optional(),
+    usedCount: zod_1.z.number().int().nonnegative().optional().default(0),
+    isActive: zod_1.z.boolean(),
+    appliesToMonthlyPlans: zod_1.z.boolean(),
+    appliesToDirectOrders: zod_1.z.boolean(),
+    stackable: zod_1.z.boolean(),
+    showOnHomepage: zod_1.z.boolean(),
+    eligibilityNote: zod_1.z.string().optional().default("")
 });
 exports.flowTypeParamSchema = zod_1.z.object({
     flowType: zod_1.z.enum(["custom", "preset"])

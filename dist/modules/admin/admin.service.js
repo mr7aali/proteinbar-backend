@@ -350,6 +350,84 @@ function toPriceNumber(value) {
     const parsed = Number.parseFloat(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
 }
+function buildPromoCodeId() {
+    return `promo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+function normalizePromoCodeDate(value) {
+    const normalized = String(value ?? "").trim();
+    return normalized || "";
+}
+function normalizePromoCodePayload(payload) {
+    const code = String(payload.code ?? "").trim().toUpperCase();
+    if (!code) {
+        throw new AppError_1.AppError(400, "Promo code is required");
+    }
+    const discountValue = Number(payload.discountValue ?? 0);
+    if (!Number.isFinite(discountValue) || discountValue <= 0) {
+        throw new AppError_1.AppError(400, "Promo code discount value must be greater than 0");
+    }
+    const maxDiscountRaw = payload.maxDiscount;
+    const usageLimitRaw = payload.usageLimit;
+    return {
+        ...payload,
+        id: String(payload.id ?? "").trim() || buildPromoCodeId(),
+        code,
+        description: String(payload.description ?? "").trim(),
+        discountType: payload.discountType === "fixed" ? "fixed" : "percent",
+        discountValue,
+        maxDiscount: maxDiscountRaw === null || maxDiscountRaw === undefined
+            ? null
+            : Number(maxDiscountRaw),
+        startDate: normalizePromoCodeDate(payload.startDate),
+        endDate: normalizePromoCodeDate(payload.endDate),
+        usageLimit: usageLimitRaw === null || usageLimitRaw === undefined
+            ? null
+            : Number(usageLimitRaw),
+        usedCount: Number(payload.usedCount ?? 0),
+        eligibilityNote: String(payload.eligibilityNote ?? "").trim()
+    };
+}
+function toPromoCodeRecord(row) {
+    const maxDiscountRaw = row.maxDiscount;
+    const usageLimitRaw = row.usageLimit;
+    return {
+        id: String(row.promoCodeId ?? row.id ?? ""),
+        code: String(row.code ?? ""),
+        description: String(row.description ?? ""),
+        discountType: String(row.discountType ?? "percent") === "fixed" ? "fixed" : "percent",
+        discountValue: Number(row.discountValue ?? 0),
+        maxDiscount: maxDiscountRaw === null || maxDiscountRaw === undefined || maxDiscountRaw === ""
+            ? null
+            : Number(maxDiscountRaw),
+        startDate: String(row.startDate ?? ""),
+        endDate: String(row.endDate ?? ""),
+        usageLimit: usageLimitRaw === null || usageLimitRaw === undefined || usageLimitRaw === ""
+            ? null
+            : Number(usageLimitRaw),
+        usedCount: Number(row.usedCount ?? 0),
+        isActive: Boolean(row.isActive ?? true),
+        appliesToMonthlyPlans: Boolean(row.appliesToMonthlyPlans ?? true),
+        appliesToDirectOrders: Boolean(row.appliesToDirectOrders ?? false),
+        stackable: Boolean(row.stackable ?? false),
+        showOnHomepage: Boolean(row.showOnHomepage ?? false),
+        eligibilityNote: String(row.eligibilityNote ?? ""),
+        updatedAt: row.updatedAt instanceof Date
+            ? row.updatedAt.toISOString()
+            : String(row.updatedAt ?? new Date().toISOString())
+    };
+}
+function getNowDateOnly() {
+    return new Date().toISOString().slice(0, 10);
+}
+function calculatePromoDiscount(promoCode, subtotal) {
+    const rawDiscount = promoCode.discountType === "fixed"
+        ? promoCode.discountValue
+        : (subtotal * promoCode.discountValue) / 100;
+    const cappedDiscount = promoCode.maxDiscount === null
+        ? rawDiscount
+        : Math.min(rawDiscount, promoCode.maxDiscount);
+    return Number(Math.max(0, Math.min(cappedDiscount, subtotal)).toFixed(2));
+}
 function formatProduct(raw) {
     const sku = String(raw.sku ?? "");
     const name = String(raw.name ?? "");
@@ -1650,6 +1728,91 @@ exports.adminService = {
         const row = await admin_model_1.NotificationModel.findByIdAndDelete(id);
         if (!row)
             throw new AppError_1.AppError(404, "Notification not found");
+    },
+    async listPromoCodes() {
+        const rows = await admin_model_1.PromoCodeModel.find().sort({ createdAt: -1 }).lean();
+        return rows.map((row) => toPromoCodeRecord(row));
+    },
+    async getPromoCodeById(id) {
+        const row = await admin_model_1.PromoCodeModel.findOne({ promoCodeId: id }).lean();
+        if (!row)
+            throw new AppError_1.AppError(404, "Promo code not found");
+        return toPromoCodeRecord(row);
+    },
+    async upsertPromoCode(payload) {
+        const normalized = normalizePromoCodePayload(payload);
+        const existingByCode = await admin_model_1.PromoCodeModel.findOne({
+            code: normalized.code,
+            promoCodeId: { $ne: normalized.id }
+        }).lean();
+        if (existingByCode) {
+            throw new AppError_1.AppError(409, "Promo code already exists");
+        }
+        const row = await admin_model_1.PromoCodeModel.findOneAndUpdate({ promoCodeId: normalized.id }, {
+            promoCodeId: normalized.id,
+            code: normalized.code,
+            description: normalized.description ?? "",
+            discountType: normalized.discountType,
+            discountValue: normalized.discountValue,
+            maxDiscount: normalized.maxDiscount ?? null,
+            startDate: normalized.startDate,
+            endDate: normalized.endDate ?? "",
+            usageLimit: normalized.usageLimit ?? null,
+            usedCount: Number(normalized.usedCount ?? 0),
+            isActive: normalized.isActive,
+            appliesToMonthlyPlans: normalized.appliesToMonthlyPlans,
+            appliesToDirectOrders: normalized.appliesToDirectOrders,
+            stackable: normalized.stackable,
+            showOnHomepage: normalized.showOnHomepage,
+            eligibilityNote: normalized.eligibilityNote ?? ""
+        }, { new: true, upsert: true, setDefaultsOnInsert: true }).lean();
+        return toPromoCodeRecord(row);
+    },
+    async deletePromoCode(id) {
+        const row = await admin_model_1.PromoCodeModel.findOneAndDelete({ promoCodeId: id }).lean();
+        if (!row)
+            throw new AppError_1.AppError(404, "Promo code not found");
+        return { id };
+    },
+    async validatePromoCode(code, scope, subtotal) {
+        const normalizedCode = String(code ?? "").trim().toUpperCase();
+        if (!normalizedCode) {
+            throw new AppError_1.AppError(400, "Promo code is required");
+        }
+        const numericSubtotal = Number(subtotal ?? 0);
+        if (!Number.isFinite(numericSubtotal) || numericSubtotal <= 0) {
+            throw new AppError_1.AppError(400, "Subtotal must be greater than 0");
+        }
+        const row = await admin_model_1.PromoCodeModel.findOne({ code: normalizedCode }).lean();
+        if (!row)
+            throw new AppError_1.AppError(404, "Promo code not found");
+        const promoCode = toPromoCodeRecord(row);
+        const today = getNowDateOnly();
+        if (!promoCode.isActive) {
+            throw new AppError_1.AppError(400, "Promo code is inactive");
+        }
+        if (promoCode.startDate && promoCode.startDate > today) {
+            throw new AppError_1.AppError(400, "Promo code is not active yet");
+        }
+        if (promoCode.endDate && promoCode.endDate < today) {
+            throw new AppError_1.AppError(400, "Promo code has expired");
+        }
+        if (promoCode.usageLimit !== null && promoCode.usedCount >= promoCode.usageLimit) {
+            throw new AppError_1.AppError(400, "Promo code usage limit reached");
+        }
+        if (scope === "monthly-plan" && !promoCode.appliesToMonthlyPlans) {
+            throw new AppError_1.AppError(400, "Promo code is not valid for meal plans");
+        }
+        if (scope === "direct-order" && !promoCode.appliesToDirectOrders) {
+            throw new AppError_1.AppError(400, "Promo code is not valid for direct orders");
+        }
+        return {
+            promoCode,
+            discountAmount: calculatePromoDiscount(promoCode, numericSubtotal)
+        };
+    },
+    async incrementPromoCodeUsage(id) {
+        await admin_model_1.PromoCodeModel.updateOne({ promoCodeId: id }, { $inc: { usedCount: 1 } });
     },
     async listWebsitePages() {
         await ensureWebsitePagesSeeded();

@@ -14,6 +14,7 @@ exports.publicRouter.get("/public/monthly-plan/plans/:planId", public_controller
 exports.publicRouter.get("/monthly-plans/:planId", public_controller_1.publicController.getMonthlyPlanById);
 exports.publicRouter.get("/website-navigation", public_controller_1.publicController.listWebsiteNavigation);
 exports.publicRouter.get("/website-pages/:slug", public_controller_1.publicController.getWebsitePage);
+exports.publicRouter.post("/promo-codes/validate", (0, validate_1.validate)(public_validation_1.validatePromoCodeSchema), public_controller_1.publicController.validatePromoCode);
 exports.publicRouter.get("/products/:handle", public_controller_1.publicController.getProductByHandle);
 exports.publicRouter.post("/contact", (0, validate_1.validate)(public_validation_1.contactSchema), public_controller_1.publicController.createContactMessage);
 exports.publicRouter.post("/checkout", (0, validate_1.validate)(public_validation_1.checkoutSchema), public_controller_1.publicController.checkout);

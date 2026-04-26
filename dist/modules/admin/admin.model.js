@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.WebsitePageModel = exports.PlanFlowModel = exports.NotificationModel = exports.SubscriptionModel = exports.OrderModel = exports.IngredientModel = exports.CustomPlanFoodItemModel = exports.CustomPlanCategoryModel = exports.MealLibraryItemModel = exports.MonthlyPlanDetailsModel = exports.MonthlyPlanModel = exports.LocationModel = exports.RestaurantModel = exports.MenuItemModel = exports.ProductModel = void 0;
+exports.WebsitePageModel = exports.PlanFlowModel = exports.PromoCodeModel = exports.NotificationModel = exports.SubscriptionModel = exports.OrderModel = exports.IngredientModel = exports.CustomPlanFoodItemModel = exports.CustomPlanCategoryModel = exports.MealLibraryItemModel = exports.MonthlyPlanDetailsModel = exports.MonthlyPlanModel = exports.LocationModel = exports.RestaurantModel = exports.MenuItemModel = exports.ProductModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const ProductSchema = new mongoose_1.Schema({
     sku: { type: String, required: true, unique: true, trim: true },
@@ -201,6 +201,10 @@ const OrderSchema = new mongoose_1.Schema({
         durationWeeks: { type: Number, default: 0 },
         meals: { type: Number, default: 0 }
     },
+    promoCode: {
+        code: { type: String, default: "" },
+        discountAmount: { type: Number, default: 0 }
+    },
     auditLog: { type: [OrderAuditSchema], default: [] }
 }, { timestamps: true });
 const SubscriptionSchema = new mongoose_1.Schema({
@@ -228,6 +232,24 @@ const PlanFlowStepSchema = new mongoose_1.Schema({
 const PlanFlowSchema = new mongoose_1.Schema({
     flowType: { type: String, required: true, unique: true, trim: true },
     steps: { type: [PlanFlowStepSchema], default: [] }
+}, { timestamps: true });
+const PromoCodeSchema = new mongoose_1.Schema({
+    promoCodeId: { type: String, required: true, unique: true, trim: true },
+    code: { type: String, required: true, unique: true, trim: true, uppercase: true, index: true },
+    description: { type: String, default: "", trim: true },
+    discountType: { type: String, default: "percent", trim: true },
+    discountValue: { type: Number, default: 0 },
+    maxDiscount: { type: Number, default: null },
+    startDate: { type: String, default: "" },
+    endDate: { type: String, default: "" },
+    usageLimit: { type: Number, default: null },
+    usedCount: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    appliesToMonthlyPlans: { type: Boolean, default: true },
+    appliesToDirectOrders: { type: Boolean, default: false },
+    stackable: { type: Boolean, default: false },
+    showOnHomepage: { type: Boolean, default: false },
+    eligibilityNote: { type: String, default: "", trim: true }
 }, { timestamps: true });
 const WebsitePageSchema = new mongoose_1.Schema({
     pageId: { type: String, required: true, unique: true, trim: true },
@@ -264,5 +286,6 @@ exports.IngredientModel = mongoose_1.default.model("Ingredient", IngredientSchem
 exports.OrderModel = mongoose_1.default.model("Order", OrderSchema);
 exports.SubscriptionModel = mongoose_1.default.model("Subscription", SubscriptionSchema);
 exports.NotificationModel = mongoose_1.default.model("Notification", NotificationSchema);
+exports.PromoCodeModel = mongoose_1.default.model("PromoCode", PromoCodeSchema);
 exports.PlanFlowModel = mongoose_1.default.model("PlanFlow", PlanFlowSchema);
 exports.WebsitePageModel = mongoose_1.default.model("WebsitePage", WebsitePageSchema);

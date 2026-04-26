@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.storeOrderSchema = exports.checkoutSchema = exports.contactSchema = void 0;
+exports.validatePromoCodeSchema = exports.storeOrderSchema = exports.checkoutSchema = exports.contactSchema = void 0;
 const zod_1 = require("zod");
 exports.contactSchema = zod_1.z.object({
     name: zod_1.z.string().min(1),
@@ -60,6 +60,11 @@ exports.checkoutSchema = zod_1.z.object({
                 .optional()
         }),
         selectedMeals: zod_1.z.array(selectedMealSchema).optional(),
+        promoCode: zod_1.z
+            .object({
+            code: zod_1.z.string().min(1)
+        })
+            .optional(),
         totals: zod_1.z.object({
             subtotal: zod_1.z.number(),
             giftDiscount: zod_1.z.number(),
@@ -89,4 +94,9 @@ exports.storeOrderSchema = zod_1.z.object({
         vat: zod_1.z.number(),
         total: zod_1.z.number()
     })
+});
+exports.validatePromoCodeSchema = zod_1.z.object({
+    code: zod_1.z.string().min(1),
+    subtotal: zod_1.z.number().positive(),
+    scope: zod_1.z.enum(["monthly-plan", "direct-order"]).optional().default("monthly-plan")
 });

@@ -262,6 +262,30 @@ export const adminController = {
     res.status(204).send();
   }),
 
+  listPromoCodes: asyncHandler(async (_req: Request, res: Response) => {
+    const data = await adminService.listPromoCodes();
+    res.json({ success: true, data });
+  }),
+  getPromoCodeById: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.getPromoCodeById(req.params.id);
+    res.json({ success: true, data });
+  }),
+  createPromoCode: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.upsertPromoCode(req.body);
+    res.status(201).json({ success: true, data });
+  }),
+  updatePromoCode: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.upsertPromoCode({
+      ...req.body,
+      id: req.params.id
+    });
+    res.json({ success: true, data });
+  }),
+  deletePromoCode: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.deletePromoCode(req.params.id);
+    res.json({ success: true, data });
+  }),
+
   listWebsitePages: asyncHandler(async (_req: Request, res: Response) => {
     const data = await adminService.listWebsitePages();
     res.json({ success: true, data });

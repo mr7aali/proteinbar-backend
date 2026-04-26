@@ -21,6 +21,7 @@ import {
   monthlyPlanSchema,
   orderUpdateSchema,
   planFlowSchema,
+  promoCodeSchema,
   productSchema,
   subscriptionUpdateSchema,
   websitePageSchema
@@ -147,6 +148,12 @@ adminRouter.patch("/subscriptions/:id", validate(subscriptionUpdateSchema), admi
 
 adminRouter.get("/notifications", adminController.listNotifications);
 adminRouter.delete("/notifications/:id", adminController.deleteNotification);
+
+adminRouter.get("/promo-codes", adminController.listPromoCodes);
+adminRouter.get("/promo-codes/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.getPromoCodeById);
+adminRouter.post("/promo-codes", validate(promoCodeSchema), adminController.createPromoCode);
+adminRouter.patch("/promo-codes/:id", validate(monthlyPlanDetailsParamSchema, "params"), validate(promoCodeSchema), adminController.updatePromoCode);
+adminRouter.delete("/promo-codes/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.deletePromoCode);
 
 adminRouter.get("/website-pages", adminController.listWebsitePages);
 adminRouter.get("/website-pages/:slug", adminController.getWebsitePageBySlug);

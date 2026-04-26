@@ -62,6 +62,11 @@ exports.adminRouter.get("/subscriptions/:id", (0, validate_1.validate)(admin_val
 exports.adminRouter.patch("/subscriptions/:id", (0, validate_1.validate)(admin_validation_1.subscriptionUpdateSchema), admin_controller_1.adminController.updateSubscription);
 exports.adminRouter.get("/notifications", admin_controller_1.adminController.listNotifications);
 exports.adminRouter.delete("/notifications/:id", admin_controller_1.adminController.deleteNotification);
+exports.adminRouter.get("/promo-codes", admin_controller_1.adminController.listPromoCodes);
+exports.adminRouter.get("/promo-codes/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.getPromoCodeById);
+exports.adminRouter.post("/promo-codes", (0, validate_1.validate)(admin_validation_1.promoCodeSchema), admin_controller_1.adminController.createPromoCode);
+exports.adminRouter.patch("/promo-codes/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), (0, validate_1.validate)(admin_validation_1.promoCodeSchema), admin_controller_1.adminController.updatePromoCode);
+exports.adminRouter.delete("/promo-codes/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.deletePromoCode);
 exports.adminRouter.get("/website-pages", admin_controller_1.adminController.listWebsitePages);
 exports.adminRouter.get("/website-pages/:slug", admin_controller_1.adminController.getWebsitePageBySlug);
 exports.adminRouter.post("/website-pages/upsert", (0, validate_1.validate)(admin_validation_1.websitePageSchema), admin_controller_1.adminController.upsertWebsitePage);

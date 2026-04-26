@@ -230,6 +230,27 @@ export const publicService = {
     return adminService.listIngredients();
   },
 
+  async validatePromoCode(payload: Record<string, unknown>) {
+    const code = String(payload.code ?? "");
+    const scope =
+      String(payload.scope ?? "monthly-plan") === "direct-order"
+        ? "direct-order"
+        : "monthly-plan";
+    const subtotal = toSafeNumber(payload.subtotal, 0);
+
+    const result = await adminService.validatePromoCode(code, scope, subtotal);
+
+    return {
+      code: result.promoCode.code,
+      description: result.promoCode.description,
+      discountType: result.promoCode.discountType,
+      discountValue: result.promoCode.discountValue,
+      discountAmount: result.discountAmount,
+      maxDiscount: result.promoCode.maxDiscount,
+      eligibilityNote: result.promoCode.eligibilityNote
+    };
+  },
+
   async createContactMessage(payload: Record<string, unknown>) {
     return ContactMessageModel.create(payload);
   },
@@ -247,6 +268,7 @@ export const publicService = {
     const selectedMeals = Array.isArray(orderPayload.selectedMeals)
       ? orderPayload.selectedMeals
       : [];
+    const submittedPromoCode = String(orderPayload.promoCode?.code ?? "").trim();
 
     const mealsPerDay = Math.max(1, toSafeNumber(selection.meals, 1));
     const daysPerWeek = Math.max(1, toSafeNumber(selection.days, 1));
@@ -260,6 +282,14 @@ export const publicService = {
       String(customer.area ?? "").trim() ||
       String(customer.emirate ?? "").trim() ||
       "N/A";
+    const subtotal = toSafeNumber(totals.subtotal, 0);
+    const validatedPromoCode = submittedPromoCode
+      ? await adminService.validatePromoCode(submittedPromoCode, "monthly-plan", subtotal)
+      : null;
+    const giftDiscount = validatedPromoCode?.discountAmount ?? 0;
+    const vat = toSafeNumber(totals.vat, 0);
+    const safetyBag = toSafeNumber(totals.safetyBag, 0);
+    const grandTotal = Number((subtotal - giftDiscount + vat + safetyBag).toFixed(2));
 
     // Public-facing records used by checkout success and customer history.
     const subscription = await CustomerSubscriptionModel.create({
@@ -271,6 +301,19 @@ export const publicService = {
       orderId,
       subscriptionId,
       ...orderPayload,
+      promoCode: validatedPromoCode
+        ? {
+            code: validatedPromoCode.promoCode.code,
+            discountAmount: giftDiscount
+          }
+        : undefined,
+      totals: {
+        subtotal,
+        giftDiscount,
+        vat,
+        safetyBag,
+        grandTotal
+      }
     });
 
     // Admin-facing records so checkouts show in Admin Orders/Subscriptions pages.
@@ -303,13 +346,13 @@ export const publicService = {
       payment: "paid",
       schedule: String(delivery.optionId ?? ""),
       date: new Date().toISOString().split("T")[0],
-      total: formatMoney(totals.grandTotal),
+      total: formatMoney(grandTotal),
       items: selectedMeals.map((item: Record<string, unknown>) => ({
         name: String(item?.title ?? "Meal"),
         qty: 1,
         macros: "-"
       })),
-      notes: `Customer email: ${String(customer.email ?? "N/A")}`,
+      notes: `Customer email: ${String(customer.email ?? "N/A")}${validatedPromoCode ? ` | Promo: ${validatedPromoCode.promoCode.code}` : ""}`,
       subscriptionId,
       subscriptionInfo: `${String(subscriptionPayload.plan?.id ?? "")} / ${String(
         delivery.optionId ?? "",
@@ -325,12 +368,28 @@ export const publicService = {
           by: "Checkout API",
           action: "Order created"
         }
-      ]
+      ],
+      promoCode: validatedPromoCode
+        ? {
+            code: validatedPromoCode.promoCode.code,
+            discountAmount: giftDiscount
+          }
+        : undefined
     });
+
+    if (validatedPromoCode) {
+      await adminService.incrementPromoCodeUsage(validatedPromoCode.promoCode.id);
+    }
 
     return {
       subscription,
-      order
+      order,
+      appliedPromoCode: validatedPromoCode
+        ? {
+            code: validatedPromoCode.promoCode.code,
+            discountAmount: giftDiscount
+          }
+        : null
     };
   },
 

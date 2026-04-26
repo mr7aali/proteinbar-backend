@@ -240,6 +240,29 @@ exports.adminController = {
         await admin_service_1.adminService.deleteNotification(req.params.id);
         res.status(204).send();
     }),
+    listPromoCodes: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listPromoCodes();
+        res.json({ success: true, data });
+    }),
+    getPromoCodeById: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.getPromoCodeById(req.params.id);
+        res.json({ success: true, data });
+    }),
+    createPromoCode: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertPromoCode(req.body);
+        res.status(201).json({ success: true, data });
+    }),
+    updatePromoCode: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertPromoCode({
+            ...req.body,
+            id: req.params.id
+        });
+        res.json({ success: true, data });
+    }),
+    deletePromoCode: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deletePromoCode(req.params.id);
+        res.json({ success: true, data });
+    }),
     listWebsitePages: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await admin_service_1.adminService.listWebsitePages();
         res.json({ success: true, data });

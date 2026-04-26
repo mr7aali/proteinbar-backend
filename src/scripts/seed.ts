@@ -6,6 +6,7 @@ import {
   MonthlyPlanModel,
   NotificationModel,
   OrderModel,
+  PromoCodeModel,
   ProductModel,
   SubscriptionModel,
   WebsitePageModel
@@ -25,6 +26,7 @@ async function seed() {
     OrderModel.deleteMany({}),
     SubscriptionModel.deleteMany({}),
     NotificationModel.deleteMany({}),
+    PromoCodeModel.deleteMany({}),
     WebsitePageModel.deleteMany({}),
     MenuCategoryModel.deleteMany({}),
     StoreProductModel.deleteMany({}),
@@ -182,6 +184,45 @@ async function seed() {
       meta: "ORD-2092 from Casablanca",
       time: "2 min ago",
       status: "Unread"
+    }
+  ]);
+
+  await PromoCodeModel.insertMany([
+    {
+      promoCodeId: "promo-welcome15",
+      code: "WELCOME15",
+      description: "15% off meal plan checkout",
+      discountType: "percent",
+      discountValue: 15,
+      maxDiscount: 120,
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      usageLimit: 200,
+      usedCount: 0,
+      isActive: true,
+      appliesToMonthlyPlans: true,
+      appliesToDirectOrders: false,
+      stackable: false,
+      showOnHomepage: true,
+      eligibilityNote: "Applies to monthly plan checkout only."
+    },
+    {
+      promoCodeId: "promo-fixed50",
+      code: "MEAL50",
+      description: "50 MAD off meal plan checkout",
+      discountType: "fixed",
+      discountValue: 50,
+      maxDiscount: 50,
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      usageLimit: 100,
+      usedCount: 0,
+      isActive: true,
+      appliesToMonthlyPlans: true,
+      appliesToDirectOrders: false,
+      stackable: false,
+      showOnHomepage: false,
+      eligibilityNote: "Flat 50 MAD off eligible meal plan checkouts."
     }
   ]);
 

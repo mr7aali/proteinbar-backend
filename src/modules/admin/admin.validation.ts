@@ -101,6 +101,25 @@ export const subscriptionUpdateSchema = z.object({
   logMessage: z.string().optional()
 });
 
+export const promoCodeSchema = z.object({
+  id: z.string().optional(),
+  code: z.string().min(1),
+  description: z.string().optional().default(""),
+  discountType: z.enum(["percent", "fixed"]),
+  discountValue: z.number().positive(),
+  maxDiscount: z.number().nonnegative().nullable().optional(),
+  startDate: z.string().min(1),
+  endDate: z.string().optional().default(""),
+  usageLimit: z.number().int().positive().nullable().optional(),
+  usedCount: z.number().int().nonnegative().optional().default(0),
+  isActive: z.boolean(),
+  appliesToMonthlyPlans: z.boolean(),
+  appliesToDirectOrders: z.boolean(),
+  stackable: z.boolean(),
+  showOnHomepage: z.boolean(),
+  eligibilityNote: z.string().optional().default("")
+});
+
 export const flowTypeParamSchema = z.object({
   flowType: z.enum(["custom", "preset"])
 });

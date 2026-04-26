@@ -219,6 +219,10 @@ const OrderSchema = new Schema(
       durationWeeks: { type: Number, default: 0 },
       meals: { type: Number, default: 0 }
     },
+    promoCode: {
+      code: { type: String, default: "" },
+      discountAmount: { type: Number, default: 0 }
+    },
     auditLog: { type: [OrderAuditSchema], default: [] }
   },
   { timestamps: true }
@@ -266,6 +270,28 @@ const PlanFlowSchema = new Schema(
   { timestamps: true }
 );
 
+const PromoCodeSchema = new Schema(
+  {
+    promoCodeId: { type: String, required: true, unique: true, trim: true },
+    code: { type: String, required: true, unique: true, trim: true, uppercase: true, index: true },
+    description: { type: String, default: "", trim: true },
+    discountType: { type: String, default: "percent", trim: true },
+    discountValue: { type: Number, default: 0 },
+    maxDiscount: { type: Number, default: null },
+    startDate: { type: String, default: "" },
+    endDate: { type: String, default: "" },
+    usageLimit: { type: Number, default: null },
+    usedCount: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    appliesToMonthlyPlans: { type: Boolean, default: true },
+    appliesToDirectOrders: { type: Boolean, default: false },
+    stackable: { type: Boolean, default: false },
+    showOnHomepage: { type: Boolean, default: false },
+    eligibilityNote: { type: String, default: "", trim: true }
+  },
+  { timestamps: true }
+);
+
 const WebsitePageSchema = new Schema(
   {
     pageId: { type: String, required: true, unique: true, trim: true },
@@ -305,5 +331,6 @@ export const IngredientModel = mongoose.model("Ingredient", IngredientSchema);
 export const OrderModel = mongoose.model("Order", OrderSchema);
 export const SubscriptionModel = mongoose.model("Subscription", SubscriptionSchema);
 export const NotificationModel = mongoose.model("Notification", NotificationSchema);
+export const PromoCodeModel = mongoose.model("PromoCode", PromoCodeSchema);
 export const PlanFlowModel = mongoose.model("PlanFlow", PlanFlowSchema);
 export const WebsitePageModel = mongoose.model("WebsitePage", WebsitePageSchema);
