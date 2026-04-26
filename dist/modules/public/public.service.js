@@ -308,9 +308,11 @@ exports.publicService = {
             date: new Date().toISOString().split("T")[0],
             total: formatMoney(grandTotal),
             items: selectedMeals.map((item) => ({
-                name: String(item?.title ?? "Meal"),
+                name: [String(item?.title ?? "Meal"), String(item?.extrasSummary ?? "").trim()]
+                    .filter(Boolean)
+                    .join(" | "),
                 qty: 1,
-                macros: "-"
+                macros: `K:${toSafeNumber(item?.calories, 0)} P:${toSafeNumber(item?.protein, 0)} C:${toSafeNumber(item?.carb, 0)} F:${toSafeNumber(item?.fat, 0)}`
             })),
             notes: `Customer email: ${String(customer.email ?? "N/A")}${validatedPromoCode ? ` | Promo: ${validatedPromoCode.promoCode.code}` : ""}`,
             subscriptionId,

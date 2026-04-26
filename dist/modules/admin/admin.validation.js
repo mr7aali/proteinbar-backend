@@ -153,6 +153,7 @@ exports.mealLibraryItemSchema = zod_1.z.object({
     carbs: zod_1.z.number(),
     fat: zod_1.z.number(),
     tags: zod_1.z.array(zod_1.z.string()).optional().default([]),
+    addOnOptions: zod_1.z.array(zod_1.z.string()).optional().default([]),
     status: zod_1.z.enum(["active", "inactive"]),
     image: zod_1.z.string().optional()
 });

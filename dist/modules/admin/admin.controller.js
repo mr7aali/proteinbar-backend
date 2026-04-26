@@ -115,6 +115,22 @@ exports.adminController = {
         const data = await admin_service_1.adminService.deleteMonthlyPlanAdmin(req.params.id);
         res.json({ success: true, data });
     }),
+    listMonthlyPlanSubscriptionsAdmin: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listMonthlyPlanSubscriptionsAdmin();
+        res.json({ success: true, data });
+    }),
+    updateMonthlyPlanSubscriptionAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.updateMonthlyPlanSubscriptionAdmin(req.params.id, req.body);
+        res.json({ success: true, data });
+    }),
+    listMonthlyPlanOrdersAdmin: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listMonthlyPlanOrdersAdmin();
+        res.json({ success: true, data });
+    }),
+    updateMonthlyPlanOrderAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.updateMonthlyPlanOrderAdmin(req.params.id, req.body);
+        res.json({ success: true, data });
+    }),
     listMealLibraryAdmin: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await admin_service_1.adminService.listMealLibraryAdmin();
         res.json({ success: true, data });

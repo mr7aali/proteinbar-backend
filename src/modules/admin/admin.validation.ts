@@ -169,6 +169,7 @@ export const mealLibraryItemSchema = z.object({
   carbs: z.number(),
   fat: z.number(),
   tags: z.array(z.string()).optional().default([]),
+  addOnOptions: z.array(z.string()).optional().default([]),
   status: z.enum(["active", "inactive"]),
   image: z.string().optional()
 });

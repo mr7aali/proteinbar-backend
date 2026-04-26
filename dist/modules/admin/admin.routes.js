@@ -33,6 +33,10 @@ exports.adminRouter.get("/admin/monthly-plan/plans/:id", (0, validate_1.validate
 exports.adminRouter.put("/admin/monthly-plan/plans/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsUpsertSchema), admin_controller_1.adminController.upsertMonthlyPlanDetails);
 exports.adminRouter.patch("/admin/monthly-plan/plans/:id/archive", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.archiveMonthlyPlan);
 exports.adminRouter.delete("/admin/monthly-plan/plans/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.deleteMonthlyPlanAdmin);
+exports.adminRouter.get("/admin/monthly-plan/subscriptions", admin_controller_1.adminController.listMonthlyPlanSubscriptionsAdmin);
+exports.adminRouter.patch("/admin/monthly-plan/subscriptions/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.updateMonthlyPlanSubscriptionAdmin);
+exports.adminRouter.get("/admin/monthly-plan/orders", admin_controller_1.adminController.listMonthlyPlanOrdersAdmin);
+exports.adminRouter.patch("/admin/monthly-plan/orders/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.updateMonthlyPlanOrderAdmin);
 exports.adminRouter.get("/admin/monthly-plan/meals", admin_controller_1.adminController.listMealLibraryAdmin);
 exports.adminRouter.put("/admin/monthly-plan/meals/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), (0, validate_1.validate)(admin_validation_1.mealLibraryItemSchema), admin_controller_1.adminController.upsertMealLibraryAdmin);
 exports.adminRouter.delete("/admin/monthly-plan/meals/:id", (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.deleteMealLibraryAdmin);

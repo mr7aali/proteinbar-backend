@@ -9,9 +9,17 @@ exports.contactSchema = zod_1.z.object({
     message: zod_1.z.string().min(10)
 });
 const selectedMealSchema = zod_1.z.object({
+    instanceId: zod_1.z.string().optional(),
     id: zod_1.z.string().min(1),
     title: zod_1.z.string().min(1),
-    date: zod_1.z.string().optional()
+    date: zod_1.z.string().optional(),
+    extrasSummary: zod_1.z.string().optional(),
+    calories: zod_1.z.number().optional(),
+    protein: zod_1.z.number().optional(),
+    carb: zod_1.z.number().optional(),
+    fat: zod_1.z.number().optional(),
+    basePrice: zod_1.z.number().optional(),
+    totalPrice: zod_1.z.number().optional()
 });
 exports.checkoutSchema = zod_1.z.object({
     subscription: zod_1.z.object({
@@ -22,8 +30,10 @@ exports.checkoutSchema = zod_1.z.object({
         selection: zod_1.z.object({
             meals: zod_1.z.string().min(1),
             days: zod_1.z.string().min(1),
+            weeks: zod_1.z.string().optional(),
             snacks: zod_1.z.string().min(1),
             startDate: zod_1.z.string().min(1),
+            deliveryDays: zod_1.z.string().optional(),
             planType: zod_1.z.string().optional(),
             selectedMeals: zod_1.z.array(selectedMealSchema).optional()
         }),

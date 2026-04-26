@@ -108,6 +108,7 @@ const MealLibraryItemSchema = new Schema(
     carbs: { type: Number, default: 0 },
     fat: { type: Number, default: 0 },
     tags: { type: [String], default: [] },
+    addOnOptions: { type: [String], default: [] },
     status: { type: String, default: "active", trim: true },
     image: { type: String, default: "" }
   },

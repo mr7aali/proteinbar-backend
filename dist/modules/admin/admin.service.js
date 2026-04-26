@@ -5,6 +5,7 @@ const mongoose_1 = require("mongoose");
 const AppError_1 = require("../../common/utils/AppError");
 const cloudinary_1 = require("../../common/utils/cloudinary");
 const admin_model_1 = require("./admin.model");
+const public_model_1 = require("../public/public.model");
 function toLocation(row) {
     const rawDeliveryFee = row.deliveryFee;
     const normalizedDeliveryFee = typeof rawDeliveryFee === "number"
@@ -89,6 +90,182 @@ function toCustomPlanFoodItem(row) {
         })
             .sort((a, b) => a.displayOrder - b.displayOrder)
     };
+}
+function parseMoneyValue(value) {
+    if (typeof value === "number")
+        return value;
+    const normalized = String(value ?? "").replace(/[^0-9.-]+/g, "");
+    const parsed = Number.parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+function normalizeMonthlySubscriptionStatus(value) {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    if (normalized === "paused")
+        return "paused";
+    if (normalized === "cancelled" || normalized === "canceled")
+        return "cancelled";
+    if (normalized === "completed")
+        return "completed";
+    return "active";
+}
+function normalizeMonthlyOrderStatus(value) {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    if (normalized === "confirmed")
+        return "confirmed";
+    if (normalized === "preparing" || normalized === "prepared")
+        return "preparing";
+    if (normalized === "out-for-delivery")
+        return "out-for-delivery";
+    if (normalized === "completed" || normalized === "delivered")
+        return "completed";
+    return "pending";
+}
+function normalizeMonthlyPaymentStatus(value) {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    if (normalized === "cod")
+        return "cod";
+    if (normalized === "unpaid")
+        return "unpaid";
+    return "paid";
+}
+function parseSubscriptionInfo(value) {
+    const raw = String(value ?? "");
+    const [planId, deliveryOption] = raw.split("/").map((item) => item.trim());
+    return {
+        planId,
+        deliveryOption
+    };
+}
+function addDaysToIsoDate(startDate, days) {
+    if (!startDate)
+        return "";
+    const [year, month, day] = startDate.split("-").map(Number);
+    const date = new Date(Date.UTC(year, (month || 1) - 1, day || 1));
+    if (Number.isNaN(date.getTime()))
+        return "";
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+}
+function getCustomStepTwoFromPlan(plan) {
+    const content = plan.content && typeof plan.content === "object"
+        ? plan.content
+        : null;
+    const customStepTwo = content?.customStepTwo && typeof content.customStepTwo === "object"
+        ? content.customStepTwo
+        : null;
+    if (!customStepTwo)
+        return null;
+    const categories = (Array.isArray(customStepTwo.categories) ? customStepTwo.categories : [])
+        .map((item) => item)
+        .map((item, index) => ({
+        id: String(item.id ?? ""),
+        planId: String(item.planId ?? plan.id ?? ""),
+        name: String(item.name ?? ""),
+        slug: String(item.slug ?? ""),
+        code: String(item.code ?? ""),
+        displayOrder: Number(item.displayOrder ?? index + 1),
+        selectionMode: toSelectionMode(item.selectionMode),
+        isActive: Boolean(item.isActive ?? true),
+        isRequired: Boolean(item.isRequired ?? false),
+        minSelect: Number(item.minSelect ?? 0),
+        maxSelect: item.maxSelect === null || item.maxSelect === undefined || item.maxSelect === ""
+            ? null
+            : Number(item.maxSelect)
+    }))
+        .filter((item) => item.name.trim());
+    const foodItems = (Array.isArray(customStepTwo.foodItems) ? customStepTwo.foodItems : [])
+        .map((item) => item)
+        .map((item, index) => ({
+        id: String(item.id ?? ""),
+        planId: String(item.planId ?? plan.id ?? ""),
+        categoryId: String(item.categoryId ?? ""),
+        name: String(item.name ?? ""),
+        imageUrl: String(item.imageUrl ?? ""),
+        description: String(item.description ?? ""),
+        displayOrder: Number(item.displayOrder ?? index + 1),
+        isActive: Boolean(item.isActive ?? true),
+        sizes: (Array.isArray(item.sizes) ? item.sizes : []).map((size, sizeIndex) => {
+            const row = size;
+            return {
+                id: String(row.id ?? ""),
+                label: String(row.label ?? ""),
+                unit: String(row.unit ?? ""),
+                price: Number(row.price ?? 0),
+                calories: Number(row.calories ?? 0),
+                protein: Number(row.protein ?? 0),
+                carbs: Number(row.carbs ?? 0),
+                fat: Number(row.fat ?? 0),
+                displayOrder: Number(row.displayOrder ?? sizeIndex + 1),
+                isActive: Boolean(row.isActive ?? true)
+            };
+        })
+    }))
+        .filter((item) => item.name.trim() && item.categoryId.trim() && item.sizes.length > 0);
+    return { categories, foodItems };
+}
+async function buildCustomStepTwoForPlan(planId) {
+    const [categoryRows, foodRows] = await Promise.all([
+        admin_model_1.CustomPlanCategoryModel.find({ planId }).sort({ displayOrder: 1, createdAt: 1 }).lean(),
+        admin_model_1.CustomPlanFoodItemModel.find({ planId }).sort({ displayOrder: 1, createdAt: 1 }).lean()
+    ]);
+    const categories = categoryRows.map((row) => toCustomPlanCategory(row));
+    const foodItems = foodRows.map((row) => toCustomPlanFoodItem(row));
+    if (!categories.length && !foodItems.length)
+        return null;
+    return { categories, foodItems };
+}
+async function syncCustomStepTwoForPlan(plan) {
+    const planId = String(plan.id ?? "").trim();
+    if (!planId)
+        return;
+    const customStepTwo = getCustomStepTwoFromPlan(plan);
+    if (!customStepTwo)
+        return;
+    await admin_model_1.CustomPlanFoodItemModel.deleteMany({ planId });
+    await admin_model_1.CustomPlanCategoryModel.deleteMany({ planId });
+    for (const [index, category] of customStepTwo.categories.entries()) {
+        await admin_model_1.CustomPlanCategoryModel.create({
+            categoryId: category.id || `custom-category-${Date.now()}-${index}`,
+            planId,
+            name: category.name.trim(),
+            slug: category.slug?.trim() || toSlug(category.name) || `custom-category-${index + 1}`,
+            code: category.code?.trim() || "",
+            displayOrder: category.displayOrder ?? index + 1,
+            selectionMode: category.selectionMode,
+            isActive: category.isActive,
+            isRequired: category.isRequired,
+            minSelect: category.minSelect,
+            maxSelect: category.selectionMode === "single" ? 1 : category.maxSelect ?? null
+        });
+    }
+    for (const [index, foodItem] of customStepTwo.foodItems.entries()) {
+        const foodItemId = foodItem.id || `custom-food-${Date.now()}-${index}`;
+        await admin_model_1.CustomPlanFoodItemModel.create({
+            foodItemId,
+            planId,
+            categoryId: foodItem.categoryId,
+            name: foodItem.name.trim(),
+            imageUrl: await (0, cloudinary_1.uploadImageIfNeeded)(foodItem.imageUrl, {
+                folder: "proteinbar/custom-plan-items"
+            }),
+            description: foodItem.description?.trim() || "",
+            displayOrder: foodItem.displayOrder ?? index + 1,
+            isActive: foodItem.isActive,
+            sizes: foodItem.sizes.map((size, sizeIndex) => ({
+                id: size.id || `custom-size-${Date.now()}-${index}-${sizeIndex}`,
+                foodItemId,
+                label: size.label.trim(),
+                unit: size.unit?.trim() || "",
+                price: Number(size.price),
+                calories: Number(size.calories),
+                protein: Number(size.protein),
+                carbs: Number(size.carbs),
+                fat: Number(size.fat),
+                displayOrder: size.displayOrder ?? sizeIndex + 1,
+                isActive: size.isActive ?? true
+            }))
+        });
+    }
 }
 function normalizeStringList(value) {
     if (!Array.isArray(value))
@@ -187,6 +364,7 @@ function toMealLibraryItem(row) {
         carbs: Number(row.carbs ?? 0),
         fat: Number(row.fat ?? 0),
         tags: Array.isArray(row.tags) ? row.tags.map((item) => String(item)) : [],
+        addOnOptions: Array.isArray(row.addOnOptions) ? row.addOnOptions.map((item) => String(item)) : [],
         status: String(row.status ?? "active") === "inactive" ? "inactive" : "active",
         image: normalizeMealImage(row.image)
     };
@@ -1389,6 +1567,8 @@ exports.adminService = {
     async deleteMonthlyPlanAdmin(planId) {
         const deletedDetails = await admin_model_1.MonthlyPlanDetailsModel.findOneAndDelete({ planId });
         const deletedLegacyByPlanId = await admin_model_1.MonthlyPlanModel.findOneAndDelete({ planId });
+        await admin_model_1.CustomPlanFoodItemModel.deleteMany({ planId });
+        await admin_model_1.CustomPlanCategoryModel.deleteMany({ planId });
         let deletedLegacyById = null;
         if (!deletedLegacyByPlanId && (0, mongoose_1.isValidObjectId)(planId)) {
             deletedLegacyById = await admin_model_1.MonthlyPlanModel.findByIdAndDelete(planId);
@@ -1397,6 +1577,178 @@ exports.adminService = {
             throw new AppError_1.AppError(404, "Plan not found");
         }
         return { id: planId };
+    },
+    async listMonthlyPlanSubscriptionsAdmin() {
+        const [adminSubscriptions, customerSubscriptions, customerOrders, planRows] = await Promise.all([
+            admin_model_1.SubscriptionModel.find().sort({ createdAt: -1 }).lean(),
+            public_model_1.CustomerSubscriptionModel.find().lean(),
+            public_model_1.CustomerOrderModel.find().lean(),
+            admin_model_1.MonthlyPlanDetailsModel.find({}, { planId: 1, planKind: 1 }).lean()
+        ]);
+        const customerSubscriptionById = new Map(customerSubscriptions.map((item) => [String(item.subscriptionId ?? ""), item]));
+        const firstCustomerOrderBySubscriptionId = new Map();
+        customerOrders.forEach((item) => {
+            const row = item;
+            const subscriptionId = String(row.subscriptionId ?? "");
+            if (subscriptionId && !firstCustomerOrderBySubscriptionId.has(subscriptionId)) {
+                firstCustomerOrderBySubscriptionId.set(subscriptionId, row);
+            }
+        });
+        const planKindById = new Map(planRows.map((item) => [
+            String(item.planId ?? ""),
+            String(item.planKind ?? "").toLowerCase() === "custom" ? "custom" : "normal"
+        ]));
+        return adminSubscriptions.map((item) => {
+            const row = item;
+            const subscriptionId = String(row.subscriptionId ?? "");
+            const customerSubscription = customerSubscriptionById.get(subscriptionId) ?? {};
+            const customerOrder = firstCustomerOrderBySubscriptionId.get(subscriptionId) ?? {};
+            const selection = customerSubscription.selection && typeof customerSubscription.selection === "object"
+                ? customerSubscription.selection
+                : {};
+            const delivery = customerSubscription.delivery && typeof customerSubscription.delivery === "object"
+                ? customerSubscription.delivery
+                : {};
+            const plan = customerSubscription.plan && typeof customerSubscription.plan === "object"
+                ? customerSubscription.plan
+                : {};
+            const startDate = String(selection.startDate ?? "");
+            const totalWeeks = Number(row.totalWeeks ?? 0);
+            const planId = String(plan.id ?? "");
+            return {
+                id: String(row._id ?? row.id ?? subscriptionId),
+                subscriptionId,
+                customerName: String(row.client ?? ""),
+                customerPhone: String(customerOrder.customer?.phone ?? ""),
+                planId,
+                planTitle: String(row.plan ?? plan.title ?? ""),
+                planKind: planKindById.get(planId) ?? "normal",
+                status: normalizeMonthlySubscriptionStatus(row.status),
+                startDate,
+                endDate: startDate ? addDaysToIsoDate(startDate, Math.max(totalWeeks, 1) * 7 - 1) : "",
+                currentWeek: Number(row.currentWeek ?? 0),
+                totalWeeks,
+                progressDays: String(row.dayProgress ?? "0/0"),
+                remainingMeals: Number(row.remainingMeals ?? 0),
+                selections: {
+                    meals: Number(selection.meals ?? 0),
+                    days: Number(selection.days ?? 0),
+                    snacks: Number(selection.snacks ?? 0),
+                    startDate,
+                    deliveryDays: String(selection.deliveryDays ?? "")
+                        .split(",")
+                        .map((value) => value.trim())
+                        .filter(Boolean),
+                    planType: String(selection.planType ?? "") || undefined,
+                    deliveryOption: String(delivery.optionId ?? "")
+                }
+            };
+        });
+    },
+    async updateMonthlyPlanSubscriptionAdmin(id, patch) {
+        const status = normalizeMonthlySubscriptionStatus(patch.status);
+        const row = await admin_model_1.SubscriptionModel.findByIdAndUpdate(id, {
+            status,
+            $push: { log: { $each: [`Status updated to ${status}`], $position: 0 } }
+        }, { new: true }).lean();
+        if (!row)
+            throw new AppError_1.AppError(404, "Subscription not found");
+        await public_model_1.CustomerSubscriptionModel.findOneAndUpdate({ subscriptionId: String(row.subscriptionId ?? "") }, { status });
+        const [result] = await Promise.all([this.listMonthlyPlanSubscriptionsAdmin()]);
+        const updated = result.find((item) => item.id === String(row._id ?? id));
+        if (!updated)
+            throw new AppError_1.AppError(404, "Subscription not found");
+        return updated;
+    },
+    async listMonthlyPlanOrdersAdmin() {
+        const [adminOrders, customerOrders, customerSubscriptions, mealRows, planRows] = await Promise.all([
+            admin_model_1.OrderModel.find().sort({ createdAt: -1 }).lean(),
+            public_model_1.CustomerOrderModel.find().lean(),
+            public_model_1.CustomerSubscriptionModel.find().lean(),
+            admin_model_1.MealLibraryItemModel.find().lean(),
+            admin_model_1.MonthlyPlanDetailsModel.find({}, { planId: 1, planKind: 1 }).lean()
+        ]);
+        const customerOrderByOrderId = new Map(customerOrders.map((item) => [String(item.orderId ?? ""), item]));
+        const customerSubscriptionById = new Map(customerSubscriptions.map((item) => [String(item.subscriptionId ?? ""), item]));
+        const mealTypeById = new Map(mealRows.map((item) => [String(item.mealId ?? ""), String(item.mealType ?? "Lunch")]));
+        const planKindById = new Map(planRows.map((item) => [
+            String(item.planId ?? ""),
+            String(item.planKind ?? "").toLowerCase() === "custom" ? "custom" : "normal"
+        ]));
+        return adminOrders.map((item) => {
+            const row = item;
+            const orderId = String(row.orderId ?? "");
+            const subscriptionId = String(row.subscriptionId ?? "");
+            const customerOrder = customerOrderByOrderId.get(orderId) ?? {};
+            const customerSubscription = customerSubscriptionById.get(subscriptionId) ?? {};
+            const plan = customerSubscription.plan && typeof customerSubscription.plan === "object"
+                ? customerSubscription.plan
+                : {};
+            const delivery = customerOrder.delivery && typeof customerOrder.delivery === "object"
+                ? customerOrder.delivery
+                : {};
+            const selectedMeals = Array.isArray(customerOrder.selectedMeals)
+                ? customerOrder.selectedMeals
+                : [];
+            const groupedItems = new Map();
+            selectedMeals.forEach((meal) => {
+                const mealId = String(meal.id ?? "");
+                const mealName = String(meal.title ?? "Meal");
+                const key = `${mealId}:${mealName}`;
+                const existing = groupedItems.get(key);
+                groupedItems.set(key, {
+                    mealId,
+                    mealName,
+                    qty: Number(existing?.qty ?? 0) + 1,
+                    mealType: String(mealTypeById.get(mealId) ?? "Lunch")
+                });
+            });
+            const fallback = parseSubscriptionInfo(row.subscriptionInfo);
+            const planId = String(plan.id ?? fallback.planId ?? "");
+            const deliveryOption = String(delivery.optionId ?? fallback.deliveryOption ?? "");
+            return {
+                id: String(row._id ?? row.id ?? orderId),
+                orderId,
+                subscriptionId,
+                customerName: String(row.client ?? ""),
+                planId,
+                planTitle: String(row.plan ?? plan.title ?? ""),
+                planKind: planKindById.get(planId) ?? "normal",
+                status: normalizeMonthlyOrderStatus(row.status),
+                paymentStatus: normalizeMonthlyPaymentStatus(row.payment),
+                amount: parseMoneyValue(row.total),
+                orderDate: String(row.date ?? ""),
+                deliveryOption,
+                locationId: String(delivery.pickupLocation?.id ?? ""),
+                locationName: String(row.location ?? delivery.pickupLocation?.name ?? ""),
+                items: Array.from(groupedItems.values())
+            };
+        });
+    },
+    async updateMonthlyPlanOrderAdmin(id, patch) {
+        const status = normalizeMonthlyOrderStatus(patch.status);
+        const row = await admin_model_1.OrderModel.findByIdAndUpdate(id, {
+            status,
+            $push: {
+                auditLog: {
+                    $each: [
+                        {
+                            at: new Date().toLocaleString("en-US"),
+                            by: "Monthly plan admin",
+                            action: `Status updated to ${status}`
+                        }
+                    ],
+                    $position: 0
+                }
+            }
+        }, { new: true }).lean();
+        if (!row)
+            throw new AppError_1.AppError(404, "Order not found");
+        const [result] = await Promise.all([this.listMonthlyPlanOrdersAdmin()]);
+        const updated = result.find((item) => item.id === String(row._id ?? id));
+        if (!updated)
+            throw new AppError_1.AppError(404, "Order not found");
+        return updated;
     },
     async listMealLibraryAdmin() {
         const rows = await admin_model_1.MealLibraryItemModel.find().sort({ name: 1 }).lean();
@@ -1416,6 +1768,7 @@ exports.adminService = {
             carbs: Number(payload.carbs),
             fat: Number(payload.fat),
             tags: payload.tags ?? [],
+            addOnOptions: normalizeStringList(payload.addOnOptions ?? []),
             status: payload.status
         };
         if (hasImage) {
@@ -1597,19 +1950,35 @@ exports.adminService = {
             admin_model_1.CustomPlanCategoryModel.find({ planId, isActive: true }).sort({ displayOrder: 1, createdAt: 1 }).lean(),
             admin_model_1.CustomPlanFoodItemModel.find({ planId, isActive: true }).sort({ displayOrder: 1, createdAt: 1 }).lean()
         ]);
+        const customPlanBuilder = {
+            categories: customCategoryRows.map((item) => toCustomPlanCategory(item)),
+            foodItems: customFoodRows
+                .map((item) => toCustomPlanFoodItem(item))
+                .map((item) => ({
+                ...item,
+                sizes: item.sizes.filter((size) => size.isActive)
+            }))
+                .filter((item) => item.sizes.length > 0)
+        };
+        const content = details.plan.content && typeof details.plan.content === "object"
+            ? details.plan.content
+            : {};
+        const regularStepTwo = content.regularStepTwo && typeof content.regularStepTwo === "object"
+            ? content.regularStepTwo
+            : content.customStepTwo && typeof content.customStepTwo === "object"
+                ? content.customStepTwo
+                : undefined;
         return {
             ...details,
+            plan: {
+                ...details.plan,
+                content: {
+                    ...content,
+                    ...(regularStepTwo ? { regularStepTwo } : {})
+                }
+            },
             mealLibrary: mealRows.map((item) => toMealLibraryItem(item)),
-            customPlanBuilder: {
-                categories: customCategoryRows.map((item) => toCustomPlanCategory(item)),
-                foodItems: customFoodRows
-                    .map((item) => toCustomPlanFoodItem(item))
-                    .map((item) => ({
-                    ...item,
-                    sizes: item.sizes.filter((size) => size.isActive)
-                }))
-                    .filter((item) => item.sizes.length > 0)
-            }
+            customPlanBuilder
         };
     },
     async listPlanFlows() {
