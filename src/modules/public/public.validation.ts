@@ -8,9 +8,17 @@ export const contactSchema = z.object({
 });
 
 const selectedMealSchema = z.object({
+  instanceId: z.string().optional(),
   id: z.string().min(1),
   title: z.string().min(1),
-  date: z.string().optional()
+  date: z.string().optional(),
+  extrasSummary: z.string().optional(),
+  calories: z.number().optional(),
+  protein: z.number().optional(),
+  carb: z.number().optional(),
+  fat: z.number().optional(),
+  basePrice: z.number().optional(),
+  totalPrice: z.number().optional()
 });
 
 export const checkoutSchema = z.object({
@@ -22,8 +30,10 @@ export const checkoutSchema = z.object({
     selection: z.object({
       meals: z.string().min(1),
       days: z.string().min(1),
+      weeks: z.string().optional(),
       snacks: z.string().min(1),
       startDate: z.string().min(1),
+      deliveryDays: z.string().optional(),
       planType: z.string().optional(),
       selectedMeals: z.array(selectedMealSchema).optional()
     }),

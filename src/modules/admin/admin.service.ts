@@ -19,6 +19,7 @@ import {
   SubscriptionModel,
   WebsitePageModel
 } from "./admin.model";
+import { CustomerOrderModel, CustomerSubscriptionModel } from "../public/public.model";
 
 type PlanKind = "custom" | "normal";
 type PlanStatus = "draft" | "active" | "inactive" | "archived";
@@ -257,6 +258,190 @@ function toCustomPlanFoodItem(row: Record<string, unknown>) {
       })
       .sort((a, b) => a.displayOrder - b.displayOrder)
   };
+}
+
+function parseMoneyValue(value: unknown) {
+  if (typeof value === "number") return value;
+  const normalized = String(value ?? "").replace(/[^0-9.-]+/g, "");
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeMonthlySubscriptionStatus(value: unknown) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "paused") return "paused";
+  if (normalized === "cancelled" || normalized === "canceled") return "cancelled";
+  if (normalized === "completed") return "completed";
+  return "active";
+}
+
+function normalizeMonthlyOrderStatus(value: unknown) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "confirmed") return "confirmed";
+  if (normalized === "preparing" || normalized === "prepared") return "preparing";
+  if (normalized === "out-for-delivery") return "out-for-delivery";
+  if (normalized === "completed" || normalized === "delivered") return "completed";
+  return "pending";
+}
+
+function normalizeMonthlyPaymentStatus(value: unknown) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "cod") return "cod";
+  if (normalized === "unpaid") return "unpaid";
+  return "paid";
+}
+
+function parseSubscriptionInfo(value: unknown) {
+  const raw = String(value ?? "");
+  const [planId, deliveryOption] = raw.split("/").map((item) => item.trim());
+  return {
+    planId,
+    deliveryOption
+  };
+}
+
+function addDaysToIsoDate(startDate: string, days: number) {
+  if (!startDate) return "";
+  const [year, month, day] = startDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, (month || 1) - 1, day || 1));
+  if (Number.isNaN(date.getTime())) return "";
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function getCustomStepTwoFromPlan(
+  plan: Record<string, unknown>
+): null | { categories: CustomPlanCategoryPayload[]; foodItems: CustomPlanFoodItemPayload[] } {
+  const content =
+    plan.content && typeof plan.content === "object"
+      ? (plan.content as Record<string, unknown>)
+      : null;
+  const customStepTwo =
+    content?.customStepTwo && typeof content.customStepTwo === "object"
+      ? (content.customStepTwo as Record<string, unknown>)
+      : null;
+
+  if (!customStepTwo) return null;
+
+  const categories = (Array.isArray(customStepTwo.categories) ? customStepTwo.categories : [])
+    .map((item) => item as Record<string, unknown>)
+    .map((item, index) => ({
+      id: String(item.id ?? ""),
+      planId: String(item.planId ?? plan.id ?? ""),
+      name: String(item.name ?? ""),
+      slug: String(item.slug ?? ""),
+      code: String(item.code ?? ""),
+      displayOrder: Number(item.displayOrder ?? index + 1),
+      selectionMode: toSelectionMode(item.selectionMode),
+      isActive: Boolean(item.isActive ?? true),
+      isRequired: Boolean(item.isRequired ?? false),
+      minSelect: Number(item.minSelect ?? 0),
+      maxSelect:
+        item.maxSelect === null || item.maxSelect === undefined || item.maxSelect === ""
+          ? null
+          : Number(item.maxSelect)
+    }))
+    .filter((item) => item.name.trim());
+
+  const foodItems = (Array.isArray(customStepTwo.foodItems) ? customStepTwo.foodItems : [])
+    .map((item) => item as Record<string, unknown>)
+    .map((item, index) => ({
+      id: String(item.id ?? ""),
+      planId: String(item.planId ?? plan.id ?? ""),
+      categoryId: String(item.categoryId ?? ""),
+      name: String(item.name ?? ""),
+      imageUrl: String(item.imageUrl ?? ""),
+      description: String(item.description ?? ""),
+      displayOrder: Number(item.displayOrder ?? index + 1),
+      isActive: Boolean(item.isActive ?? true),
+      sizes: (Array.isArray(item.sizes) ? item.sizes : []).map((size, sizeIndex) => {
+        const row = size as Record<string, unknown>;
+        return {
+          id: String(row.id ?? ""),
+          label: String(row.label ?? ""),
+          unit: String(row.unit ?? ""),
+          price: Number(row.price ?? 0),
+          calories: Number(row.calories ?? 0),
+          protein: Number(row.protein ?? 0),
+          carbs: Number(row.carbs ?? 0),
+          fat: Number(row.fat ?? 0),
+          displayOrder: Number(row.displayOrder ?? sizeIndex + 1),
+          isActive: Boolean(row.isActive ?? true)
+        };
+      })
+    }))
+    .filter((item) => item.name.trim() && item.categoryId.trim() && item.sizes.length > 0);
+
+  return { categories, foodItems };
+}
+
+async function buildCustomStepTwoForPlan(planId: string) {
+  const [categoryRows, foodRows] = await Promise.all([
+    CustomPlanCategoryModel.find({ planId }).sort({ displayOrder: 1, createdAt: 1 }).lean(),
+    CustomPlanFoodItemModel.find({ planId }).sort({ displayOrder: 1, createdAt: 1 }).lean()
+  ]);
+
+  const categories = categoryRows.map((row) => toCustomPlanCategory(row as unknown as Record<string, unknown>));
+  const foodItems = foodRows.map((row) => toCustomPlanFoodItem(row as unknown as Record<string, unknown>));
+
+  if (!categories.length && !foodItems.length) return null;
+  return { categories, foodItems };
+}
+
+async function syncCustomStepTwoForPlan(plan: Record<string, unknown>) {
+  const planId = String(plan.id ?? "").trim();
+  if (!planId) return;
+
+  const customStepTwo = getCustomStepTwoFromPlan(plan);
+  if (!customStepTwo) return;
+
+  await CustomPlanFoodItemModel.deleteMany({ planId });
+  await CustomPlanCategoryModel.deleteMany({ planId });
+
+  for (const [index, category] of customStepTwo.categories.entries()) {
+    await CustomPlanCategoryModel.create({
+      categoryId: category.id || `custom-category-${Date.now()}-${index}`,
+      planId,
+      name: category.name.trim(),
+      slug: category.slug?.trim() || toSlug(category.name) || `custom-category-${index + 1}`,
+      code: category.code?.trim() || "",
+      displayOrder: category.displayOrder ?? index + 1,
+      selectionMode: category.selectionMode,
+      isActive: category.isActive,
+      isRequired: category.isRequired,
+      minSelect: category.minSelect,
+      maxSelect: category.selectionMode === "single" ? 1 : category.maxSelect ?? null
+    });
+  }
+
+  for (const [index, foodItem] of customStepTwo.foodItems.entries()) {
+    const foodItemId = foodItem.id || `custom-food-${Date.now()}-${index}`;
+    await CustomPlanFoodItemModel.create({
+      foodItemId,
+      planId,
+      categoryId: foodItem.categoryId,
+      name: foodItem.name.trim(),
+      imageUrl: await uploadImageIfNeeded(foodItem.imageUrl, {
+        folder: "proteinbar/custom-plan-items"
+      }),
+      description: foodItem.description?.trim() || "",
+      displayOrder: foodItem.displayOrder ?? index + 1,
+      isActive: foodItem.isActive,
+      sizes: foodItem.sizes.map((size, sizeIndex) => ({
+        id: size.id || `custom-size-${Date.now()}-${index}-${sizeIndex}`,
+        foodItemId,
+        label: size.label.trim(),
+        unit: size.unit?.trim() || "",
+        price: Number(size.price),
+        calories: Number(size.calories),
+        protein: Number(size.protein),
+        carbs: Number(size.carbs),
+        fat: Number(size.fat),
+        displayOrder: size.displayOrder ?? sizeIndex + 1,
+        isActive: size.isActive ?? true
+      }))
+    });
+  }
 }
 
 function normalizeStringList(value: unknown) {
@@ -1646,7 +1831,24 @@ export const adminService = {
   async getMonthlyPlanDetails(planId: string) {
     const row = (await ensureMonthlyPlanDetails(planId)) ?? (await MonthlyPlanDetailsModel.findOne({ planId }).lean());
     if (!row) throw new AppError(404, "Plan not found");
-    return toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
+    const details = toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
+    const customStepTwo =
+      String(details.plan.planKind ?? "") === "custom"
+        ? await buildCustomStepTwoForPlan(planId)
+        : null;
+
+    if (!customStepTwo) return details;
+
+    return {
+      ...details,
+      plan: {
+        ...details.plan,
+        content: {
+          ...((details.plan.content as Record<string, unknown> | undefined) ?? {}),
+          customStepTwo
+        }
+      }
+    };
   },
 
   async upsertMonthlyPlanDetails(payload: MonthlyPlanDetailsPayload) {
@@ -1662,6 +1864,8 @@ export const adminService = {
         image: await uploadImageIfNeeded(normalized.plan.image, { folder: "proteinbar/monthly-plans" })
       };
     }
+
+    await syncCustomStepTwoForPlan(normalized.plan);
 
     const row = await MonthlyPlanDetailsModel.findOneAndUpdate(
       { planId },
@@ -1693,7 +1897,24 @@ export const adminService = {
       { upsert: true, setDefaultsOnInsert: true }
     );
 
-    return toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
+    const details = toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
+    const customStepTwo =
+      String(details.plan.planKind ?? "") === "custom"
+        ? await buildCustomStepTwoForPlan(planId)
+        : null;
+
+    if (!customStepTwo) return details;
+
+    return {
+      ...details,
+      plan: {
+        ...details.plan,
+        content: {
+          ...((details.plan.content as Record<string, unknown> | undefined) ?? {}),
+          customStepTwo
+        }
+      }
+    };
   },
 
   async archiveMonthlyPlan(planId: string) {
@@ -1720,6 +1941,8 @@ export const adminService = {
   async deleteMonthlyPlanAdmin(planId: string) {
     const deletedDetails = await MonthlyPlanDetailsModel.findOneAndDelete({ planId });
     const deletedLegacyByPlanId = await MonthlyPlanModel.findOneAndDelete({ planId });
+    await CustomPlanFoodItemModel.deleteMany({ planId });
+    await CustomPlanCategoryModel.deleteMany({ planId });
 
     let deletedLegacyById = null;
     if (!deletedLegacyByPlanId && isValidObjectId(planId)) {
@@ -1731,6 +1954,221 @@ export const adminService = {
     }
 
     return { id: planId };
+  },
+
+  async listMonthlyPlanSubscriptionsAdmin() {
+    const [adminSubscriptions, customerSubscriptions, customerOrders, planRows] = await Promise.all([
+      SubscriptionModel.find().sort({ createdAt: -1 }).lean(),
+      CustomerSubscriptionModel.find().lean(),
+      CustomerOrderModel.find().lean(),
+      MonthlyPlanDetailsModel.find({}, { planId: 1, planKind: 1 }).lean()
+    ]);
+
+    const customerSubscriptionById = new Map(
+      customerSubscriptions.map((item) => [String(item.subscriptionId ?? ""), item as unknown as Record<string, unknown>])
+    );
+    const firstCustomerOrderBySubscriptionId = new Map<string, Record<string, unknown>>();
+    customerOrders.forEach((item) => {
+      const row = item as unknown as Record<string, unknown>;
+      const subscriptionId = String(row.subscriptionId ?? "");
+      if (subscriptionId && !firstCustomerOrderBySubscriptionId.has(subscriptionId)) {
+        firstCustomerOrderBySubscriptionId.set(subscriptionId, row);
+      }
+    });
+    const planKindById = new Map(
+      planRows.map((item) => [
+        String((item as unknown as Record<string, unknown>).planId ?? ""),
+        String((item as unknown as Record<string, unknown>).planKind ?? "").toLowerCase() === "custom" ? "custom" : "normal"
+      ])
+    );
+
+    return adminSubscriptions.map((item) => {
+      const row = item as unknown as Record<string, unknown>;
+      const subscriptionId = String(row.subscriptionId ?? "");
+      const customerSubscription = customerSubscriptionById.get(subscriptionId) ?? {};
+      const customerOrder = firstCustomerOrderBySubscriptionId.get(subscriptionId) ?? {};
+      const selection =
+        customerSubscription.selection && typeof customerSubscription.selection === "object"
+          ? (customerSubscription.selection as Record<string, unknown>)
+          : {};
+      const delivery =
+        customerSubscription.delivery && typeof customerSubscription.delivery === "object"
+          ? (customerSubscription.delivery as Record<string, unknown>)
+          : {};
+      const plan =
+        customerSubscription.plan && typeof customerSubscription.plan === "object"
+          ? (customerSubscription.plan as Record<string, unknown>)
+          : {};
+      const startDate = String(selection.startDate ?? "");
+      const totalWeeks = Number(row.totalWeeks ?? 0);
+      const planId = String(plan.id ?? "");
+
+      return {
+        id: String(row._id ?? row.id ?? subscriptionId),
+        subscriptionId,
+        customerName: String(row.client ?? ""),
+        customerPhone: String(
+          ((customerOrder.customer as Record<string, unknown> | undefined)?.phone as string | undefined) ?? ""
+        ),
+        planId,
+        planTitle: String(row.plan ?? plan.title ?? ""),
+        planKind: planKindById.get(planId) ?? "normal",
+        status: normalizeMonthlySubscriptionStatus(row.status),
+        startDate,
+        endDate: startDate ? addDaysToIsoDate(startDate, Math.max(totalWeeks, 1) * 7 - 1) : "",
+        currentWeek: Number(row.currentWeek ?? 0),
+        totalWeeks,
+        progressDays: String(row.dayProgress ?? "0/0"),
+        remainingMeals: Number(row.remainingMeals ?? 0),
+        selections: {
+          meals: Number(selection.meals ?? 0),
+          days: Number(selection.days ?? 0),
+          snacks: Number(selection.snacks ?? 0),
+          startDate,
+          deliveryDays: String(selection.deliveryDays ?? "")
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
+          planType: String(selection.planType ?? "") || undefined,
+          deliveryOption: String(delivery.optionId ?? "")
+        }
+      };
+    });
+  },
+
+  async updateMonthlyPlanSubscriptionAdmin(id: string, patch: Record<string, unknown>) {
+    const status = normalizeMonthlySubscriptionStatus(patch.status);
+    const row = await SubscriptionModel.findByIdAndUpdate(
+      id,
+      {
+        status,
+        $push: { log: { $each: [`Status updated to ${status}`], $position: 0 } }
+      },
+      { new: true }
+    ).lean();
+
+    if (!row) throw new AppError(404, "Subscription not found");
+
+    await CustomerSubscriptionModel.findOneAndUpdate(
+      { subscriptionId: String((row as unknown as Record<string, unknown>).subscriptionId ?? "") },
+      { status }
+    );
+
+    const [result] = await Promise.all([this.listMonthlyPlanSubscriptionsAdmin()]);
+    const updated = result.find((item) => item.id === String((row as unknown as Record<string, unknown>)._id ?? id));
+    if (!updated) throw new AppError(404, "Subscription not found");
+    return updated;
+  },
+
+  async listMonthlyPlanOrdersAdmin() {
+    const [adminOrders, customerOrders, customerSubscriptions, mealRows, planRows] = await Promise.all([
+      OrderModel.find().sort({ createdAt: -1 }).lean(),
+      CustomerOrderModel.find().lean(),
+      CustomerSubscriptionModel.find().lean(),
+      MealLibraryItemModel.find().lean(),
+      MonthlyPlanDetailsModel.find({}, { planId: 1, planKind: 1 }).lean()
+    ]);
+
+    const customerOrderByOrderId = new Map(
+      customerOrders.map((item) => [String((item as unknown as Record<string, unknown>).orderId ?? ""), item as unknown as Record<string, unknown>])
+    );
+    const customerSubscriptionById = new Map(
+      customerSubscriptions.map((item) => [String((item as unknown as Record<string, unknown>).subscriptionId ?? ""), item as unknown as Record<string, unknown>])
+    );
+    const mealTypeById = new Map(
+      mealRows.map((item) => [String((item as unknown as Record<string, unknown>).mealId ?? ""), String((item as unknown as Record<string, unknown>).mealType ?? "Lunch")])
+    );
+    const planKindById = new Map(
+      planRows.map((item) => [
+        String((item as unknown as Record<string, unknown>).planId ?? ""),
+        String((item as unknown as Record<string, unknown>).planKind ?? "").toLowerCase() === "custom" ? "custom" : "normal"
+      ])
+    );
+
+    return adminOrders.map((item) => {
+      const row = item as unknown as Record<string, unknown>;
+      const orderId = String(row.orderId ?? "");
+      const subscriptionId = String(row.subscriptionId ?? "");
+      const customerOrder = customerOrderByOrderId.get(orderId) ?? {};
+      const customerSubscription = customerSubscriptionById.get(subscriptionId) ?? {};
+      const plan =
+        customerSubscription.plan && typeof customerSubscription.plan === "object"
+          ? (customerSubscription.plan as Record<string, unknown>)
+          : {};
+      const delivery =
+        customerOrder.delivery && typeof customerOrder.delivery === "object"
+          ? (customerOrder.delivery as Record<string, unknown>)
+          : {};
+      const selectedMeals = Array.isArray(customerOrder.selectedMeals)
+        ? (customerOrder.selectedMeals as Array<Record<string, unknown>>)
+        : [];
+      const groupedItems = new Map<string, { mealId: string; mealName: string; qty: number; mealType: string }>();
+
+      selectedMeals.forEach((meal) => {
+        const mealId = String(meal.id ?? "");
+        const mealName = String(meal.title ?? "Meal");
+        const key = `${mealId}:${mealName}`;
+        const existing = groupedItems.get(key);
+        groupedItems.set(key, {
+          mealId,
+          mealName,
+          qty: Number(existing?.qty ?? 0) + 1,
+          mealType: String(mealTypeById.get(mealId) ?? "Lunch")
+        });
+      });
+
+      const fallback = parseSubscriptionInfo(row.subscriptionInfo);
+      const planId = String(plan.id ?? fallback.planId ?? "");
+      const deliveryOption = String(delivery.optionId ?? fallback.deliveryOption ?? "");
+
+      return {
+        id: String(row._id ?? row.id ?? orderId),
+        orderId,
+        subscriptionId,
+        customerName: String(row.client ?? ""),
+        planId,
+        planTitle: String(row.plan ?? plan.title ?? ""),
+        planKind: planKindById.get(planId) ?? "normal",
+        status: normalizeMonthlyOrderStatus(row.status),
+        paymentStatus: normalizeMonthlyPaymentStatus(row.payment),
+        amount: parseMoneyValue(row.total),
+        orderDate: String(row.date ?? ""),
+        deliveryOption,
+        locationId: String(((delivery.pickupLocation as Record<string, unknown> | undefined)?.id as string | undefined) ?? ""),
+        locationName: String(row.location ?? ((delivery.pickupLocation as Record<string, unknown> | undefined)?.name as string | undefined) ?? ""),
+        items: Array.from(groupedItems.values())
+      };
+    });
+  },
+
+  async updateMonthlyPlanOrderAdmin(id: string, patch: Record<string, unknown>) {
+    const status = normalizeMonthlyOrderStatus(patch.status);
+    const row = await OrderModel.findByIdAndUpdate(
+      id,
+      {
+        status,
+        $push: {
+          auditLog: {
+            $each: [
+              {
+                at: new Date().toLocaleString("en-US"),
+                by: "Monthly plan admin",
+                action: `Status updated to ${status}`
+              }
+            ],
+            $position: 0
+          }
+        }
+      },
+      { new: true }
+    ).lean();
+
+    if (!row) throw new AppError(404, "Order not found");
+
+    const [result] = await Promise.all([this.listMonthlyPlanOrdersAdmin()]);
+    const updated = result.find((item) => item.id === String((row as unknown as Record<string, unknown>)._id ?? id));
+    if (!updated) throw new AppError(404, "Order not found");
+    return updated;
   },
 
   async listMealLibraryAdmin() {

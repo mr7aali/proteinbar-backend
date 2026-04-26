@@ -67,6 +67,10 @@ adminRouter.put(
 );
 adminRouter.patch("/admin/monthly-plan/plans/:id/archive", validate(monthlyPlanDetailsParamSchema, "params"), adminController.archiveMonthlyPlan);
 adminRouter.delete("/admin/monthly-plan/plans/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteMonthlyPlanAdmin);
+adminRouter.get("/admin/monthly-plan/subscriptions", adminController.listMonthlyPlanSubscriptionsAdmin);
+adminRouter.patch("/admin/monthly-plan/subscriptions/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.updateMonthlyPlanSubscriptionAdmin);
+adminRouter.get("/admin/monthly-plan/orders", adminController.listMonthlyPlanOrdersAdmin);
+adminRouter.patch("/admin/monthly-plan/orders/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.updateMonthlyPlanOrderAdmin);
 adminRouter.get("/admin/monthly-plan/meals", adminController.listMealLibraryAdmin);
 adminRouter.put(
   "/admin/monthly-plan/meals/:id",

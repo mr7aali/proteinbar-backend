@@ -64,15 +64,25 @@ const CustomerSubscriptionSchema = new Schema(
     selection: {
       meals: { type: String, required: true },
       days: { type: String, required: true },
+      weeks: { type: String, default: "" },
       snacks: { type: String, required: true },
       startDate: { type: String, required: true },
+      deliveryDays: { type: String, default: "" },
       planType: { type: String, default: "" },
       selectedMeals: {
         type: [
           {
+            instanceId: { type: String, default: "" },
             id: { type: String, required: true },
             title: { type: String, required: true },
-            date: { type: String, default: "" }
+            date: { type: String, default: "" },
+            extrasSummary: { type: String, default: "" },
+            calories: { type: Number, default: 0 },
+            protein: { type: Number, default: 0 },
+            carb: { type: Number, default: 0 },
+            fat: { type: Number, default: 0 },
+            basePrice: { type: Number, default: 0 },
+            totalPrice: { type: Number, default: 0 }
           }
         ],
         default: []
@@ -116,9 +126,17 @@ const CustomerOrderSchema = new Schema(
     selectedMeals: {
       type: [
         {
+          instanceId: { type: String, default: "" },
           id: { type: String, required: true },
           title: { type: String, required: true },
-          date: { type: String, default: "" }
+          date: { type: String, default: "" },
+          extrasSummary: { type: String, default: "" },
+          calories: { type: Number, default: 0 },
+          protein: { type: Number, default: 0 },
+          carb: { type: Number, default: 0 },
+          fat: { type: Number, default: 0 },
+          basePrice: { type: Number, default: 0 },
+          totalPrice: { type: Number, default: 0 }
         }
       ],
       default: []
