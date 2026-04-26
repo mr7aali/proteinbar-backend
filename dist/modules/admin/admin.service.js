@@ -581,6 +581,13 @@ function getDefaultWebsitePages() {
             seoDescription: "Read the ordering, delivery, and subscription terms.",
             sections: [
                 createWebsiteSection({
+                    id: "terms-section-0",
+                    sectionKey: "use-of-website",
+                    sectionType: "richText",
+                    heading: "Use Of Website",
+                    body: "By using the Proteinbar website, you agree to use it only for lawful purposes and in a way that does not interfere with the experience, security, or availability of the platform for other users."
+                }),
+                createWebsiteSection({
                     id: "terms-section-1",
                     sectionKey: "orders-and-availability",
                     sectionType: "richText",
@@ -589,10 +596,45 @@ function getDefaultWebsitePages() {
                 }),
                 createWebsiteSection({
                     id: "terms-section-2",
+                    sectionKey: "pricing",
+                    sectionType: "richText",
+                    heading: "Pricing",
+                    body: "Prices displayed on the website are provided in good faith and may change when required. Taxes, delivery fees, or applicable service charges may be added depending on the order type and delivery zone."
+                }),
+                createWebsiteSection({
+                    id: "terms-section-3",
+                    sectionKey: "meal-plans-and-custom-selections",
+                    sectionType: "richText",
+                    heading: "Meal Plans And Custom Selections",
+                    body: "Meal plan and custom meal selections are based on the options available at the time of purchase. Product composition, macros, and ingredients may vary when supply or operational needs require substitutions."
+                }),
+                createWebsiteSection({
+                    id: "terms-section-4",
+                    sectionKey: "cancellations-and-changes",
+                    sectionType: "richText",
+                    heading: "Cancellations And Changes",
+                    body: "Requests to change or cancel an order are handled based on preparation status, delivery scheduling, and operational feasibility. Once preparation has started, changes may be limited or unavailable."
+                }),
+                createWebsiteSection({
+                    id: "terms-section-5",
                     sectionKey: "allergies-and-dietary-responsibility",
                     sectionType: "richText",
                     heading: "Allergies And Dietary Responsibility",
                     body: "Customers are responsible for reviewing ingredient and nutrition information before ordering. If you have allergies, intolerances, or specific dietary restrictions, please contact us before completing your purchase."
+                }),
+                createWebsiteSection({
+                    id: "terms-section-6",
+                    sectionKey: "liability",
+                    sectionType: "richText",
+                    heading: "Liability",
+                    body: "Proteinbar is not liable for indirect, incidental, or consequential damages resulting from use of the website, order delays, third-party service interruptions, or circumstances outside our reasonable control."
+                }),
+                createWebsiteSection({
+                    id: "terms-section-7",
+                    sectionKey: "changes-to-these-terms",
+                    sectionType: "richText",
+                    heading: "Changes To These Terms",
+                    body: "We may revise these Terms & Conditions from time to time. Continued use of the website or services after updates means you agree to the revised terms."
                 })
             ]
         },
@@ -623,6 +665,41 @@ function getDefaultWebsitePages() {
                     sectionType: "richText",
                     heading: "How We Use Your Information",
                     body: "We use your information to process orders, manage deliveries, support your account experience, respond to inquiries, and improve our menu, meal plans, and customer service experience."
+                }),
+                createWebsiteSection({
+                    id: "privacy-section-3",
+                    sectionKey: "payments-and-orders",
+                    sectionType: "richText",
+                    heading: "Payments And Orders",
+                    body: "Payment and order information may be used to complete transactions, confirm bookings, prevent fraud, and maintain internal business records related to your purchases."
+                }),
+                createWebsiteSection({
+                    id: "privacy-section-4",
+                    sectionKey: "sharing-of-information",
+                    sectionType: "richText",
+                    heading: "Sharing Of Information",
+                    body: "We do not sell your personal information. We may share limited information with service providers or operational partners only when needed to process orders, deliver meals, provide support, or comply with legal obligations."
+                }),
+                createWebsiteSection({
+                    id: "privacy-section-5",
+                    sectionKey: "data-security",
+                    sectionType: "richText",
+                    heading: "Data Security",
+                    body: "We take reasonable steps to protect personal information using appropriate technical and organizational measures. However, no online system can guarantee absolute security."
+                }),
+                createWebsiteSection({
+                    id: "privacy-section-6",
+                    sectionKey: "your-choices",
+                    sectionType: "richText",
+                    heading: "Your Choices",
+                    body: "You may contact us to request updates or corrections to the personal information you have shared with us. You may also ask questions about how your information is handled."
+                }),
+                createWebsiteSection({
+                    id: "privacy-section-7",
+                    sectionKey: "policy-updates",
+                    sectionType: "richText",
+                    heading: "Policy Updates",
+                    body: "We may update this Privacy Policy from time to time to reflect operational, legal, or service changes. Continued use of our website or services after updates means you accept the revised policy."
                 })
             ]
         },
@@ -721,9 +798,7 @@ async function ensureWebsitePagesSeeded() {
                     heroSecondaryCtaLabel: page.heroSecondaryCtaLabel ?? "",
                     heroSecondaryCtaLink: page.heroSecondaryCtaLink ?? "",
                     seoTitle: page.seoTitle,
-                    seoDescription: page.seoDescription
-                },
-                $setOnInsert: {
+                    seoDescription: page.seoDescription,
                     sections: page.sections
                 }
             });
@@ -735,6 +810,15 @@ async function ensureWebsitePagesSeeded() {
                 kind: "legal"
             }
         });
+        const currentLegalPage = await admin_model_1.WebsitePageModel.findOne({ pageId: page.id }, { sections: 1 }).lean();
+        const currentSections = Array.isArray(currentLegalPage?.sections) ? currentLegalPage.sections : [];
+        if (currentSections.length > 0 && currentSections.length < page.sections.length) {
+            await admin_model_1.WebsitePageModel.updateOne({ pageId: page.id }, {
+                $set: {
+                    sections: page.sections
+                }
+            });
+        }
     }));
 }
 async function normalizeWebsiteRepeaterItem(item, index) {

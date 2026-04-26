@@ -99,6 +99,17 @@ function toRestaurantList(value: unknown) {
   }, []);
 }
 
+const websiteNavigationOrder: Record<string, number> = {
+  home: 0,
+  locations: 1,
+  menu: 2,
+  "about-us": 3,
+  contact: 4,
+  "meal-prep": 5,
+  "terms-and-conditions": 6,
+  "privacy-policy": 7
+};
+
 export const publicService = {
   async listMenuCategories() {
     const [menuItemsRaw, productsRaw] = await Promise.all([adminService.listMenuItems(), adminService.listProducts()]);
@@ -193,6 +204,26 @@ export const publicService = {
     const page = await adminService.getWebsitePageBySlug(slug.trim());
     if (page.status !== "published") throw new AppError(404, "Website page not found");
     return page;
+  },
+
+  async listWebsiteNavigation() {
+    const pages = await adminService.listWebsitePages();
+
+    return pages
+      .filter((page) => page.status === "published" && page.showInTopNav)
+      .sort((a, b) => {
+        const left = websiteNavigationOrder[a.slug] ?? Number.MAX_SAFE_INTEGER;
+        const right = websiteNavigationOrder[b.slug] ?? Number.MAX_SAFE_INTEGER;
+        if (left !== right) return left - right;
+        return a.title.localeCompare(b.title);
+      })
+      .map((page) => ({
+        id: page.id,
+        slug: page.slug,
+        title: page.title,
+        navLabel: page.navLabel,
+        kind: page.kind
+      }));
   },
 
   async listBuilderIngredients() {

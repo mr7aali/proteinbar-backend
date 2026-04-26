@@ -11,6 +11,7 @@ publicRouter.get("/restaurants", publicController.listRestaurants);
 publicRouter.get("/public/monthly-plan/plans", publicController.listMonthlyPlans);
 publicRouter.get("/public/monthly-plan/plans/:planId", publicController.getMonthlyPlanById);
 publicRouter.get("/monthly-plans/:planId", publicController.getMonthlyPlanById);
+publicRouter.get("/website-navigation", publicController.listWebsiteNavigation);
 publicRouter.get("/website-pages/:slug", publicController.getWebsitePage);
 publicRouter.get("/products/:handle", publicController.getProductByHandle);
 publicRouter.post("/contact", validate(contactSchema), publicController.createContactMessage);
