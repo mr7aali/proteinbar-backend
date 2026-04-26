@@ -152,3 +152,6 @@ adminRouter.get("/website-pages", adminController.listWebsitePages);
 adminRouter.get("/website-pages/:slug", adminController.getWebsitePageBySlug);
 adminRouter.post("/website-pages/upsert", validate(websitePageSchema), adminController.upsertWebsitePage);
 adminRouter.delete("/website-pages/:id", adminController.deleteWebsitePage);
+adminRouter.get("/legal-pages", adminController.listLegalPages);
+adminRouter.get("/legal-pages/:slug", adminController.getLegalPageBySlug);
+adminRouter.put("/legal-pages/:slug", validate(websitePageSchema), adminController.upsertLegalPage);

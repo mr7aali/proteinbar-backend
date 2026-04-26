@@ -386,6 +386,15 @@ function createWebsiteSection(section) {
         ...section
     };
 }
+const legalSlugAliases = {
+    terms: "terms-and-conditions",
+    privacy: "privacy-policy"
+};
+const legalPageIds = new Set(["terms", "privacy"]);
+function resolveWebsitePageSlug(slug) {
+    const normalizedSlug = toSlug(slug);
+    return legalSlugAliases[normalizedSlug] ?? normalizedSlug;
+}
 function getDefaultWebsitePages() {
     return [
         {
@@ -558,6 +567,66 @@ function getDefaultWebsitePages() {
             sections: []
         },
         {
+            id: "terms",
+            slug: "terms-and-conditions",
+            title: "Terms & Conditions",
+            navLabel: "Terms",
+            summary: "Legal terms for website use, ordering, delivery, and subscriptions.",
+            kind: "legal",
+            status: "published",
+            showInTopNav: false,
+            heroTitle: "Terms & Conditions",
+            heroBody: "Control the legal text shown across the public website.",
+            seoTitle: "Proteinbar Terms & Conditions",
+            seoDescription: "Read the ordering, delivery, and subscription terms.",
+            sections: [
+                createWebsiteSection({
+                    id: "terms-section-1",
+                    sectionKey: "orders-and-availability",
+                    sectionType: "richText",
+                    heading: "Orders And Availability",
+                    body: "All orders are subject to availability, operational capacity, and confirmation. We reserve the right to update menu items, meal plan options, pricing, and availability without prior notice."
+                }),
+                createWebsiteSection({
+                    id: "terms-section-2",
+                    sectionKey: "allergies-and-dietary-responsibility",
+                    sectionType: "richText",
+                    heading: "Allergies And Dietary Responsibility",
+                    body: "Customers are responsible for reviewing ingredient and nutrition information before ordering. If you have allergies, intolerances, or specific dietary restrictions, please contact us before completing your purchase."
+                })
+            ]
+        },
+        {
+            id: "privacy",
+            slug: "privacy-policy",
+            title: "Privacy Policy",
+            navLabel: "Privacy",
+            summary: "Privacy disclosures for customer accounts, contact data, and order history.",
+            kind: "legal",
+            status: "published",
+            showInTopNav: false,
+            heroTitle: "Privacy Policy",
+            heroBody: "Manage customer-data policy copy and compliance text here.",
+            seoTitle: "Proteinbar Privacy Policy",
+            seoDescription: "Understand how Proteinbar stores and uses customer data.",
+            sections: [
+                createWebsiteSection({
+                    id: "privacy-section-1",
+                    sectionKey: "information-we-collect",
+                    sectionType: "richText",
+                    heading: "Information We Collect",
+                    body: "We may collect information you provide directly when you place an order, create a meal plan, contact us, or subscribe to updates. This can include your name, email address, phone number, delivery details, and order preferences."
+                }),
+                createWebsiteSection({
+                    id: "privacy-section-2",
+                    sectionKey: "how-we-use-your-information",
+                    sectionType: "richText",
+                    heading: "How We Use Your Information",
+                    body: "We use your information to process orders, manage deliveries, support your account experience, respond to inquiries, and improve our menu, meal plans, and customer service experience."
+                })
+            ]
+        },
+        {
             id: "about-us",
             slug: "about-us",
             title: "About Us",
@@ -590,33 +659,83 @@ function getDefaultWebsitePages() {
     ];
 }
 async function ensureWebsitePagesSeeded() {
-    const existing = await admin_model_1.WebsitePageModel.find({}, { pageId: 1 }).lean();
+    const defaults = getDefaultWebsitePages();
+    const existing = await admin_model_1.WebsitePageModel.find({}, { pageId: 1, slug: 1 }).lean();
     const existingIds = new Set(existing.map((row) => String(row.pageId ?? "")));
-    const missingPages = getDefaultWebsitePages().filter((page) => !existingIds.has(page.id));
-    if (missingPages.length === 0)
-        return;
-    await admin_model_1.WebsitePageModel.insertMany(missingPages.map((page) => ({
-        pageId: page.id,
-        slug: page.slug,
-        title: page.title,
-        navLabel: page.navLabel,
-        summary: page.summary,
-        kind: page.kind,
-        status: page.status,
-        showInTopNav: page.showInTopNav,
-        heroEyebrow: page.heroEyebrow ?? "",
-        heroTitle: page.heroTitle,
-        heroSubtitle: page.heroSubtitle ?? "",
-        heroBody: page.heroBody ?? "",
-        heroImage: page.heroImage ?? "",
-        heroPrimaryCtaLabel: page.heroPrimaryCtaLabel ?? "",
-        heroPrimaryCtaLink: page.heroPrimaryCtaLink ?? "",
-        heroSecondaryCtaLabel: page.heroSecondaryCtaLabel ?? "",
-        heroSecondaryCtaLink: page.heroSecondaryCtaLink ?? "",
-        seoTitle: page.seoTitle,
-        seoDescription: page.seoDescription,
-        sections: page.sections
-    })));
+    const existingSlugs = new Set(existing.map((row) => String(row.slug ?? "")));
+    const missingPages = defaults.filter((page) => !existingIds.has(page.id));
+    if (missingPages.length > 0) {
+        await admin_model_1.WebsitePageModel.insertMany(missingPages.map((page) => ({
+            pageId: page.id,
+            slug: page.slug,
+            title: page.title,
+            navLabel: page.navLabel,
+            summary: page.summary,
+            kind: page.kind,
+            status: page.status,
+            showInTopNav: page.showInTopNav,
+            heroEyebrow: page.heroEyebrow ?? "",
+            heroTitle: page.heroTitle,
+            heroSubtitle: page.heroSubtitle ?? "",
+            heroBody: page.heroBody ?? "",
+            heroImage: page.heroImage ?? "",
+            heroPrimaryCtaLabel: page.heroPrimaryCtaLabel ?? "",
+            heroPrimaryCtaLink: page.heroPrimaryCtaLink ?? "",
+            heroSecondaryCtaLabel: page.heroSecondaryCtaLabel ?? "",
+            heroSecondaryCtaLink: page.heroSecondaryCtaLink ?? "",
+            seoTitle: page.seoTitle,
+            seoDescription: page.seoDescription,
+            sections: page.sections
+        })));
+    }
+    await Promise.all(defaults.map(async (page) => {
+        if (!legalPageIds.has(page.id)) {
+            return;
+        }
+        const legacySlug = page.slug === "terms-and-conditions"
+            ? "terms"
+            : page.slug === "privacy-policy"
+                ? "privacy"
+                : "";
+        const conflictingRecord = legacySlug && !existingSlugs.has(page.slug)
+            ? await admin_model_1.WebsitePageModel.findOne({ slug: legacySlug }).lean()
+            : null;
+        if (conflictingRecord) {
+            await admin_model_1.WebsitePageModel.updateOne({ _id: conflictingRecord._id }, {
+                $set: {
+                    pageId: page.id,
+                    slug: page.slug,
+                    title: page.title,
+                    navLabel: page.navLabel,
+                    summary: page.summary,
+                    kind: page.kind,
+                    status: page.status,
+                    showInTopNav: page.showInTopNav,
+                    heroEyebrow: page.heroEyebrow ?? "",
+                    heroTitle: page.heroTitle,
+                    heroSubtitle: page.heroSubtitle ?? "",
+                    heroBody: page.heroBody ?? "",
+                    heroImage: page.heroImage ?? "",
+                    heroPrimaryCtaLabel: page.heroPrimaryCtaLabel ?? "",
+                    heroPrimaryCtaLink: page.heroPrimaryCtaLink ?? "",
+                    heroSecondaryCtaLabel: page.heroSecondaryCtaLabel ?? "",
+                    heroSecondaryCtaLink: page.heroSecondaryCtaLink ?? "",
+                    seoTitle: page.seoTitle,
+                    seoDescription: page.seoDescription
+                },
+                $setOnInsert: {
+                    sections: page.sections
+                }
+            });
+            return;
+        }
+        await admin_model_1.WebsitePageModel.updateOne({ pageId: page.id }, {
+            $set: {
+                slug: page.slug,
+                kind: "legal"
+            }
+        });
+    }));
 }
 async function normalizeWebsiteRepeaterItem(item, index) {
     return {
@@ -1453,12 +1572,25 @@ exports.adminService = {
         const rows = await admin_model_1.WebsitePageModel.find().sort({ title: 1 }).lean();
         return rows.map((row) => toWebsitePageRecord(row));
     },
+    async listLegalPages() {
+        await ensureWebsitePagesSeeded();
+        const rows = await admin_model_1.WebsitePageModel.find({ kind: "legal" }).sort({ title: 1 }).lean();
+        return rows.map((row) => toWebsitePageRecord(row));
+    },
     async getWebsitePageBySlug(slug) {
         await ensureWebsitePagesSeeded();
-        const row = await admin_model_1.WebsitePageModel.findOne({ slug: slug.trim() }).lean();
+        const normalizedSlug = resolveWebsitePageSlug(slug.trim());
+        const row = await admin_model_1.WebsitePageModel.findOne({ slug: normalizedSlug }).lean();
         if (!row)
             throw new AppError_1.AppError(404, "Website page not found");
         return toWebsitePageRecord(row);
+    },
+    async getLegalPageBySlug(slug) {
+        const page = await this.getWebsitePageBySlug(slug);
+        if (page.kind !== "legal") {
+            throw new AppError_1.AppError(404, "Legal page not found");
+        }
+        return page;
     },
     async upsertWebsitePage(payload) {
         await ensureWebsitePagesSeeded();
@@ -1486,6 +1618,16 @@ exports.adminService = {
             sections: normalized.sections
         }, { new: true, upsert: true, setDefaultsOnInsert: true }).lean();
         return toWebsitePageRecord(row);
+    },
+    async upsertLegalPage(slug, payload) {
+        const existingPage = await this.getLegalPageBySlug(slug);
+        return this.upsertWebsitePage({
+            ...payload,
+            id: existingPage.id,
+            slug: resolveWebsitePageSlug(slug),
+            kind: "legal",
+            showInTopNav: false
+        });
     },
     async deleteWebsitePage(id) {
         const row = await admin_model_1.WebsitePageModel.findOneAndDelete({ pageId: id }).lean();

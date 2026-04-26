@@ -575,6 +575,18 @@ function createWebsiteSection(section: WebsitePageSectionPayload): WebsitePageSe
   };
 }
 
+const legalSlugAliases: Record<string, string> = {
+  terms: "terms-and-conditions",
+  privacy: "privacy-policy"
+};
+
+const legalPageIds = new Set(["terms", "privacy"]);
+
+function resolveWebsitePageSlug(slug: string) {
+  const normalizedSlug = toSlug(slug);
+  return legalSlugAliases[normalizedSlug] ?? normalizedSlug;
+}
+
 function getDefaultWebsitePages(): WebsitePagePayload[] {
   return [
     {
@@ -750,6 +762,158 @@ function getDefaultWebsitePages(): WebsitePagePayload[] {
       sections: []
     },
     {
+      id: "terms",
+      slug: "terms-and-conditions",
+      title: "Terms & Conditions",
+      navLabel: "Terms",
+      summary: "Legal terms for website use, ordering, delivery, and subscriptions.",
+      kind: "legal",
+      status: "published",
+      showInTopNav: false,
+      heroTitle: "Terms & Conditions",
+      heroBody: "Control the legal text shown across the public website.",
+      seoTitle: "Proteinbar Terms & Conditions",
+      seoDescription: "Read the ordering, delivery, and subscription terms.",
+      sections: [
+        createWebsiteSection({
+          id: "terms-section-0",
+          sectionKey: "use-of-website",
+          sectionType: "richText",
+          heading: "Use Of Website",
+          body:
+            "By using the Proteinbar website, you agree to use it only for lawful purposes and in a way that does not interfere with the experience, security, or availability of the platform for other users."
+        }),
+        createWebsiteSection({
+          id: "terms-section-1",
+          sectionKey: "orders-and-availability",
+          sectionType: "richText",
+          heading: "Orders And Availability",
+          body:
+            "All orders are subject to availability, operational capacity, and confirmation. We reserve the right to update menu items, meal plan options, pricing, and availability without prior notice."
+        }),
+        createWebsiteSection({
+          id: "terms-section-2",
+          sectionKey: "pricing",
+          sectionType: "richText",
+          heading: "Pricing",
+          body:
+            "Prices displayed on the website are provided in good faith and may change when required. Taxes, delivery fees, or applicable service charges may be added depending on the order type and delivery zone."
+        }),
+        createWebsiteSection({
+          id: "terms-section-3",
+          sectionKey: "meal-plans-and-custom-selections",
+          sectionType: "richText",
+          heading: "Meal Plans And Custom Selections",
+          body:
+            "Meal plan and custom meal selections are based on the options available at the time of purchase. Product composition, macros, and ingredients may vary when supply or operational needs require substitutions."
+        }),
+        createWebsiteSection({
+          id: "terms-section-4",
+          sectionKey: "cancellations-and-changes",
+          sectionType: "richText",
+          heading: "Cancellations And Changes",
+          body:
+            "Requests to change or cancel an order are handled based on preparation status, delivery scheduling, and operational feasibility. Once preparation has started, changes may be limited or unavailable."
+        }),
+        createWebsiteSection({
+          id: "terms-section-5",
+          sectionKey: "allergies-and-dietary-responsibility",
+          sectionType: "richText",
+          heading: "Allergies And Dietary Responsibility",
+          body:
+            "Customers are responsible for reviewing ingredient and nutrition information before ordering. If you have allergies, intolerances, or specific dietary restrictions, please contact us before completing your purchase."
+        }),
+        createWebsiteSection({
+          id: "terms-section-6",
+          sectionKey: "liability",
+          sectionType: "richText",
+          heading: "Liability",
+          body:
+            "Proteinbar is not liable for indirect, incidental, or consequential damages resulting from use of the website, order delays, third-party service interruptions, or circumstances outside our reasonable control."
+        }),
+        createWebsiteSection({
+          id: "terms-section-7",
+          sectionKey: "changes-to-these-terms",
+          sectionType: "richText",
+          heading: "Changes To These Terms",
+          body:
+            "We may revise these Terms & Conditions from time to time. Continued use of the website or services after updates means you agree to the revised terms."
+        })
+      ]
+    },
+    {
+      id: "privacy",
+      slug: "privacy-policy",
+      title: "Privacy Policy",
+      navLabel: "Privacy",
+      summary: "Privacy disclosures for customer accounts, contact data, and order history.",
+      kind: "legal",
+      status: "published",
+      showInTopNav: false,
+      heroTitle: "Privacy Policy",
+      heroBody: "Manage customer-data policy copy and compliance text here.",
+      seoTitle: "Proteinbar Privacy Policy",
+      seoDescription: "Understand how Proteinbar stores and uses customer data.",
+      sections: [
+        createWebsiteSection({
+          id: "privacy-section-1",
+          sectionKey: "information-we-collect",
+          sectionType: "richText",
+          heading: "Information We Collect",
+          body:
+            "We may collect information you provide directly when you place an order, create a meal plan, contact us, or subscribe to updates. This can include your name, email address, phone number, delivery details, and order preferences."
+        }),
+        createWebsiteSection({
+          id: "privacy-section-2",
+          sectionKey: "how-we-use-your-information",
+          sectionType: "richText",
+          heading: "How We Use Your Information",
+          body:
+            "We use your information to process orders, manage deliveries, support your account experience, respond to inquiries, and improve our menu, meal plans, and customer service experience."
+        }),
+        createWebsiteSection({
+          id: "privacy-section-3",
+          sectionKey: "payments-and-orders",
+          sectionType: "richText",
+          heading: "Payments And Orders",
+          body:
+            "Payment and order information may be used to complete transactions, confirm bookings, prevent fraud, and maintain internal business records related to your purchases."
+        }),
+        createWebsiteSection({
+          id: "privacy-section-4",
+          sectionKey: "sharing-of-information",
+          sectionType: "richText",
+          heading: "Sharing Of Information",
+          body:
+            "We do not sell your personal information. We may share limited information with service providers or operational partners only when needed to process orders, deliver meals, provide support, or comply with legal obligations."
+        }),
+        createWebsiteSection({
+          id: "privacy-section-5",
+          sectionKey: "data-security",
+          sectionType: "richText",
+          heading: "Data Security",
+          body:
+            "We take reasonable steps to protect personal information using appropriate technical and organizational measures. However, no online system can guarantee absolute security."
+        }),
+        createWebsiteSection({
+          id: "privacy-section-6",
+          sectionKey: "your-choices",
+          sectionType: "richText",
+          heading: "Your Choices",
+          body:
+            "You may contact us to request updates or corrections to the personal information you have shared with us. You may also ask questions about how your information is handled."
+        }),
+        createWebsiteSection({
+          id: "privacy-section-7",
+          sectionKey: "policy-updates",
+          sectionType: "richText",
+          heading: "Policy Updates",
+          body:
+            "We may update this Privacy Policy from time to time to reflect operational, legal, or service changes. Continued use of our website or services after updates means you accept the revised policy."
+        })
+      ]
+    },
+    {
       id: "about-us",
       slug: "about-us",
       title: "About Us",
@@ -783,35 +947,112 @@ function getDefaultWebsitePages(): WebsitePagePayload[] {
 }
 
 async function ensureWebsitePagesSeeded() {
-  const existing = await WebsitePageModel.find({}, { pageId: 1 }).lean();
+  const defaults = getDefaultWebsitePages();
+  const existing = await WebsitePageModel.find({}, { pageId: 1, slug: 1 }).lean();
   const existingIds = new Set(existing.map((row) => String((row as Record<string, unknown>).pageId ?? "")));
-  const missingPages = getDefaultWebsitePages().filter((page) => !existingIds.has(page.id));
+  const existingSlugs = new Set(existing.map((row) => String((row as Record<string, unknown>).slug ?? "")));
+  const missingPages = defaults.filter((page) => !existingIds.has(page.id));
 
-  if (missingPages.length === 0) return;
+  if (missingPages.length > 0) {
+    await WebsitePageModel.insertMany(
+      missingPages.map((page) => ({
+        pageId: page.id,
+        slug: page.slug,
+        title: page.title,
+        navLabel: page.navLabel,
+        summary: page.summary,
+        kind: page.kind,
+        status: page.status,
+        showInTopNav: page.showInTopNav,
+        heroEyebrow: page.heroEyebrow ?? "",
+        heroTitle: page.heroTitle,
+        heroSubtitle: page.heroSubtitle ?? "",
+        heroBody: page.heroBody ?? "",
+        heroImage: page.heroImage ?? "",
+        heroPrimaryCtaLabel: page.heroPrimaryCtaLabel ?? "",
+        heroPrimaryCtaLink: page.heroPrimaryCtaLink ?? "",
+        heroSecondaryCtaLabel: page.heroSecondaryCtaLabel ?? "",
+        heroSecondaryCtaLink: page.heroSecondaryCtaLink ?? "",
+        seoTitle: page.seoTitle,
+        seoDescription: page.seoDescription,
+        sections: page.sections
+      }))
+    );
+  }
 
-  await WebsitePageModel.insertMany(
-    missingPages.map((page) => ({
-      pageId: page.id,
-      slug: page.slug,
-      title: page.title,
-      navLabel: page.navLabel,
-      summary: page.summary,
-      kind: page.kind,
-      status: page.status,
-      showInTopNav: page.showInTopNav,
-      heroEyebrow: page.heroEyebrow ?? "",
-      heroTitle: page.heroTitle,
-      heroSubtitle: page.heroSubtitle ?? "",
-      heroBody: page.heroBody ?? "",
-      heroImage: page.heroImage ?? "",
-      heroPrimaryCtaLabel: page.heroPrimaryCtaLabel ?? "",
-      heroPrimaryCtaLink: page.heroPrimaryCtaLink ?? "",
-      heroSecondaryCtaLabel: page.heroSecondaryCtaLabel ?? "",
-      heroSecondaryCtaLink: page.heroSecondaryCtaLink ?? "",
-      seoTitle: page.seoTitle,
-      seoDescription: page.seoDescription,
-      sections: page.sections
-    }))
+  await Promise.all(
+    defaults.map(async (page) => {
+      if (!legalPageIds.has(page.id)) {
+        return;
+      }
+
+      const legacySlug =
+        page.slug === "terms-and-conditions"
+          ? "terms"
+          : page.slug === "privacy-policy"
+            ? "privacy"
+            : "";
+
+      const conflictingRecord =
+        legacySlug && !existingSlugs.has(page.slug)
+          ? await WebsitePageModel.findOne({ slug: legacySlug }).lean()
+          : null;
+
+      if (conflictingRecord) {
+        await WebsitePageModel.updateOne(
+          { _id: conflictingRecord._id },
+          {
+            $set: {
+              pageId: page.id,
+              slug: page.slug,
+              title: page.title,
+              navLabel: page.navLabel,
+              summary: page.summary,
+              kind: page.kind,
+              status: page.status,
+              showInTopNav: page.showInTopNav,
+              heroEyebrow: page.heroEyebrow ?? "",
+              heroTitle: page.heroTitle,
+              heroSubtitle: page.heroSubtitle ?? "",
+              heroBody: page.heroBody ?? "",
+              heroImage: page.heroImage ?? "",
+              heroPrimaryCtaLabel: page.heroPrimaryCtaLabel ?? "",
+              heroPrimaryCtaLink: page.heroPrimaryCtaLink ?? "",
+              heroSecondaryCtaLabel: page.heroSecondaryCtaLabel ?? "",
+              heroSecondaryCtaLink: page.heroSecondaryCtaLink ?? "",
+              seoTitle: page.seoTitle,
+              seoDescription: page.seoDescription,
+              sections: page.sections
+            }
+          }
+        );
+        return;
+      }
+
+      await WebsitePageModel.updateOne(
+        { pageId: page.id },
+        {
+          $set: {
+            slug: page.slug,
+            kind: "legal"
+          }
+        }
+      );
+
+      const currentLegalPage = await WebsitePageModel.findOne({ pageId: page.id }, { sections: 1 }).lean();
+      const currentSections = Array.isArray(currentLegalPage?.sections) ? currentLegalPage.sections : [];
+
+      if (currentSections.length > 0 && currentSections.length < page.sections.length) {
+        await WebsitePageModel.updateOne(
+          { pageId: page.id },
+          {
+            $set: {
+              sections: page.sections
+            }
+          }
+        );
+      }
+    })
   );
 }
 
@@ -1767,11 +2008,26 @@ export const adminService = {
     return rows.map((row) => toWebsitePageRecord(row as unknown as Record<string, unknown>));
   },
 
+  async listLegalPages() {
+    await ensureWebsitePagesSeeded();
+    const rows = await WebsitePageModel.find({ kind: "legal" }).sort({ title: 1 }).lean();
+    return rows.map((row) => toWebsitePageRecord(row as unknown as Record<string, unknown>));
+  },
+
   async getWebsitePageBySlug(slug: string) {
     await ensureWebsitePagesSeeded();
-    const row = await WebsitePageModel.findOne({ slug: slug.trim() }).lean();
+    const normalizedSlug = resolveWebsitePageSlug(slug.trim());
+    const row = await WebsitePageModel.findOne({ slug: normalizedSlug }).lean();
     if (!row) throw new AppError(404, "Website page not found");
     return toWebsitePageRecord(row as unknown as Record<string, unknown>);
+  },
+
+  async getLegalPageBySlug(slug: string) {
+    const page = await this.getWebsitePageBySlug(slug);
+    if (page.kind !== "legal") {
+      throw new AppError(404, "Legal page not found");
+    }
+    return page;
   },
 
   async upsertWebsitePage(payload: WebsitePagePayload) {
@@ -1806,6 +2062,17 @@ export const adminService = {
     ).lean();
 
     return toWebsitePageRecord(row as unknown as Record<string, unknown>);
+  },
+
+  async upsertLegalPage(slug: string, payload: WebsitePagePayload) {
+    const existingPage = await this.getLegalPageBySlug(slug);
+    return this.upsertWebsitePage({
+      ...payload,
+      id: existingPage.id,
+      slug: resolveWebsitePageSlug(slug),
+      kind: "legal",
+      showInTopNav: false
+    });
   },
 
   async deleteWebsitePage(id: string) {

@@ -266,12 +266,24 @@ export const adminController = {
     const data = await adminService.listWebsitePages();
     res.json({ success: true, data });
   }),
+  listLegalPages: asyncHandler(async (_req: Request, res: Response) => {
+    const data = await adminService.listLegalPages();
+    res.json({ success: true, data });
+  }),
   getWebsitePageBySlug: asyncHandler(async (req: Request, res: Response) => {
     const data = await adminService.getWebsitePageBySlug(req.params.slug);
     res.json({ success: true, data });
   }),
+  getLegalPageBySlug: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.getLegalPageBySlug(req.params.slug);
+    res.json({ success: true, data });
+  }),
   upsertWebsitePage: asyncHandler(async (req: Request, res: Response) => {
     const data = await adminService.upsertWebsitePage(req.body);
+    res.json({ success: true, data });
+  }),
+  upsertLegalPage: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.upsertLegalPage(req.params.slug, req.body);
     res.json({ success: true, data });
   }),
   deleteWebsitePage: asyncHandler(async (req: Request, res: Response) => {

@@ -66,3 +66,6 @@ exports.adminRouter.get("/website-pages", admin_controller_1.adminController.lis
 exports.adminRouter.get("/website-pages/:slug", admin_controller_1.adminController.getWebsitePageBySlug);
 exports.adminRouter.post("/website-pages/upsert", (0, validate_1.validate)(admin_validation_1.websitePageSchema), admin_controller_1.adminController.upsertWebsitePage);
 exports.adminRouter.delete("/website-pages/:id", admin_controller_1.adminController.deleteWebsitePage);
+exports.adminRouter.get("/legal-pages", admin_controller_1.adminController.listLegalPages);
+exports.adminRouter.get("/legal-pages/:slug", admin_controller_1.adminController.getLegalPageBySlug);
+exports.adminRouter.put("/legal-pages/:slug", (0, validate_1.validate)(admin_validation_1.websitePageSchema), admin_controller_1.adminController.upsertLegalPage);
