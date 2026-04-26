@@ -1831,24 +1831,7 @@ export const adminService = {
   async getMonthlyPlanDetails(planId: string) {
     const row = (await ensureMonthlyPlanDetails(planId)) ?? (await MonthlyPlanDetailsModel.findOne({ planId }).lean());
     if (!row) throw new AppError(404, "Plan not found");
-    const details = toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
-    const customStepTwo =
-      String(details.plan.planKind ?? "") === "custom"
-        ? await buildCustomStepTwoForPlan(planId)
-        : null;
-
-    if (!customStepTwo) return details;
-
-    return {
-      ...details,
-      plan: {
-        ...details.plan,
-        content: {
-          ...((details.plan.content as Record<string, unknown> | undefined) ?? {}),
-          customStepTwo
-        }
-      }
-    };
+    return toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
   },
 
   async upsertMonthlyPlanDetails(payload: MonthlyPlanDetailsPayload) {
@@ -1864,8 +1847,6 @@ export const adminService = {
         image: await uploadImageIfNeeded(normalized.plan.image, { folder: "proteinbar/monthly-plans" })
       };
     }
-
-    await syncCustomStepTwoForPlan(normalized.plan);
 
     const row = await MonthlyPlanDetailsModel.findOneAndUpdate(
       { planId },
@@ -1897,24 +1878,7 @@ export const adminService = {
       { upsert: true, setDefaultsOnInsert: true }
     );
 
-    const details = toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
-    const customStepTwo =
-      String(details.plan.planKind ?? "") === "custom"
-        ? await buildCustomStepTwoForPlan(planId)
-        : null;
-
-    if (!customStepTwo) return details;
-
-    return {
-      ...details,
-      plan: {
-        ...details.plan,
-        content: {
-          ...((details.plan.content as Record<string, unknown> | undefined) ?? {}),
-          customStepTwo
-        }
-      }
-    };
+    return toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
   },
 
   async archiveMonthlyPlan(planId: string) {
@@ -2410,19 +2374,38 @@ export const adminService = {
       CustomPlanFoodItemModel.find({ planId, isActive: true }).sort({ displayOrder: 1, createdAt: 1 }).lean()
     ]);
 
+    const customPlanBuilder = {
+      categories: customCategoryRows.map((item) => toCustomPlanCategory(item as unknown as Record<string, unknown>)),
+      foodItems: customFoodRows
+        .map((item) => toCustomPlanFoodItem(item as unknown as Record<string, unknown>))
+        .map((item) => ({
+          ...item,
+          sizes: item.sizes.filter((size) => size.isActive)
+        }))
+        .filter((item) => item.sizes.length > 0)
+    };
+    const content =
+      details.plan.content && typeof details.plan.content === "object"
+        ? (details.plan.content as Record<string, unknown>)
+        : {};
+    const regularStepTwo =
+      content.regularStepTwo && typeof content.regularStepTwo === "object"
+        ? content.regularStepTwo
+        : content.customStepTwo && typeof content.customStepTwo === "object"
+          ? content.customStepTwo
+          : undefined;
+
     return {
       ...details,
+      plan: {
+        ...details.plan,
+        content: {
+          ...content,
+          ...(regularStepTwo ? { regularStepTwo } : {})
+        }
+      },
       mealLibrary: mealRows.map((item) => toMealLibraryItem(item as unknown as Record<string, unknown>)),
-      customPlanBuilder: {
-        categories: customCategoryRows.map((item) => toCustomPlanCategory(item as unknown as Record<string, unknown>)),
-        foodItems: customFoodRows
-          .map((item) => toCustomPlanFoodItem(item as unknown as Record<string, unknown>))
-          .map((item) => ({
-            ...item,
-            sizes: item.sizes.filter((size) => size.isActive)
-          }))
-          .filter((item) => item.sizes.length > 0)
-      }
+      customPlanBuilder
     };
   },
 
