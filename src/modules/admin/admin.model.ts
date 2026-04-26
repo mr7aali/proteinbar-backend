@@ -199,8 +199,12 @@ const OrderAuditSchema = new Schema(
 const OrderSchema = new Schema(
   {
     orderId: { type: String, required: true, unique: true, trim: true },
+    subscriptionId: { type: String, default: "", trim: true, index: true },
     client: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true },
+    customerEmail: { type: String, default: "", trim: true },
+    customerEmirate: { type: String, default: "", trim: true },
+    customerArea: { type: String, default: "", trim: true },
     status: { type: String, default: "Pending" },
     confirmationStatus: { type: String, default: "Pending" },
     plan: { type: String, default: "" },

@@ -2230,30 +2230,56 @@ export const adminService = {
       const selectedMeals = Array.isArray(customerOrder.selectedMeals)
         ? (customerOrder.selectedMeals as Array<Record<string, unknown>>)
         : [];
-      const groupedItems = new Map<string, { mealId: string; mealName: string; qty: number; mealType: string }>();
+      
+      const customer =
+        customerOrder.customer && typeof customerOrder.customer === "object"
+          ? (customerOrder.customer as Record<string, unknown>)
+          : {};
+      const totals =
+        customerOrder.totals && typeof customerOrder.totals === "object"
+          ? (customerOrder.totals as Record<string, unknown>)
+          : {};
+      const promoCode =
+        customerOrder.promoCode && typeof customerOrder.promoCode === "object"
+          ? (customerOrder.promoCode as Record<string, unknown>)
+          : {};
 
-      selectedMeals.forEach((meal) => {
+      const items = selectedMeals.map((meal) => {
         const mealId = String(meal.id ?? "");
-        const mealName = String(meal.title ?? "Meal");
-        const key = `${mealId}:${mealName}`;
-        const existing = groupedItems.get(key);
-        groupedItems.set(key, {
+        return {
           mealId,
-          mealName,
-          qty: Number(existing?.qty ?? 0) + 1,
-          mealType: String(mealTypeById.get(mealId) ?? "Lunch")
-        });
+          mealName: String(meal.title ?? "Meal"),
+          qty: 1,
+          mealType: String(mealTypeById.get(mealId) ?? "Lunch"),
+          instanceId: String(meal.instanceId ?? ""),
+          date: String(meal.date ?? ""),
+          extrasSummary: String(meal.extrasSummary ?? ""),
+          calories: Number(meal.calories ?? 0),
+          protein: Number(meal.protein ?? 0),
+          carb: Number(meal.carb ?? 0),
+          fat: Number(meal.fat ?? 0),
+          basePrice: Number(meal.basePrice ?? 0),
+          totalPrice: Number(meal.totalPrice ?? 0),
+        };
       });
 
       const fallback = parseSubscriptionInfo(row.subscriptionInfo);
       const planId = String(plan.id ?? fallback.planId ?? "");
       const deliveryOption = String(delivery.optionId ?? fallback.deliveryOption ?? "");
+      
+      const selectionObj = customerSubscription.selection && typeof customerSubscription.selection === "object"
+        ? (customerSubscription.selection as Record<string, unknown>)
+        : {};
 
       return {
         id: String(row._id ?? row.id ?? orderId),
         orderId,
         subscriptionId,
-        customerName: String(row.client ?? ""),
+        customerName: String(row.client ?? customer.firstName ? `${customer.firstName} ${customer.lastName || ""}`.trim() : ""),
+        customerEmail: String(customer.email ?? row.customerEmail ?? ""),
+        customerPhone: String(customer.phone ?? row.phone ?? ""),
+        customerEmirate: String(customer.emirate ?? row.customerEmirate ?? ""),
+        customerArea: String(customer.area ?? row.customerArea ?? ""),
         planId,
         planTitle: String(row.plan ?? plan.title ?? ""),
         planKind: planKindById.get(planId) ?? "normal",
@@ -2262,9 +2288,30 @@ export const adminService = {
         amount: parseMoneyValue(row.total),
         orderDate: String(row.date ?? ""),
         deliveryOption,
+        deliveryAddress: String(delivery.address ?? ""),
         locationId: String(((delivery.pickupLocation as Record<string, unknown> | undefined)?.id as string | undefined) ?? ""),
         locationName: String(row.location ?? ((delivery.pickupLocation as Record<string, unknown> | undefined)?.name as string | undefined) ?? ""),
-        items: Array.from(groupedItems.values())
+        selections: {
+          meals: Number(selectionObj.meals ?? 0),
+          days: Number(selectionObj.days ?? 0),
+          weeks: Number(selectionObj.weeks ?? 0),
+          snacks: Number(selectionObj.snacks ?? 0),
+          startDate: String(selectionObj.startDate ?? ""),
+          deliveryDays: String(selectionObj.deliveryDays ?? ""),
+          planType: String(selectionObj.planType ?? ""),
+        },
+        items,
+        totals: {
+          subtotal: Number(totals.subtotal ?? 0),
+          giftDiscount: Number(totals.giftDiscount ?? 0),
+          vat: Number(totals.vat ?? 0),
+          safetyBag: Number(totals.safetyBag ?? 0),
+          grandTotal: Number(totals.grandTotal ?? 0)
+        },
+        promoCode: {
+          code: String(promoCode.code ?? ""),
+          discountAmount: Number(promoCode.discountAmount ?? 0)
+        }
       };
     });
   },
