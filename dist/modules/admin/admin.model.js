@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PlanFlowModel = exports.NotificationModel = exports.SubscriptionModel = exports.OrderModel = exports.IngredientModel = exports.CustomPlanFoodItemModel = exports.CustomPlanCategoryModel = exports.MealLibraryItemModel = exports.MonthlyPlanDetailsModel = exports.MonthlyPlanModel = exports.LocationModel = exports.RestaurantModel = exports.MenuItemModel = exports.ProductModel = void 0;
+exports.WebsitePageModel = exports.PlanFlowModel = exports.PromoCodeModel = exports.NotificationModel = exports.SubscriptionModel = exports.OrderModel = exports.IngredientModel = exports.CustomPlanFoodItemModel = exports.CustomPlanCategoryModel = exports.MealLibraryItemModel = exports.MonthlyPlanDetailsModel = exports.MonthlyPlanModel = exports.LocationModel = exports.RestaurantModel = exports.MenuItemModel = exports.ProductModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const ProductSchema = new mongoose_1.Schema({
     sku: { type: String, required: true, unique: true, trim: true },
@@ -118,6 +118,7 @@ const MealLibraryItemSchema = new mongoose_1.Schema({
     carbs: { type: Number, default: 0 },
     fat: { type: Number, default: 0 },
     tags: { type: [String], default: [] },
+    addOnOptions: { type: [String], default: [] },
     status: { type: String, default: "active", trim: true },
     image: { type: String, default: "" }
 }, { timestamps: true });
@@ -180,8 +181,12 @@ const OrderAuditSchema = new mongoose_1.Schema({
 }, { _id: false });
 const OrderSchema = new mongoose_1.Schema({
     orderId: { type: String, required: true, unique: true, trim: true },
+    subscriptionId: { type: String, default: "", trim: true, index: true },
     client: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true },
+    customerEmail: { type: String, default: "", trim: true },
+    customerEmirate: { type: String, default: "", trim: true },
+    customerArea: { type: String, default: "", trim: true },
     status: { type: String, default: "Pending" },
     confirmationStatus: { type: String, default: "Pending" },
     plan: { type: String, default: "" },
@@ -200,6 +205,10 @@ const OrderSchema = new mongoose_1.Schema({
         daysPerWeek: { type: Number, default: 0 },
         durationWeeks: { type: Number, default: 0 },
         meals: { type: Number, default: 0 }
+    },
+    promoCode: {
+        code: { type: String, default: "" },
+        discountAmount: { type: Number, default: 0 }
     },
     auditLog: { type: [OrderAuditSchema], default: [] }
 }, { timestamps: true });
@@ -229,6 +238,46 @@ const PlanFlowSchema = new mongoose_1.Schema({
     flowType: { type: String, required: true, unique: true, trim: true },
     steps: { type: [PlanFlowStepSchema], default: [] }
 }, { timestamps: true });
+const PromoCodeSchema = new mongoose_1.Schema({
+    promoCodeId: { type: String, required: true, unique: true, trim: true },
+    code: { type: String, required: true, unique: true, trim: true, uppercase: true, index: true },
+    description: { type: String, default: "", trim: true },
+    discountType: { type: String, default: "percent", trim: true },
+    discountValue: { type: Number, default: 0 },
+    maxDiscount: { type: Number, default: null },
+    startDate: { type: String, default: "" },
+    endDate: { type: String, default: "" },
+    usageLimit: { type: Number, default: null },
+    usedCount: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    appliesToMonthlyPlans: { type: Boolean, default: true },
+    appliesToDirectOrders: { type: Boolean, default: false },
+    stackable: { type: Boolean, default: false },
+    showOnHomepage: { type: Boolean, default: false },
+    eligibilityNote: { type: String, default: "", trim: true }
+}, { timestamps: true });
+const WebsitePageSchema = new mongoose_1.Schema({
+    pageId: { type: String, required: true, unique: true, trim: true },
+    slug: { type: String, required: true, unique: true, trim: true, index: true },
+    title: { type: String, required: true, trim: true },
+    navLabel: { type: String, default: "", trim: true },
+    summary: { type: String, default: "", trim: true },
+    kind: { type: String, default: "system", trim: true },
+    status: { type: String, default: "draft", trim: true, index: true },
+    showInTopNav: { type: Boolean, default: false },
+    heroEyebrow: { type: String, default: "", trim: true },
+    heroTitle: { type: String, default: "", trim: true },
+    heroSubtitle: { type: String, default: "", trim: true },
+    heroBody: { type: String, default: "", trim: true },
+    heroImage: { type: String, default: "" },
+    heroPrimaryCtaLabel: { type: String, default: "", trim: true },
+    heroPrimaryCtaLink: { type: String, default: "", trim: true },
+    heroSecondaryCtaLabel: { type: String, default: "", trim: true },
+    heroSecondaryCtaLink: { type: String, default: "", trim: true },
+    seoTitle: { type: String, default: "", trim: true },
+    seoDescription: { type: String, default: "", trim: true },
+    sections: { type: [mongoose_1.Schema.Types.Mixed], default: [] }
+}, { timestamps: true });
 exports.ProductModel = mongoose_1.default.model("Product", ProductSchema);
 exports.MenuItemModel = mongoose_1.default.model("MenuItem", MenuItemSchema);
 exports.RestaurantModel = mongoose_1.default.model("Restaurant", RestaurantSchema);
@@ -242,4 +291,6 @@ exports.IngredientModel = mongoose_1.default.model("Ingredient", IngredientSchem
 exports.OrderModel = mongoose_1.default.model("Order", OrderSchema);
 exports.SubscriptionModel = mongoose_1.default.model("Subscription", SubscriptionSchema);
 exports.NotificationModel = mongoose_1.default.model("Notification", NotificationSchema);
+exports.PromoCodeModel = mongoose_1.default.model("PromoCode", PromoCodeSchema);
 exports.PlanFlowModel = mongoose_1.default.model("PlanFlow", PlanFlowSchema);
+exports.WebsitePageModel = mongoose_1.default.model("WebsitePage", WebsitePageSchema);

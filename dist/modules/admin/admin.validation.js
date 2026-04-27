@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.customPlanFoodItemReorderSchema = exports.customPlanFoodItemSchema = exports.customPlanFoodItemListQuerySchema = exports.customPlanCategoryReorderSchema = exports.customPlanCategorySchema = exports.customPlanCategoryListQuerySchema = exports.mealLibraryItemSchema = exports.monthlyPlanDetailsUpsertSchema = exports.monthlyPlanDetailsParamSchema = exports.monthlyPlanAdminFiltersSchema = exports.planFlowSchema = exports.flowTypeParamSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.restaurantSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
+exports.adminUserSchema = exports.adminRoleSchema = exports.websitePageSchema = exports.customPlanFoodItemReorderSchema = exports.customPlanFoodItemSchema = exports.customPlanFoodItemListQuerySchema = exports.customPlanCategoryReorderSchema = exports.customPlanCategorySchema = exports.customPlanCategoryListQuerySchema = exports.mealLibraryItemSchema = exports.monthlyPlanDetailsUpsertSchema = exports.monthlyPlanDetailsParamSchema = exports.monthlyPlanAdminFiltersSchema = exports.planFlowSchema = exports.flowTypeParamSchema = exports.promoCodeSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.restaurantSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
 const zod_1 = require("zod");
 const optionalString = zod_1.z.string().trim().optional();
 exports.mongoIdParamSchema = zod_1.z.object({ id: zod_1.z.string().min(1) });
@@ -93,6 +93,24 @@ exports.subscriptionUpdateSchema = zod_1.z.object({
     remainingMeals: zod_1.z.number().optional(),
     logMessage: zod_1.z.string().optional()
 });
+exports.promoCodeSchema = zod_1.z.object({
+    id: zod_1.z.string().optional(),
+    code: zod_1.z.string().min(1),
+    description: zod_1.z.string().optional().default(""),
+    discountType: zod_1.z.enum(["percent", "fixed"]),
+    discountValue: zod_1.z.number().positive(),
+    maxDiscount: zod_1.z.number().nonnegative().nullable().optional(),
+    startDate: zod_1.z.string().min(1),
+    endDate: zod_1.z.string().optional().default(""),
+    usageLimit: zod_1.z.number().int().positive().nullable().optional(),
+    usedCount: zod_1.z.number().int().nonnegative().optional().default(0),
+    isActive: zod_1.z.boolean(),
+    appliesToMonthlyPlans: zod_1.z.boolean(),
+    appliesToDirectOrders: zod_1.z.boolean(),
+    stackable: zod_1.z.boolean(),
+    showOnHomepage: zod_1.z.boolean(),
+    eligibilityNote: zod_1.z.string().optional().default("")
+});
 exports.flowTypeParamSchema = zod_1.z.object({
     flowType: zod_1.z.enum(["custom", "preset"])
 });
@@ -135,6 +153,7 @@ exports.mealLibraryItemSchema = zod_1.z.object({
     carbs: zod_1.z.number(),
     fat: zod_1.z.number(),
     tags: zod_1.z.array(zod_1.z.string()).optional().default([]),
+    addOnOptions: zod_1.z.array(zod_1.z.string()).optional().default([]),
     status: zod_1.z.enum(["active", "inactive"]),
     image: zod_1.z.string().optional()
 });
@@ -187,4 +206,81 @@ exports.customPlanFoodItemReorderSchema = zod_1.z.object({
     planId: zod_1.z.string().min(1),
     categoryId: zod_1.z.string().min(1),
     itemIds: zod_1.z.array(zod_1.z.string().min(1)).default([])
+});
+const websiteRepeaterItemSchema = zod_1.z.object({
+    id: zod_1.z.string().optional(),
+    title: zod_1.z.string().optional().default(""),
+    subtitle: zod_1.z.string().optional().default(""),
+    body: zod_1.z.string().optional().default(""),
+    label: zod_1.z.string().optional().default(""),
+    link: zod_1.z.string().optional().default(""),
+    value: zod_1.z.string().optional().default(""),
+    image: zod_1.z.string().optional().default("")
+});
+const websitePageSectionSchema = zod_1.z.object({
+    id: zod_1.z.string().optional(),
+    sectionKey: zod_1.z.string().min(1),
+    sectionType: zod_1.z.enum([
+        "richText",
+        "imageText",
+        "cards",
+        "stats",
+        "testimonials",
+        "faq",
+        "ctaBanner",
+        "contactInfo",
+        "dynamicEmbed"
+    ]),
+    isVisible: zod_1.z.boolean().optional().default(true),
+    sortOrder: zod_1.z.number().optional().default(0),
+    heading: zod_1.z.string().optional().default(""),
+    body: zod_1.z.string().optional().default(""),
+    eyebrow: zod_1.z.string().optional().default(""),
+    image: zod_1.z.string().optional().default(""),
+    buttonLabel: zod_1.z.string().optional().default(""),
+    buttonLink: zod_1.z.string().optional().default(""),
+    items: zod_1.z.array(websiteRepeaterItemSchema).optional().default([])
+});
+exports.websitePageSchema = zod_1.z.object({
+    id: zod_1.z.string().min(1),
+    slug: zod_1.z.string().min(1),
+    title: zod_1.z.string().min(1),
+    navLabel: zod_1.z.string().min(1),
+    summary: zod_1.z.string().min(1),
+    kind: zod_1.z.enum(["system", "custom", "legal"]),
+    status: zod_1.z.enum(["draft", "published"]),
+    showInTopNav: zod_1.z.boolean(),
+    heroEyebrow: zod_1.z.string().optional().default(""),
+    heroTitle: zod_1.z.string().min(1),
+    heroSubtitle: zod_1.z.string().optional().default(""),
+    heroBody: zod_1.z.string().optional().default(""),
+    heroImage: zod_1.z.string().optional().default(""),
+    heroPrimaryCtaLabel: zod_1.z.string().optional().default(""),
+    heroPrimaryCtaLink: zod_1.z.string().optional().default(""),
+    heroSecondaryCtaLabel: zod_1.z.string().optional().default(""),
+    heroSecondaryCtaLink: zod_1.z.string().optional().default(""),
+    seoTitle: zod_1.z.string().min(1),
+    seoDescription: zod_1.z.string().min(1),
+    sections: zod_1.z.array(websitePageSectionSchema).optional().default([])
+});
+exports.adminRoleSchema = zod_1.z.object({
+    id: zod_1.z.string().optional(),
+    name: zod_1.z.string().min(1),
+    description: zod_1.z.string().optional().default(""),
+    scopes: zod_1.z.array(zod_1.z.string()).optional().default([]),
+    allowedPages: zod_1.z.array(zod_1.z.string().min(1)).optional().default([]),
+    canPublish: zod_1.z.boolean().optional().default(false),
+    canManageUsers: zod_1.z.boolean().optional().default(false)
+});
+exports.adminUserSchema = zod_1.z.object({
+    id: zod_1.z.string().optional(),
+    fullName: zod_1.z.string().min(1),
+    email: zod_1.z.string().email(),
+    password: zod_1.z.string().min(6).optional(),
+    role: zod_1.z.enum(["super_admin", "admin", "employee"]),
+    adminRoleId: zod_1.z.string().optional().default(""),
+    allowedPages: zod_1.z.array(zod_1.z.string().min(1)).optional().default([]),
+    canPublish: zod_1.z.boolean().optional().default(false),
+    canManageUsers: zod_1.z.boolean().optional().default(false),
+    isActive: zod_1.z.boolean().optional().default(true)
 });

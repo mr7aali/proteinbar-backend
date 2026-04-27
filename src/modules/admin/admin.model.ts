@@ -108,6 +108,7 @@ const MealLibraryItemSchema = new Schema(
     carbs: { type: Number, default: 0 },
     fat: { type: Number, default: 0 },
     tags: { type: [String], default: [] },
+    addOnOptions: { type: [String], default: [] },
     status: { type: String, default: "active", trim: true },
     image: { type: String, default: "" }
   },
@@ -198,8 +199,12 @@ const OrderAuditSchema = new Schema(
 const OrderSchema = new Schema(
   {
     orderId: { type: String, required: true, unique: true, trim: true },
+    subscriptionId: { type: String, default: "", trim: true, index: true },
     client: { type: String, required: true, trim: true },
     phone: { type: String, required: true, trim: true },
+    customerEmail: { type: String, default: "", trim: true },
+    customerEmirate: { type: String, default: "", trim: true },
+    customerArea: { type: String, default: "", trim: true },
     status: { type: String, default: "Pending" },
     confirmationStatus: { type: String, default: "Pending" },
     plan: { type: String, default: "" },
@@ -218,6 +223,10 @@ const OrderSchema = new Schema(
       daysPerWeek: { type: Number, default: 0 },
       durationWeeks: { type: Number, default: 0 },
       meals: { type: Number, default: 0 }
+    },
+    promoCode: {
+      code: { type: String, default: "" },
+      discountAmount: { type: Number, default: 0 }
     },
     auditLog: { type: [OrderAuditSchema], default: [] }
   },
@@ -266,6 +275,54 @@ const PlanFlowSchema = new Schema(
   { timestamps: true }
 );
 
+const PromoCodeSchema = new Schema(
+  {
+    promoCodeId: { type: String, required: true, unique: true, trim: true },
+    code: { type: String, required: true, unique: true, trim: true, uppercase: true, index: true },
+    description: { type: String, default: "", trim: true },
+    discountType: { type: String, default: "percent", trim: true },
+    discountValue: { type: Number, default: 0 },
+    maxDiscount: { type: Number, default: null },
+    startDate: { type: String, default: "" },
+    endDate: { type: String, default: "" },
+    usageLimit: { type: Number, default: null },
+    usedCount: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+    appliesToMonthlyPlans: { type: Boolean, default: true },
+    appliesToDirectOrders: { type: Boolean, default: false },
+    stackable: { type: Boolean, default: false },
+    showOnHomepage: { type: Boolean, default: false },
+    eligibilityNote: { type: String, default: "", trim: true }
+  },
+  { timestamps: true }
+);
+
+const WebsitePageSchema = new Schema(
+  {
+    pageId: { type: String, required: true, unique: true, trim: true },
+    slug: { type: String, required: true, unique: true, trim: true, index: true },
+    title: { type: String, required: true, trim: true },
+    navLabel: { type: String, default: "", trim: true },
+    summary: { type: String, default: "", trim: true },
+    kind: { type: String, default: "system", trim: true },
+    status: { type: String, default: "draft", trim: true, index: true },
+    showInTopNav: { type: Boolean, default: false },
+    heroEyebrow: { type: String, default: "", trim: true },
+    heroTitle: { type: String, default: "", trim: true },
+    heroSubtitle: { type: String, default: "", trim: true },
+    heroBody: { type: String, default: "", trim: true },
+    heroImage: { type: String, default: "" },
+    heroPrimaryCtaLabel: { type: String, default: "", trim: true },
+    heroPrimaryCtaLink: { type: String, default: "", trim: true },
+    heroSecondaryCtaLabel: { type: String, default: "", trim: true },
+    heroSecondaryCtaLink: { type: String, default: "", trim: true },
+    seoTitle: { type: String, default: "", trim: true },
+    seoDescription: { type: String, default: "", trim: true },
+    sections: { type: [Schema.Types.Mixed], default: [] }
+  },
+  { timestamps: true }
+);
+
 export const ProductModel = mongoose.model("Product", ProductSchema);
 export const MenuItemModel = mongoose.model("MenuItem", MenuItemSchema);
 export const RestaurantModel = mongoose.model("Restaurant", RestaurantSchema);
@@ -279,4 +336,6 @@ export const IngredientModel = mongoose.model("Ingredient", IngredientSchema);
 export const OrderModel = mongoose.model("Order", OrderSchema);
 export const SubscriptionModel = mongoose.model("Subscription", SubscriptionSchema);
 export const NotificationModel = mongoose.model("Notification", NotificationSchema);
+export const PromoCodeModel = mongoose.model("PromoCode", PromoCodeSchema);
 export const PlanFlowModel = mongoose.model("PlanFlow", PlanFlowSchema);
+export const WebsitePageModel = mongoose.model("WebsitePage", WebsitePageSchema);

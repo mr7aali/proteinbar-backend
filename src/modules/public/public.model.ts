@@ -57,6 +57,15 @@ const ContactMessageSchema = new Schema(
 const CustomerSubscriptionSchema = new Schema(
   {
     subscriptionId: { type: String, required: true, unique: true },
+    rawPayload: { type: Schema.Types.Mixed, default: null },
+    customer: {
+      firstName: { type: String, required: true },
+      lastName: { type: String, required: true },
+      email: { type: String, required: true },
+      phone: { type: String, required: true },
+      emirate: { type: String, required: true },
+      area: { type: String, required: true }
+    },
     plan: {
       id: { type: String, required: true },
       title: { type: String, required: true }
@@ -64,15 +73,25 @@ const CustomerSubscriptionSchema = new Schema(
     selection: {
       meals: { type: String, required: true },
       days: { type: String, required: true },
+      weeks: { type: String, default: "" },
       snacks: { type: String, required: true },
       startDate: { type: String, required: true },
+      deliveryDays: { type: String, default: "" },
       planType: { type: String, default: "" },
       selectedMeals: {
         type: [
           {
+            instanceId: { type: String, default: "" },
             id: { type: String, required: true },
             title: { type: String, required: true },
-            date: { type: String, default: "" }
+            date: { type: String, default: "" },
+            extrasSummary: { type: String, default: "" },
+            calories: { type: Number, default: 0 },
+            protein: { type: Number, default: 0 },
+            carb: { type: Number, default: 0 },
+            fat: { type: Number, default: 0 },
+            basePrice: { type: Number, default: 0 },
+            totalPrice: { type: Number, default: 0 }
           }
         ],
         default: []
@@ -96,6 +115,7 @@ const CustomerOrderSchema = new Schema(
   {
     orderId: { type: String, required: true, unique: true },
     subscriptionId: { type: String, required: true },
+    rawPayload: { type: Schema.Types.Mixed, default: null },
     customer: {
       firstName: { type: String, required: true },
       lastName: { type: String, required: true },
@@ -116,9 +136,17 @@ const CustomerOrderSchema = new Schema(
     selectedMeals: {
       type: [
         {
+          instanceId: { type: String, default: "" },
           id: { type: String, required: true },
           title: { type: String, required: true },
-          date: { type: String, default: "" }
+          date: { type: String, default: "" },
+          extrasSummary: { type: String, default: "" },
+          calories: { type: Number, default: 0 },
+          protein: { type: Number, default: 0 },
+          carb: { type: Number, default: 0 },
+          fat: { type: Number, default: 0 },
+          basePrice: { type: Number, default: 0 },
+          totalPrice: { type: Number, default: 0 }
         }
       ],
       default: []
@@ -129,6 +157,10 @@ const CustomerOrderSchema = new Schema(
       vat: { type: Number, required: true },
       safetyBag: { type: Number, required: true },
       grandTotal: { type: Number, required: true }
+    },
+    promoCode: {
+      code: { type: String, default: "" },
+      discountAmount: { type: Number, default: 0 }
     }
   },
   { timestamps: true }

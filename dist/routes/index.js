@@ -7,5 +7,5 @@ const auth_routes_1 = require("../modules/auth/auth.routes");
 const public_routes_1 = require("../modules/public/public.routes");
 exports.apiRouter = (0, express_1.Router)();
 exports.apiRouter.use("/auth", auth_routes_1.authRouter);
-exports.apiRouter.use("/", admin_routes_1.adminRouter);
 exports.apiRouter.use("/", public_routes_1.publicRouter);
+exports.apiRouter.use("/", admin_routes_1.adminRouter);

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserModel = exports.AuthCodeModel = void 0;
+exports.AdminSessionModel = exports.CustomerSessionModel = exports.AdminRoleModel = exports.UserModel = exports.AuthCodeModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const AuthCodeSchema = new mongoose_1.Schema({
     email: { type: String, required: true, index: true, lowercase: true, trim: true },
@@ -44,7 +44,38 @@ const AuthCodeSchema = new mongoose_1.Schema({
 const UserSchema = new mongoose_1.Schema({
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     role: { type: String, default: "customer" },
-    password: { type: String, default: "" }
+    password: { type: String, default: "" },
+    fullName: { type: String, default: "", trim: true },
+    adminRoleId: { type: String, default: "", trim: true, index: true },
+    allowedPages: { type: [String], default: [] },
+    canPublish: { type: Boolean, default: false },
+    canManageUsers: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true }
+}, { timestamps: true });
+const AdminRoleSchema = new mongoose_1.Schema({
+    roleId: { type: String, required: true, unique: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    description: { type: String, default: "", trim: true },
+    scopes: { type: [String], default: [] },
+    allowedPages: { type: [String], default: [] },
+    canPublish: { type: Boolean, default: false },
+    canManageUsers: { type: Boolean, default: false },
+    isSystem: { type: Boolean, default: false }
+}, { timestamps: true });
+const CustomerSessionSchema = new mongoose_1.Schema({
+    token: { type: String, required: true, unique: true, trim: true, index: true },
+    userId: { type: mongoose_1.Schema.Types.ObjectId, required: true, ref: "User", index: true },
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    expiresAt: { type: Date, required: true, index: true }
+}, { timestamps: true });
+const AdminSessionSchema = new mongoose_1.Schema({
+    token: { type: String, required: true, unique: true, trim: true, index: true },
+    userId: { type: mongoose_1.Schema.Types.ObjectId, required: true, ref: "User", index: true },
+    email: { type: String, required: true, lowercase: true, trim: true, index: true },
+    expiresAt: { type: Date, required: true, index: true }
 }, { timestamps: true });
 exports.AuthCodeModel = mongoose_1.default.model("AuthCode", AuthCodeSchema);
 exports.UserModel = mongoose_1.default.model("User", UserSchema);
+exports.AdminRoleModel = mongoose_1.default.model("AdminRole", AdminRoleSchema);
+exports.CustomerSessionModel = mongoose_1.default.model("CustomerSession", CustomerSessionSchema);
+exports.AdminSessionModel = mongoose_1.default.model("AdminSession", AdminSessionSchema);

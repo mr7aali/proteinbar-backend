@@ -6,5 +6,5 @@ import { publicRouter } from "../modules/public/public.routes";
 export const apiRouter = Router();
 
 apiRouter.use("/auth", authRouter);
-apiRouter.use("/", adminRouter);
 apiRouter.use("/", publicRouter);
+apiRouter.use("/", adminRouter);

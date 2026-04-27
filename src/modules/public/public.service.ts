@@ -6,7 +6,7 @@ import {
   ContactMessageModel,
   CustomerOrderModel,
   CustomerSubscriptionModel,
-  StoreOrderModel
+  StoreOrderModel,
 } from "./public.model";
 
 function buildId(prefix: string) {
@@ -23,7 +23,8 @@ function toSlug(value: string) {
 }
 
 function toProductHandle(product: Record<string, unknown>) {
-  const explicitHandle = typeof product.handle === "string" ? product.handle.trim() : "";
+  const explicitHandle =
+    typeof product.handle === "string" ? product.handle.trim() : "";
   if (explicitHandle) return explicitHandle;
 
   const sku = typeof product.sku === "string" ? product.sku.trim() : "";
@@ -62,21 +63,70 @@ function formatMoney(value: unknown) {
   return `$${toSafeNumber(value, 0).toFixed(2)}`;
 }
 
+function normalizeCustomer(customer: Record<string, unknown>) {
+  return {
+    firstName: String(customer.firstName ?? "").trim(),
+    lastName: String(customer.lastName ?? "").trim(),
+    email: String(customer.email ?? "").trim().toLowerCase(),
+    phone: String(customer.phone ?? "").trim(),
+    emirate: String(customer.emirate ?? "").trim(),
+    area: String(customer.area ?? "").trim()
+  };
+}
+
+function normalizeDelivery(delivery: Record<string, unknown>) {
+  const pickupLocation =
+    delivery.pickupLocation && typeof delivery.pickupLocation === "object"
+      ? (delivery.pickupLocation as Record<string, unknown>)
+      : {};
+
+  return {
+    optionId: String(delivery.optionId ?? "").trim(),
+    address: String(delivery.address ?? "").trim(),
+    pickupLocation: {
+      id: String(pickupLocation.id ?? "").trim(),
+      name: String(pickupLocation.name ?? "").trim(),
+      address: String(pickupLocation.address ?? "").trim()
+    }
+  };
+}
+
+function normalizeSelectedMeal(item: Record<string, unknown>) {
+  return {
+    instanceId: String(item.instanceId ?? "").trim(),
+    id: String(item.id ?? "").trim(),
+    title: String(item.title ?? "").trim(),
+    date: String(item.date ?? "").trim(),
+    extrasSummary: String(item.extrasSummary ?? "").trim(),
+    calories: toSafeNumber(item.calories, 0),
+    protein: toSafeNumber(item.protein, 0),
+    carb: toSafeNumber(item.carb, 0),
+    fat: toSafeNumber(item.fat, 0),
+    basePrice: toSafeNumber(item.basePrice, 0),
+    totalPrice: toSafeNumber(item.totalPrice, 0)
+  };
+}
+
 function buildMenuItemDescription(product: Record<string, unknown>) {
   const segments: string[] = [];
 
-  const description = typeof product.description === "string" ? product.description.trim() : "";
+  const description =
+    typeof product.description === "string" ? product.description.trim() : "";
   if (description) {
     segments.push(description);
   } else {
-    const category = typeof product.category === "string" ? product.category.trim() : "";
+    const category =
+      typeof product.category === "string" ? product.category.trim() : "";
     if (category) segments.push(category);
   }
 
   const macroParts: string[] = [];
-  if (typeof product.protein === "string" && product.protein.trim()) macroParts.push(`Proteins: ${product.protein.trim()}`);
-  if (typeof product.carbs === "string" && product.carbs.trim()) macroParts.push(`Carbs: ${product.carbs.trim()}`);
-  if (typeof product.fat === "string" && product.fat.trim()) macroParts.push(`Fat: ${product.fat.trim()}`);
+  if (typeof product.protein === "string" && product.protein.trim())
+    macroParts.push(`Proteins: ${product.protein.trim()}`);
+  if (typeof product.carbs === "string" && product.carbs.trim())
+    macroParts.push(`Carbs: ${product.carbs.trim()}`);
+  if (typeof product.fat === "string" && product.fat.trim())
+    macroParts.push(`Fat: ${product.fat.trim()}`);
 
   if (macroParts.length > 0) {
     segments.push(macroParts.join(" | "));
@@ -99,9 +149,23 @@ function toRestaurantList(value: unknown) {
   }, []);
 }
 
+const websiteNavigationOrder: Record<string, number> = {
+  home: 0,
+  locations: 1,
+  menu: 2,
+  "about-us": 3,
+  contact: 4,
+  "meal-prep": 5,
+  "terms-and-conditions": 6,
+  "privacy-policy": 7,
+};
+
 export const publicService = {
   async listMenuCategories() {
-    const [menuItemsRaw, productsRaw] = await Promise.all([adminService.listMenuItems(), adminService.listProducts()]);
+    const [menuItemsRaw, productsRaw] = await Promise.all([
+      adminService.listMenuItems(),
+      adminService.listProducts(),
+    ]);
 
     const productsBySku = new Map<string, Record<string, unknown>>();
     productsRaw.forEach((product) => {
@@ -112,23 +176,38 @@ export const publicService = {
     });
 
     return menuItemsRaw
-      .filter((menuItem) => String((menuItem as Record<string, unknown>).status ?? "Visible").toLowerCase() !== "hidden")
-      .sort((a, b) => Number((a as Record<string, unknown>).priority ?? 0) - Number((b as Record<string, unknown>).priority ?? 0))
+      .filter(
+        (menuItem) =>
+          String(
+            (menuItem as Record<string, unknown>).status ?? "Visible",
+          ).toLowerCase() !== "hidden",
+      )
+      .sort(
+        (a, b) =>
+          Number((a as Record<string, unknown>).priority ?? 0) -
+          Number((b as Record<string, unknown>).priority ?? 0),
+      )
       .map((menuItem) => {
         const row = menuItem as Record<string, unknown>;
-        const linkedSkus = Array.isArray(row.linkedProductSkus) ? row.linkedProductSkus : [];
+        const linkedSkus = Array.isArray(row.linkedProductSkus)
+          ? row.linkedProductSkus
+          : [];
         const categoryImage = normalizeImageInput(row.image);
 
         const items = linkedSkus
           .map((sku) => productsBySku.get(String(sku)))
-          .filter((product): product is Record<string, unknown> => Boolean(product))
+          .filter((product): product is Record<string, unknown> =>
+            Boolean(product),
+          )
           .map((product) => ({
             id: String(product.sku ?? product.id ?? product._id ?? ""),
             name: String(product.name ?? product.title ?? ""),
             description: buildMenuItemDescription(product),
             priceMad: toPriceNumber(product.priceMad ?? product.price),
             calories: Number(product.kcal ?? 0),
-            image: normalizeImageInput(product.image ?? product.imageUrl ?? categoryImage)
+            image: normalizeImageInput(
+              product.image ?? product.imageUrl ?? categoryImage,
+            ),
           }));
 
         return {
@@ -137,7 +216,7 @@ export const publicService = {
           description: String(row.title ?? ""),
           image: categoryImage,
           restaurants: toRestaurantList(row.restaurants),
-          items
+          items,
         };
       })
       .filter((category) => category.items.length > 0);
@@ -147,16 +226,23 @@ export const publicService = {
     const restaurants = await adminService.listRestaurants();
 
     return restaurants
-      .filter((restaurant) => String((restaurant as Record<string, unknown>).status ?? "Active").toLowerCase() !== "inactive")
+      .filter(
+        (restaurant) =>
+          String(
+            (restaurant as Record<string, unknown>).status ?? "Active",
+          ).toLowerCase() !== "inactive",
+      )
       .map((restaurant) => {
         const item = restaurant as Record<string, unknown>;
         return {
           restaurantId: String(item.restaurantId ?? item._id ?? ""),
           name: String(item.name ?? ""),
           address: String(item.address ?? ""),
-          workingDays: Array.isArray(item.workingDays) ? item.workingDays.map((day) => String(day)) : [],
+          workingDays: Array.isArray(item.workingDays)
+            ? item.workingDays.map((day) => String(day))
+            : [],
           openingHours: String(item.openingHours ?? ""),
-          status: String(item.status ?? "Active")
+          status: String(item.status ?? "Active"),
         };
       });
   },
@@ -189,8 +275,56 @@ export const publicService = {
     return adminService.listLocations();
   },
 
+  async getWebsitePage(slug: string) {
+    const page = await adminService.getWebsitePageBySlug(slug.trim());
+    if (page.status !== "published")
+      throw new AppError(404, "Website page not found");
+    return page;
+  },
+
+  async listWebsiteNavigation() {
+    const pages = await adminService.listWebsitePages();
+
+    return pages
+      .filter((page) => page.status === "published" && page.showInTopNav)
+      .sort((a, b) => {
+        const left = websiteNavigationOrder[a.slug] ?? Number.MAX_SAFE_INTEGER;
+        const right = websiteNavigationOrder[b.slug] ?? Number.MAX_SAFE_INTEGER;
+        if (left !== right) return left - right;
+        return a.title.localeCompare(b.title);
+      })
+      .map((page) => ({
+        id: page.id,
+        slug: page.slug,
+        title: page.title,
+        navLabel: page.navLabel,
+        kind: page.kind,
+      }));
+  },
+
   async listBuilderIngredients() {
     return adminService.listIngredients();
+  },
+
+  async validatePromoCode(payload: Record<string, unknown>) {
+    const code = String(payload.code ?? "");
+    const scope =
+      String(payload.scope ?? "monthly-plan") === "direct-order"
+        ? "direct-order"
+        : "monthly-plan";
+    const subtotal = toSafeNumber(payload.subtotal, 0);
+
+    const result = await adminService.validatePromoCode(code, scope, subtotal);
+
+    return {
+      code: result.promoCode.code,
+      description: result.promoCode.description,
+      discountType: result.promoCode.discountType,
+      discountValue: result.promoCode.discountValue,
+      discountAmount: result.discountAmount,
+      maxDiscount: result.promoCode.maxDiscount,
+      eligibilityNote: result.promoCode.eligibilityNote,
+    };
   },
 
   async createContactMessage(payload: Record<string, unknown>) {
@@ -201,39 +335,118 @@ export const publicService = {
     const subscriptionId = buildId("SUB");
     const orderId = buildId("ORD");
 
-    const subscriptionPayload = payload.subscription ?? {};
-    const orderPayload = payload.order ?? {};
-    const customer = orderPayload.customer ?? {};
-    const delivery = orderPayload.delivery ?? {};
-    const selection = subscriptionPayload.selection ?? {};
-    const totals = orderPayload.totals ?? {};
-    const selectedMeals = Array.isArray(orderPayload.selectedMeals)
+    const subscriptionPayload =
+      payload.subscription && typeof payload.subscription === "object"
+        ? payload.subscription
+        : {};
+    const orderPayload =
+      payload.order && typeof payload.order === "object" ? payload.order : {};
+    const selection =
+      subscriptionPayload.selection &&
+      typeof subscriptionPayload.selection === "object"
+        ? subscriptionPayload.selection
+        : {};
+    const rawCustomer =
+      orderPayload.customer && typeof orderPayload.customer === "object"
+        ? orderPayload.customer
+        : {};
+    const rawDelivery =
+      orderPayload.delivery && typeof orderPayload.delivery === "object"
+        ? orderPayload.delivery
+        : subscriptionPayload.delivery &&
+            typeof subscriptionPayload.delivery === "object"
+          ? subscriptionPayload.delivery
+          : {};
+    const totals =
+      orderPayload.totals && typeof orderPayload.totals === "object"
+        ? orderPayload.totals
+        : {};
+    const selectedMealsSource = Array.isArray(orderPayload.selectedMeals)
       ? orderPayload.selectedMeals
-      : [];
+      : Array.isArray(selection.selectedMeals)
+        ? selection.selectedMeals
+        : [];
+    const customer = normalizeCustomer(rawCustomer);
+    const delivery = normalizeDelivery(rawDelivery);
+    const selectedMeals: ReturnType<typeof normalizeSelectedMeal>[] = selectedMealsSource
+      .filter(
+        (item: unknown): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === "object",
+      )
+      .map(normalizeSelectedMeal)
+      .filter((item: ReturnType<typeof normalizeSelectedMeal>) => item.id && item.title);
+    const submittedPromoCode = String(
+      orderPayload.promoCode?.code ?? "",
+    ).trim();
 
     const mealsPerDay = Math.max(1, toSafeNumber(selection.meals, 1));
     const daysPerWeek = Math.max(1, toSafeNumber(selection.days, 1));
     const totalWeeks = 4;
     const totalPlannedMeals = mealsPerDay * daysPerWeek * totalWeeks;
-    const customerName = `${String(customer.firstName ?? "").trim()} ${String(
-      customer.lastName ?? "",
-    ).trim()}`.trim();
+    const customerName = `${customer.firstName} ${customer.lastName}`.trim();
     const locationLabel =
-      String(delivery.pickupLocation?.name ?? "").trim() ||
-      String(customer.area ?? "").trim() ||
-      String(customer.emirate ?? "").trim() ||
+      delivery.pickupLocation.name ||
+      customer.area ||
+      customer.emirate ||
       "N/A";
+    const subtotal = toSafeNumber(totals.subtotal, 0);
+    const validatedPromoCode = submittedPromoCode
+      ? await adminService.validatePromoCode(
+          submittedPromoCode,
+          "monthly-plan",
+          subtotal,
+        )
+      : null;
+    const giftDiscount = validatedPromoCode?.discountAmount ?? 0;
+    const vat = toSafeNumber(totals.vat, 0);
+    const safetyBag = toSafeNumber(totals.safetyBag, 0);
+    const grandTotal = Number(
+      (subtotal - giftDiscount + vat + safetyBag).toFixed(2),
+    );
 
     // Public-facing records used by checkout success and customer history.
     const subscription = await CustomerSubscriptionModel.create({
       subscriptionId,
-      ...subscriptionPayload,
+      rawPayload: payload,
+      customer,
+      plan: {
+        id: String(subscriptionPayload.plan?.id ?? "").trim(),
+        title: String(subscriptionPayload.plan?.title ?? "").trim(),
+      },
+      selection: {
+        meals: String(selection.meals ?? "").trim(),
+        days: String(selection.days ?? "").trim(),
+        weeks: String(selection.weeks ?? "").trim(),
+        snacks: String(selection.snacks ?? "").trim(),
+        startDate: String(selection.startDate ?? "").trim(),
+        deliveryDays: String(selection.deliveryDays ?? "").trim(),
+        planType: String(selection.planType ?? "").trim(),
+        selectedMeals,
+      },
+      delivery,
+      status: "active",
     });
 
     const order = await CustomerOrderModel.create({
       orderId,
       subscriptionId,
-      ...orderPayload,
+      rawPayload: payload,
+      customer,
+      delivery,
+      selectedMeals,
+      promoCode: validatedPromoCode
+        ? {
+            code: validatedPromoCode.promoCode.code,
+            discountAmount: giftDiscount,
+          }
+        : undefined,
+      totals: {
+        subtotal,
+        giftDiscount,
+        vat,
+        safetyBag,
+        grandTotal,
+      },
     });
 
     // Admin-facing records so checkouts show in Admin Orders/Subscriptions pages.
@@ -256,6 +469,9 @@ export const publicService = {
       orderId,
       client: customerName || "Customer",
       phone: String(customer.phone ?? "N/A"),
+      customerEmail: String(customer.email ?? ""),
+      customerEmirate: String(customer.emirate ?? ""),
+      customerArea: String(customer.area ?? ""),
       status: "pending",
       confirmationStatus: "pending",
       plan: String(subscriptionPayload.plan?.title ?? "Monthly Plan"),
@@ -266,13 +482,18 @@ export const publicService = {
       payment: "paid",
       schedule: String(delivery.optionId ?? ""),
       date: new Date().toISOString().split("T")[0],
-      total: formatMoney(totals.grandTotal),
-      items: selectedMeals.map((item: Record<string, unknown>) => ({
-        name: String(item?.title ?? "Meal"),
+      total: formatMoney(grandTotal),
+      items: selectedMeals.map((item: ReturnType<typeof normalizeSelectedMeal>) => ({
+        name: [
+          item.title || "Meal",
+          item.extrasSummary,
+        ]
+          .filter(Boolean)
+          .join(" | "),
         qty: 1,
-        macros: "-"
+        macros: `K:${item.calories} P:${item.protein} C:${item.carb} F:${item.fat}`,
       })),
-      notes: `Customer email: ${String(customer.email ?? "N/A")}`,
+      notes: `Customer email: ${customer.email || "N/A"}${validatedPromoCode ? ` | Promo: ${validatedPromoCode.promoCode.code}` : ""}`,
       subscriptionId,
       subscriptionInfo: `${String(subscriptionPayload.plan?.id ?? "")} / ${String(
         delivery.optionId ?? "",
@@ -286,23 +507,41 @@ export const publicService = {
         {
           at: new Date().toLocaleString("en-US"),
           by: "Checkout API",
-          action: "Order created"
-        }
-      ]
+          action: "Order created",
+        },
+      ],
+      promoCode: validatedPromoCode
+        ? {
+            code: validatedPromoCode.promoCode.code,
+            discountAmount: giftDiscount,
+          }
+        : undefined,
     });
+
+    if (validatedPromoCode) {
+      await adminService.incrementPromoCodeUsage(
+        validatedPromoCode.promoCode.id,
+      );
+    }
 
     return {
       subscription,
-      order
+      order,
+      appliedPromoCode: validatedPromoCode
+        ? {
+            code: validatedPromoCode.promoCode.code,
+            discountAmount: giftDiscount,
+          }
+        : null,
     };
   },
 
   async createStoreOrder(payload: Record<string, unknown>) {
     const order = await StoreOrderModel.create({
       orderId: buildId("STORE-ORD"),
-      ...payload
+      ...payload,
     });
 
     return order;
-  }
+  },
 };

@@ -115,6 +115,22 @@ exports.adminController = {
         const data = await admin_service_1.adminService.deleteMonthlyPlanAdmin(req.params.id);
         res.json({ success: true, data });
     }),
+    listMonthlyPlanSubscriptionsAdmin: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listMonthlyPlanSubscriptionsAdmin();
+        res.json({ success: true, data });
+    }),
+    updateMonthlyPlanSubscriptionAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.updateMonthlyPlanSubscriptionAdmin(req.params.id, req.body);
+        res.json({ success: true, data });
+    }),
+    listMonthlyPlanOrdersAdmin: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listMonthlyPlanOrdersAdmin();
+        res.json({ success: true, data });
+    }),
+    updateMonthlyPlanOrderAdmin: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.updateMonthlyPlanOrderAdmin(req.params.id, req.body);
+        res.json({ success: true, data });
+    }),
     listMealLibraryAdmin: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await admin_service_1.adminService.listMealLibraryAdmin();
         res.json({ success: true, data });
@@ -239,5 +255,83 @@ exports.adminController = {
     deleteNotification: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         await admin_service_1.adminService.deleteNotification(req.params.id);
         res.status(204).send();
+    }),
+    listPromoCodes: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listPromoCodes();
+        res.json({ success: true, data });
+    }),
+    getPromoCodeById: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.getPromoCodeById(req.params.id);
+        res.json({ success: true, data });
+    }),
+    createPromoCode: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertPromoCode(req.body);
+        res.status(201).json({ success: true, data });
+    }),
+    updatePromoCode: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertPromoCode({
+            ...req.body,
+            id: req.params.id
+        });
+        res.json({ success: true, data });
+    }),
+    deletePromoCode: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deletePromoCode(req.params.id);
+        res.json({ success: true, data });
+    }),
+    listWebsitePages: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listWebsitePages();
+        res.json({ success: true, data });
+    }),
+    listLegalPages: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listLegalPages();
+        res.json({ success: true, data });
+    }),
+    getWebsitePageBySlug: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.getWebsitePageBySlug(req.params.slug);
+        res.json({ success: true, data });
+    }),
+    getLegalPageBySlug: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.getLegalPageBySlug(req.params.slug);
+        res.json({ success: true, data });
+    }),
+    upsertWebsitePage: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertWebsitePage(req.body);
+        res.json({ success: true, data });
+    }),
+    upsertLegalPage: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertLegalPage(req.params.slug, req.body);
+        res.json({ success: true, data });
+    }),
+    deleteWebsitePage: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deleteWebsitePage(req.params.id);
+        res.json({ success: true, data });
+    }),
+    listAdminRoles: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listAdminRoles();
+        res.json({ success: true, data });
+    }),
+    upsertAdminRole: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertAdminRole(req.body);
+        res.json({ success: true, data });
+    }),
+    deleteAdminRole: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deleteAdminRole(req.params.id);
+        res.json({ success: true, data });
+    }),
+    listAdminUsers: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listAdminUsers();
+        res.json({ success: true, data });
+    }),
+    upsertAdminUser: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertAdminUser({
+            ...req.body,
+            ...(req.params.id ? { id: req.params.id } : {})
+        });
+        res.json({ success: true, data });
+    }),
+    deleteAdminUser: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deleteAdminUser(req.params.id);
+        res.json({ success: true, data });
     })
 };

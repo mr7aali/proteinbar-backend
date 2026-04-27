@@ -32,6 +32,18 @@ exports.publicController = {
         const data = await public_service_1.publicService.listLocations();
         res.json({ success: true, data });
     }),
+    getWebsitePage: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await public_service_1.publicService.getWebsitePage(req.params.slug);
+        res.json({ success: true, data });
+    }),
+    listWebsiteNavigation: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await public_service_1.publicService.listWebsiteNavigation();
+        res.json({ success: true, data });
+    }),
+    validatePromoCode: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await public_service_1.publicService.validatePromoCode(req.body);
+        res.json({ success: true, data });
+    }),
     listBuilderIngredients: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
         const data = await public_service_1.publicService.listBuilderIngredients();
         res.json({ success: true, data });
@@ -47,5 +59,5 @@ exports.publicController = {
     createStoreOrder: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const data = await public_service_1.publicService.createStoreOrder(req.body);
         res.status(201).json({ success: true, data });
-    })
+    }),
 };

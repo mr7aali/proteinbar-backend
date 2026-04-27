@@ -101,6 +101,25 @@ export const subscriptionUpdateSchema = z.object({
   logMessage: z.string().optional()
 });
 
+export const promoCodeSchema = z.object({
+  id: z.string().optional(),
+  code: z.string().min(1),
+  description: z.string().optional().default(""),
+  discountType: z.enum(["percent", "fixed"]),
+  discountValue: z.number().positive(),
+  maxDiscount: z.number().nonnegative().nullable().optional(),
+  startDate: z.string().min(1),
+  endDate: z.string().optional().default(""),
+  usageLimit: z.number().int().positive().nullable().optional(),
+  usedCount: z.number().int().nonnegative().optional().default(0),
+  isActive: z.boolean(),
+  appliesToMonthlyPlans: z.boolean(),
+  appliesToDirectOrders: z.boolean(),
+  stackable: z.boolean(),
+  showOnHomepage: z.boolean(),
+  eligibilityNote: z.string().optional().default("")
+});
+
 export const flowTypeParamSchema = z.object({
   flowType: z.enum(["custom", "preset"])
 });
@@ -150,6 +169,7 @@ export const mealLibraryItemSchema = z.object({
   carbs: z.number(),
   fat: z.number(),
   tags: z.array(z.string()).optional().default([]),
+  addOnOptions: z.array(z.string()).optional().default([]),
   status: z.enum(["active", "inactive"]),
   image: z.string().optional()
 });
@@ -209,4 +229,86 @@ export const customPlanFoodItemReorderSchema = z.object({
   planId: z.string().min(1),
   categoryId: z.string().min(1),
   itemIds: z.array(z.string().min(1)).default([])
+});
+
+const websiteRepeaterItemSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().optional().default(""),
+  subtitle: z.string().optional().default(""),
+  body: z.string().optional().default(""),
+  label: z.string().optional().default(""),
+  link: z.string().optional().default(""),
+  value: z.string().optional().default(""),
+  image: z.string().optional().default("")
+});
+
+const websitePageSectionSchema = z.object({
+  id: z.string().optional(),
+  sectionKey: z.string().min(1),
+  sectionType: z.enum([
+    "richText",
+    "imageText",
+    "cards",
+    "stats",
+    "testimonials",
+    "faq",
+    "ctaBanner",
+    "contactInfo",
+    "dynamicEmbed"
+  ]),
+  isVisible: z.boolean().optional().default(true),
+  sortOrder: z.number().optional().default(0),
+  heading: z.string().optional().default(""),
+  body: z.string().optional().default(""),
+  eyebrow: z.string().optional().default(""),
+  image: z.string().optional().default(""),
+  buttonLabel: z.string().optional().default(""),
+  buttonLink: z.string().optional().default(""),
+  items: z.array(websiteRepeaterItemSchema).optional().default([])
+});
+
+export const websitePageSchema = z.object({
+  id: z.string().min(1),
+  slug: z.string().min(1),
+  title: z.string().min(1),
+  navLabel: z.string().min(1),
+  summary: z.string().min(1),
+  kind: z.enum(["system", "custom", "legal"]),
+  status: z.enum(["draft", "published"]),
+  showInTopNav: z.boolean(),
+  heroEyebrow: z.string().optional().default(""),
+  heroTitle: z.string().min(1),
+  heroSubtitle: z.string().optional().default(""),
+  heroBody: z.string().optional().default(""),
+  heroImage: z.string().optional().default(""),
+  heroPrimaryCtaLabel: z.string().optional().default(""),
+  heroPrimaryCtaLink: z.string().optional().default(""),
+  heroSecondaryCtaLabel: z.string().optional().default(""),
+  heroSecondaryCtaLink: z.string().optional().default(""),
+  seoTitle: z.string().min(1),
+  seoDescription: z.string().min(1),
+  sections: z.array(websitePageSectionSchema).optional().default([])
+});
+
+export const adminRoleSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  description: z.string().optional().default(""),
+  scopes: z.array(z.string()).optional().default([]),
+  allowedPages: z.array(z.string().min(1)).optional().default([]),
+  canPublish: z.boolean().optional().default(false),
+  canManageUsers: z.boolean().optional().default(false)
+});
+
+export const adminUserSchema = z.object({
+  id: z.string().optional(),
+  fullName: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6).optional(),
+  role: z.enum(["super_admin", "admin", "employee"]),
+  adminRoleId: z.string().optional().default(""),
+  allowedPages: z.array(z.string().min(1)).optional().default([]),
+  canPublish: z.boolean().optional().default(false),
+  canManageUsers: z.boolean().optional().default(false),
+  isActive: z.boolean().optional().default(true)
 });

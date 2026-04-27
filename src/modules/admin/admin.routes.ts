@@ -1,7 +1,11 @@
 import { Router } from "express";
+import { requireAdminSession } from "../../common/middleware/requireAdminSession";
+import { requireAdminUserManagement } from "../../common/middleware/requireAdminUserManagement";
 import { validate } from "../../common/middleware/validate";
 import { adminController } from "./admin.controller";
 import {
+  adminRoleSchema,
+  adminUserSchema,
   customPlanCategoryListQuerySchema,
   customPlanCategoryReorderSchema,
   customPlanCategorySchema,
@@ -21,11 +25,15 @@ import {
   monthlyPlanSchema,
   orderUpdateSchema,
   planFlowSchema,
+  promoCodeSchema,
   productSchema,
-  subscriptionUpdateSchema
+  subscriptionUpdateSchema,
+  websitePageSchema
 } from "./admin.validation";
 
 export const adminRouter = Router();
+
+adminRouter.use(requireAdminSession);
 
 adminRouter.get("/dashboard", adminController.getDashboard);
 
@@ -65,6 +73,10 @@ adminRouter.put(
 );
 adminRouter.patch("/admin/monthly-plan/plans/:id/archive", validate(monthlyPlanDetailsParamSchema, "params"), adminController.archiveMonthlyPlan);
 adminRouter.delete("/admin/monthly-plan/plans/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteMonthlyPlanAdmin);
+adminRouter.get("/admin/monthly-plan/subscriptions", adminController.listMonthlyPlanSubscriptionsAdmin);
+adminRouter.patch("/admin/monthly-plan/subscriptions/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.updateMonthlyPlanSubscriptionAdmin);
+adminRouter.get("/admin/monthly-plan/orders", adminController.listMonthlyPlanOrdersAdmin);
+adminRouter.patch("/admin/monthly-plan/orders/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.updateMonthlyPlanOrderAdmin);
 adminRouter.get("/admin/monthly-plan/meals", adminController.listMealLibraryAdmin);
 adminRouter.put(
   "/admin/monthly-plan/meals/:id",
@@ -146,3 +158,26 @@ adminRouter.patch("/subscriptions/:id", validate(subscriptionUpdateSchema), admi
 
 adminRouter.get("/notifications", adminController.listNotifications);
 adminRouter.delete("/notifications/:id", adminController.deleteNotification);
+
+adminRouter.get("/promo-codes", adminController.listPromoCodes);
+adminRouter.get("/promo-codes/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.getPromoCodeById);
+adminRouter.post("/promo-codes", validate(promoCodeSchema), adminController.createPromoCode);
+adminRouter.patch("/promo-codes/:id", validate(monthlyPlanDetailsParamSchema, "params"), validate(promoCodeSchema), adminController.updatePromoCode);
+adminRouter.delete("/promo-codes/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.deletePromoCode);
+
+adminRouter.get("/website-pages", adminController.listWebsitePages);
+adminRouter.get("/website-pages/:slug", adminController.getWebsitePageBySlug);
+adminRouter.post("/website-pages/upsert", validate(websitePageSchema), adminController.upsertWebsitePage);
+adminRouter.delete("/website-pages/:id", adminController.deleteWebsitePage);
+adminRouter.get("/legal-pages", adminController.listLegalPages);
+adminRouter.get("/legal-pages/:slug", adminController.getLegalPageBySlug);
+adminRouter.put("/legal-pages/:slug", validate(websitePageSchema), adminController.upsertLegalPage);
+
+adminRouter.get("/admin-roles", requireAdminUserManagement, adminController.listAdminRoles);
+adminRouter.post("/admin-roles/upsert", requireAdminUserManagement, validate(adminRoleSchema), adminController.upsertAdminRole);
+adminRouter.delete("/admin-roles/:id", requireAdminUserManagement, validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteAdminRole);
+
+adminRouter.get("/admin-users", requireAdminUserManagement, adminController.listAdminUsers);
+adminRouter.post("/admin-users", requireAdminUserManagement, validate(adminUserSchema), adminController.upsertAdminUser);
+adminRouter.patch("/admin-users/:id", requireAdminUserManagement, validate(monthlyPlanDetailsParamSchema, "params"), validate(adminUserSchema), adminController.upsertAdminUser);
+adminRouter.delete("/admin-users/:id", requireAdminUserManagement, validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteAdminUser);

@@ -28,6 +28,10 @@ exports.app.use((0, cors_1.default)({
     origin: true, // reflect request origin (allows all)
     credentials: true,
 }));
+exports.app.use((req, res, next) => {
+    res.header("Vary", "Origin");
+    next();
+});
 exports.app.use(express_1.default.json({ limit: "25mb" }));
 exports.app.use((0, morgan_1.default)(env_1.env.NODE_ENV === "production" ? "combined" : "dev"));
 exports.app.get("/health", (_req, res) => {
