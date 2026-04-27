@@ -71,6 +71,15 @@ const ContactMessageSchema = new mongoose_1.Schema({
 }, { timestamps: true });
 const CustomerSubscriptionSchema = new mongoose_1.Schema({
     subscriptionId: { type: String, required: true, unique: true },
+    rawPayload: { type: mongoose_1.Schema.Types.Mixed, default: null },
+    customer: {
+        firstName: { type: String, required: true },
+        lastName: { type: String, required: true },
+        email: { type: String, required: true },
+        phone: { type: String, required: true },
+        emirate: { type: String, required: true },
+        area: { type: String, required: true }
+    },
     plan: {
         id: { type: String, required: true },
         title: { type: String, required: true }
@@ -116,6 +125,7 @@ const CustomerSubscriptionSchema = new mongoose_1.Schema({
 const CustomerOrderSchema = new mongoose_1.Schema({
     orderId: { type: String, required: true, unique: true },
     subscriptionId: { type: String, required: true },
+    rawPayload: { type: mongoose_1.Schema.Types.Mixed, default: null },
     customer: {
         firstName: { type: String, required: true },
         lastName: { type: String, required: true },

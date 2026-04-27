@@ -57,6 +57,15 @@ const ContactMessageSchema = new Schema(
 const CustomerSubscriptionSchema = new Schema(
   {
     subscriptionId: { type: String, required: true, unique: true },
+    rawPayload: { type: Schema.Types.Mixed, default: null },
+    customer: {
+      firstName: { type: String, required: true },
+      lastName: { type: String, required: true },
+      email: { type: String, required: true },
+      phone: { type: String, required: true },
+      emirate: { type: String, required: true },
+      area: { type: String, required: true }
+    },
     plan: {
       id: { type: String, required: true },
       title: { type: String, required: true }
@@ -106,6 +115,7 @@ const CustomerOrderSchema = new Schema(
   {
     orderId: { type: String, required: true, unique: true },
     subscriptionId: { type: String, required: true },
+    rawPayload: { type: Schema.Types.Mixed, default: null },
     customer: {
       firstName: { type: String, required: true },
       lastName: { type: String, required: true },

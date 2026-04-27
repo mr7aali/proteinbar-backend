@@ -58,5 +58,5 @@ export const publicController = {
   createStoreOrder: asyncHandler(async (req: Request, res: Response) => {
     const data = await publicService.createStoreOrder(req.body);
     res.status(201).json({ success: true, data });
-  })
+  }),
 };
