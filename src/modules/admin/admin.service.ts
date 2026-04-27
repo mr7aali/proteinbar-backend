@@ -1,6 +1,8 @@
+import crypto from "crypto";
 import { FilterQuery, isValidObjectId } from "mongoose";
 import { AppError } from "../../common/utils/AppError";
 import { normalizeImageInput, uploadImageIfNeeded } from "../../common/utils/cloudinary";
+import { AdminRoleModel, UserModel } from "../auth/auth.model";
 import {
   CustomPlanCategoryModel,
   CustomPlanFoodItemModel,
@@ -167,6 +169,29 @@ type PromoCodePayload = {
   eligibilityNote?: string;
 };
 
+type AdminRolePayload = {
+  id?: string;
+  name: string;
+  description?: string;
+  scopes?: string[];
+  allowedPages?: string[];
+  canPublish?: boolean;
+  canManageUsers?: boolean;
+};
+
+type AdminUserPayload = {
+  id?: string;
+  fullName: string;
+  email: string;
+  password?: string;
+  role: "super_admin" | "admin" | "employee";
+  adminRoleId?: string;
+  allowedPages?: string[];
+  canPublish?: boolean;
+  canManageUsers?: boolean;
+  isActive?: boolean;
+};
+
 function toLocation(row: Record<string, unknown>) {
   const rawDeliveryFee = row.deliveryFee;
   const normalizedDeliveryFee =
@@ -259,6 +284,60 @@ function toCustomPlanFoodItem(row: Record<string, unknown>) {
         };
       })
       .sort((a, b) => a.displayOrder - b.displayOrder)
+  };
+}
+
+function createAdminEntityId(prefix: string) {
+  return `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+async function resolveAdminRole(roleId: string | undefined) {
+  const normalizedRoleId = roleId?.trim() ?? "";
+  if (!normalizedRoleId) return null;
+  return AdminRoleModel.findOne({ roleId: normalizedRoleId }).lean();
+}
+
+function mergePagePermissions(basePages: string[] = [], extraPages: string[] = []) {
+  return Array.from(new Set([...basePages, ...extraPages].map((item) => item.trim()).filter(Boolean))).sort();
+}
+
+async function toAdminRoleRecord(row: Record<string, unknown>) {
+  const roleId = String(row.roleId ?? row.id ?? "");
+  const memberCount = await UserModel.countDocuments({
+    role: { $in: ["super_admin", "admin", "employee"] },
+    adminRoleId: roleId
+  });
+
+  return {
+    id: roleId,
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    scopes: Array.isArray(row.scopes) ? row.scopes.map((scope) => String(scope)) : [],
+    allowedPages: Array.isArray(row.allowedPages) ? row.allowedPages.map((page) => String(page)) : [],
+    canPublish: Boolean(row.canPublish),
+    canManageUsers: Boolean(row.canManageUsers),
+    memberCount
+  };
+}
+
+async function toAdminUserRecord(row: Record<string, unknown>) {
+  const linkedRole = await resolveAdminRole(String(row.adminRoleId ?? ""));
+  const rolePages = Array.isArray(linkedRole?.allowedPages) ? linkedRole.allowedPages.map((page) => String(page)) : [];
+  const userPages = Array.isArray(row.allowedPages) ? row.allowedPages.map((page) => String(page)) : [];
+
+  return {
+    id: String(row._id ?? row.id ?? ""),
+    fullName: String(row.fullName ?? ""),
+    email: String(row.email ?? ""),
+    role: String(row.role ?? "employee"),
+    adminRoleId: String(row.adminRoleId ?? ""),
+    roleName: linkedRole?.name ?? "",
+    allowedPages: mergePagePermissions(rolePages, userPages),
+    canPublish: Boolean(linkedRole?.canPublish || row.canPublish),
+    canManageUsers: Boolean(linkedRole?.canManageUsers || row.canManageUsers),
+    isActive: row.isActive !== false,
+    createdAt: row.createdAt ? new Date(String(row.createdAt)).toISOString() : "",
+    updatedAt: row.updatedAt ? new Date(String(row.updatedAt)).toISOString() : ""
   };
 }
 
@@ -2944,6 +3023,99 @@ export const adminService = {
   async deleteWebsitePage(id: string) {
     const row = await WebsitePageModel.findOneAndDelete({ pageId: id }).lean();
     if (!row) throw new AppError(404, "Website page not found");
+    return { id };
+  },
+
+  async listAdminRoles() {
+    const rows = await AdminRoleModel.find().sort({ name: 1 }).lean();
+    return Promise.all(rows.map((row) => toAdminRoleRecord(row as unknown as Record<string, unknown>)));
+  },
+
+  async upsertAdminRole(payload: AdminRolePayload) {
+    const roleId = payload.id?.trim() || createAdminEntityId("role");
+    const row = await AdminRoleModel.findOneAndUpdate(
+      { roleId },
+      {
+        roleId,
+        name: payload.name.trim(),
+        description: payload.description?.trim() ?? "",
+        scopes: (payload.scopes ?? []).map((scope) => scope.trim()).filter(Boolean),
+        allowedPages: mergePagePermissions(payload.allowedPages ?? []),
+        canPublish: Boolean(payload.canPublish),
+        canManageUsers: Boolean(payload.canManageUsers)
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    return toAdminRoleRecord(row as unknown as Record<string, unknown>);
+  },
+
+  async deleteAdminRole(id: string) {
+    const usersUsingRole = await UserModel.countDocuments({ adminRoleId: id });
+    if (usersUsingRole > 0) {
+      throw new AppError(400, "This role is assigned to one or more admins.");
+    }
+
+    const row = await AdminRoleModel.findOneAndDelete({ roleId: id }).lean();
+    if (!row) throw new AppError(404, "Admin role not found");
+    return { id };
+  },
+
+  async listAdminUsers() {
+    const rows = await UserModel.find({ role: { $in: ["super_admin", "admin", "employee"] } })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return Promise.all(rows.map((row) => toAdminUserRecord(row as unknown as Record<string, unknown>)));
+  },
+
+  async upsertAdminUser(payload: AdminUserPayload) {
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    const existingRole = await resolveAdminRole(payload.adminRoleId);
+    const ownPages = mergePagePermissions(payload.allowedPages ?? []);
+    const rolePages = Array.isArray(existingRole?.allowedPages) ? existingRole.allowedPages.map((page) => String(page)) : [];
+
+    const update: Record<string, unknown> = {
+      email: normalizedEmail,
+      fullName: payload.fullName.trim(),
+      role: payload.role,
+      adminRoleId: payload.adminRoleId?.trim() ?? "",
+      allowedPages: mergePagePermissions(rolePages, ownPages),
+      canPublish: Boolean(existingRole?.canPublish || payload.canPublish),
+      canManageUsers: Boolean(existingRole?.canManageUsers || payload.canManageUsers),
+      isActive: payload.isActive !== false
+    };
+
+    if (payload.password?.trim()) {
+      update.password = payload.password.trim();
+    }
+
+    const row = payload.id
+      ? await UserModel.findByIdAndUpdate(payload.id, { $set: update }, { new: true }).lean()
+      : await UserModel.findOneAndUpdate(
+          { email: normalizedEmail },
+          { $set: update, $setOnInsert: { password: payload.password?.trim() ?? "admin12345" } },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        ).lean();
+
+    if (!row) throw new AppError(404, "Admin user not found");
+    return toAdminUserRecord(row as unknown as Record<string, unknown>);
+  },
+
+  async deleteAdminUser(id: string) {
+    const row = await UserModel.findById(id).lean();
+    if (!row || !["super_admin", "admin", "employee"].includes(String(row.role))) {
+      throw new AppError(404, "Admin user not found");
+    }
+
+    if (row.role === "super_admin") {
+      const totalSuperAdmins = await UserModel.countDocuments({ role: "super_admin", isActive: true });
+      if (totalSuperAdmins <= 1) {
+        throw new AppError(400, "At least one active super admin is required.");
+      }
+    }
+
+    await UserModel.findByIdAndDelete(id);
     return { id };
   }
 };

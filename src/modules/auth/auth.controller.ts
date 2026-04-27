@@ -48,6 +48,18 @@ export const authController = {
     res.json({ success: true, data });
   }),
 
+  adminMe: asyncHandler(async (req: Request, res: Response) => {
+    const token = req.currentAdminSessionToken ?? "";
+    const data = await authService.getAdminMe(token);
+    res.json({ success: true, data });
+  }),
+
+  adminLogout: asyncHandler(async (req: Request, res: Response) => {
+    const token = req.currentAdminSessionToken ?? "";
+    await authService.logoutAdminSession(token);
+    res.json({ success: true, data: { loggedOut: true } });
+  }),
+
   resetPassword: asyncHandler(async (req: Request, res: Response) => {
     const data = await authService.resetPassword(req.body.email, req.body.newPassword);
     res.json({ success: true, data });

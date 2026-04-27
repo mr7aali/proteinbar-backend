@@ -11,7 +11,7 @@ import {
   SubscriptionModel,
   WebsitePageModel
 } from "../modules/admin/admin.model";
-import { UserModel } from "../modules/auth/auth.model";
+import { AdminRoleModel, UserModel } from "../modules/auth/auth.model";
 import { MenuCategoryModel, PublicLocationModel, StoreProductModel } from "../modules/public/public.model";
 
 async function seed() {
@@ -27,6 +27,7 @@ async function seed() {
     SubscriptionModel.deleteMany({}),
     NotificationModel.deleteMany({}),
     PromoCodeModel.deleteMany({}),
+    AdminRoleModel.deleteMany({}),
     WebsitePageModel.deleteMany({}),
     MenuCategoryModel.deleteMany({}),
     StoreProductModel.deleteMany({}),
@@ -184,6 +185,39 @@ async function seed() {
       meta: "ORD-2092 from Casablanca",
       time: "2 min ago",
       status: "Unread"
+    }
+  ]);
+
+  await AdminRoleModel.insertMany([
+    {
+      roleId: "role-super-admin",
+      name: "Super Admin",
+      description: "Full dashboard access and user management.",
+      scopes: ["all", "admin-users", "admin-roles"],
+      allowedPages: ["/admin"],
+      canPublish: true,
+      canManageUsers: true,
+      isSystem: true
+    },
+    {
+      roleId: "role-admin",
+      name: "Admin",
+      description: "Operational admin with broad dashboard access.",
+      scopes: ["operations", "content"],
+      allowedPages: ["/admin", "/admin/orders", "/admin/subscriptions", "/admin/products", "/admin/menu", "/admin/profile"],
+      canPublish: true,
+      canManageUsers: false,
+      isSystem: true
+    },
+    {
+      roleId: "role-employee",
+      name: "Employee",
+      description: "Limited day-to-day access.",
+      scopes: ["orders"],
+      allowedPages: ["/admin", "/admin/orders", "/admin/profile"],
+      canPublish: false,
+      canManageUsers: false,
+      isSystem: true
     }
   ]);
 
@@ -678,8 +712,36 @@ async function seed() {
   ]);
 
   await UserModel.updateOne(
+    { email: "superadmin@proteinbar.com" },
+    {
+      $set: {
+        role: "super_admin",
+        password: "admin12345",
+        fullName: "Proteinbar Super Admin",
+        adminRoleId: "role-super-admin",
+        allowedPages: ["/admin/users-permissions", "/admin/website", "/admin/profile"],
+        canPublish: true,
+        canManageUsers: true,
+        isActive: true
+      }
+    },
+    { upsert: true }
+  );
+
+  await UserModel.updateOne(
     { email: "admin@proteinbar.com" },
-    { $set: { role: "admin", password: "admin12345" } },
+    {
+      $set: {
+        role: "admin",
+        password: "admin12345",
+        fullName: "Proteinbar Admin",
+        adminRoleId: "role-admin",
+        allowedPages: [],
+        canPublish: true,
+        canManageUsers: false,
+        isActive: true
+      }
+    },
     { upsert: true }
   );
 

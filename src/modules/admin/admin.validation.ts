@@ -289,3 +289,26 @@ export const websitePageSchema = z.object({
   seoDescription: z.string().min(1),
   sections: z.array(websitePageSectionSchema).optional().default([])
 });
+
+export const adminRoleSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1),
+  description: z.string().optional().default(""),
+  scopes: z.array(z.string()).optional().default([]),
+  allowedPages: z.array(z.string().min(1)).optional().default([]),
+  canPublish: z.boolean().optional().default(false),
+  canManageUsers: z.boolean().optional().default(false)
+});
+
+export const adminUserSchema = z.object({
+  id: z.string().optional(),
+  fullName: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6).optional(),
+  role: z.enum(["super_admin", "admin", "employee"]),
+  adminRoleId: z.string().optional().default(""),
+  allowedPages: z.array(z.string().min(1)).optional().default([]),
+  canPublish: z.boolean().optional().default(false),
+  canManageUsers: z.boolean().optional().default(false),
+  isActive: z.boolean().optional().default(true)
+});

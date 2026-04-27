@@ -1,7 +1,11 @@
 import { Router } from "express";
+import { requireAdminSession } from "../../common/middleware/requireAdminSession";
+import { requireAdminUserManagement } from "../../common/middleware/requireAdminUserManagement";
 import { validate } from "../../common/middleware/validate";
 import { adminController } from "./admin.controller";
 import {
+  adminRoleSchema,
+  adminUserSchema,
   customPlanCategoryListQuerySchema,
   customPlanCategoryReorderSchema,
   customPlanCategorySchema,
@@ -28,6 +32,8 @@ import {
 } from "./admin.validation";
 
 export const adminRouter = Router();
+
+adminRouter.use(requireAdminSession);
 
 adminRouter.get("/dashboard", adminController.getDashboard);
 
@@ -166,3 +172,12 @@ adminRouter.delete("/website-pages/:id", adminController.deleteWebsitePage);
 adminRouter.get("/legal-pages", adminController.listLegalPages);
 adminRouter.get("/legal-pages/:slug", adminController.getLegalPageBySlug);
 adminRouter.put("/legal-pages/:slug", validate(websitePageSchema), adminController.upsertLegalPage);
+
+adminRouter.get("/admin-roles", requireAdminUserManagement, adminController.listAdminRoles);
+adminRouter.post("/admin-roles/upsert", requireAdminUserManagement, validate(adminRoleSchema), adminController.upsertAdminRole);
+adminRouter.delete("/admin-roles/:id", requireAdminUserManagement, validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteAdminRole);
+
+adminRouter.get("/admin-users", requireAdminUserManagement, adminController.listAdminUsers);
+adminRouter.post("/admin-users", requireAdminUserManagement, validate(adminUserSchema), adminController.upsertAdminUser);
+adminRouter.patch("/admin-users/:id", requireAdminUserManagement, validate(monthlyPlanDetailsParamSchema, "params"), validate(adminUserSchema), adminController.upsertAdminUser);
+adminRouter.delete("/admin-users/:id", requireAdminUserManagement, validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteAdminUser);

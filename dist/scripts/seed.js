@@ -16,6 +16,7 @@ async function seed() {
         admin_model_1.SubscriptionModel.deleteMany({}),
         admin_model_1.NotificationModel.deleteMany({}),
         admin_model_1.PromoCodeModel.deleteMany({}),
+        auth_model_1.AdminRoleModel.deleteMany({}),
         admin_model_1.WebsitePageModel.deleteMany({}),
         public_model_1.MenuCategoryModel.deleteMany({}),
         public_model_1.StoreProductModel.deleteMany({}),
@@ -165,6 +166,38 @@ async function seed() {
             meta: "ORD-2092 from Casablanca",
             time: "2 min ago",
             status: "Unread"
+        }
+    ]);
+    await auth_model_1.AdminRoleModel.insertMany([
+        {
+            roleId: "role-super-admin",
+            name: "Super Admin",
+            description: "Full dashboard access and user management.",
+            scopes: ["all", "admin-users", "admin-roles"],
+            allowedPages: ["/admin"],
+            canPublish: true,
+            canManageUsers: true,
+            isSystem: true
+        },
+        {
+            roleId: "role-admin",
+            name: "Admin",
+            description: "Operational admin with broad dashboard access.",
+            scopes: ["operations", "content"],
+            allowedPages: ["/admin", "/admin/orders", "/admin/subscriptions", "/admin/products", "/admin/menu", "/admin/profile"],
+            canPublish: true,
+            canManageUsers: false,
+            isSystem: true
+        },
+        {
+            roleId: "role-employee",
+            name: "Employee",
+            description: "Limited day-to-day access.",
+            scopes: ["orders"],
+            allowedPages: ["/admin", "/admin/orders", "/admin/profile"],
+            canPublish: false,
+            canManageUsers: false,
+            isSystem: true
         }
     ]);
     await admin_model_1.PromoCodeModel.insertMany([
@@ -635,7 +668,30 @@ async function seed() {
             mapUrl: "https://maps.google.com/?q=7+Rue+Ibnou+Jahir+Casablanca"
         }
     ]);
-    await auth_model_1.UserModel.updateOne({ email: "admin@proteinbar.com" }, { $set: { role: "admin", password: "admin12345" } }, { upsert: true });
+    await auth_model_1.UserModel.updateOne({ email: "superadmin@proteinbar.com" }, {
+        $set: {
+            role: "super_admin",
+            password: "admin12345",
+            fullName: "Proteinbar Super Admin",
+            adminRoleId: "role-super-admin",
+            allowedPages: ["/admin/users-permissions", "/admin/website", "/admin/profile"],
+            canPublish: true,
+            canManageUsers: true,
+            isActive: true
+        }
+    }, { upsert: true });
+    await auth_model_1.UserModel.updateOne({ email: "admin@proteinbar.com" }, {
+        $set: {
+            role: "admin",
+            password: "admin12345",
+            fullName: "Proteinbar Admin",
+            adminRoleId: "role-admin",
+            allowedPages: [],
+            canPublish: true,
+            canManageUsers: false,
+            isActive: true
+        }
+    }, { upsert: true });
     console.log("Seed completed");
     process.exit(0);
 }

@@ -2,10 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminRouter = void 0;
 const express_1 = require("express");
+const requireAdminSession_1 = require("../../common/middleware/requireAdminSession");
+const requireAdminUserManagement_1 = require("../../common/middleware/requireAdminUserManagement");
 const validate_1 = require("../../common/middleware/validate");
 const admin_controller_1 = require("./admin.controller");
 const admin_validation_1 = require("./admin.validation");
 exports.adminRouter = (0, express_1.Router)();
+exports.adminRouter.use(requireAdminSession_1.requireAdminSession);
 exports.adminRouter.get("/dashboard", admin_controller_1.adminController.getDashboard);
 exports.adminRouter.get("/products", admin_controller_1.adminController.listProducts);
 exports.adminRouter.post("/products", (0, validate_1.validate)(admin_validation_1.productSchema), admin_controller_1.adminController.createProduct);
@@ -78,3 +81,10 @@ exports.adminRouter.delete("/website-pages/:id", admin_controller_1.adminControl
 exports.adminRouter.get("/legal-pages", admin_controller_1.adminController.listLegalPages);
 exports.adminRouter.get("/legal-pages/:slug", admin_controller_1.adminController.getLegalPageBySlug);
 exports.adminRouter.put("/legal-pages/:slug", (0, validate_1.validate)(admin_validation_1.websitePageSchema), admin_controller_1.adminController.upsertLegalPage);
+exports.adminRouter.get("/admin-roles", requireAdminUserManagement_1.requireAdminUserManagement, admin_controller_1.adminController.listAdminRoles);
+exports.adminRouter.post("/admin-roles/upsert", requireAdminUserManagement_1.requireAdminUserManagement, (0, validate_1.validate)(admin_validation_1.adminRoleSchema), admin_controller_1.adminController.upsertAdminRole);
+exports.adminRouter.delete("/admin-roles/:id", requireAdminUserManagement_1.requireAdminUserManagement, (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.deleteAdminRole);
+exports.adminRouter.get("/admin-users", requireAdminUserManagement_1.requireAdminUserManagement, admin_controller_1.adminController.listAdminUsers);
+exports.adminRouter.post("/admin-users", requireAdminUserManagement_1.requireAdminUserManagement, (0, validate_1.validate)(admin_validation_1.adminUserSchema), admin_controller_1.adminController.upsertAdminUser);
+exports.adminRouter.patch("/admin-users/:id", requireAdminUserManagement_1.requireAdminUserManagement, (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), (0, validate_1.validate)(admin_validation_1.adminUserSchema), admin_controller_1.adminController.upsertAdminUser);
+exports.adminRouter.delete("/admin-users/:id", requireAdminUserManagement_1.requireAdminUserManagement, (0, validate_1.validate)(admin_validation_1.monthlyPlanDetailsParamSchema, "params"), admin_controller_1.adminController.deleteAdminUser);

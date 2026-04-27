@@ -306,5 +306,32 @@ exports.adminController = {
     deleteWebsitePage: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const data = await admin_service_1.adminService.deleteWebsitePage(req.params.id);
         res.json({ success: true, data });
+    }),
+    listAdminRoles: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listAdminRoles();
+        res.json({ success: true, data });
+    }),
+    upsertAdminRole: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertAdminRole(req.body);
+        res.json({ success: true, data });
+    }),
+    deleteAdminRole: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deleteAdminRole(req.params.id);
+        res.json({ success: true, data });
+    }),
+    listAdminUsers: (0, asyncHandler_1.asyncHandler)(async (_req, res) => {
+        const data = await admin_service_1.adminService.listAdminUsers();
+        res.json({ success: true, data });
+    }),
+    upsertAdminUser: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.upsertAdminUser({
+            ...req.body,
+            ...(req.params.id ? { id: req.params.id } : {})
+        });
+        res.json({ success: true, data });
+    }),
+    deleteAdminUser: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
+        const data = await admin_service_1.adminService.deleteAdminUser(req.params.id);
+        res.json({ success: true, data });
     })
 };

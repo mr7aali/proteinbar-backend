@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.websitePageSchema = exports.customPlanFoodItemReorderSchema = exports.customPlanFoodItemSchema = exports.customPlanFoodItemListQuerySchema = exports.customPlanCategoryReorderSchema = exports.customPlanCategorySchema = exports.customPlanCategoryListQuerySchema = exports.mealLibraryItemSchema = exports.monthlyPlanDetailsUpsertSchema = exports.monthlyPlanDetailsParamSchema = exports.monthlyPlanAdminFiltersSchema = exports.planFlowSchema = exports.flowTypeParamSchema = exports.promoCodeSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.restaurantSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
+exports.adminUserSchema = exports.adminRoleSchema = exports.websitePageSchema = exports.customPlanFoodItemReorderSchema = exports.customPlanFoodItemSchema = exports.customPlanFoodItemListQuerySchema = exports.customPlanCategoryReorderSchema = exports.customPlanCategorySchema = exports.customPlanCategoryListQuerySchema = exports.mealLibraryItemSchema = exports.monthlyPlanDetailsUpsertSchema = exports.monthlyPlanDetailsParamSchema = exports.monthlyPlanAdminFiltersSchema = exports.planFlowSchema = exports.flowTypeParamSchema = exports.promoCodeSchema = exports.subscriptionUpdateSchema = exports.orderUpdateSchema = exports.ingredientSchema = exports.monthlyPlanSchema = exports.locationSchema = exports.restaurantSchema = exports.menuItemSchema = exports.productSchema = exports.mongoIdParamSchema = void 0;
 const zod_1 = require("zod");
 const optionalString = zod_1.z.string().trim().optional();
 exports.mongoIdParamSchema = zod_1.z.object({ id: zod_1.z.string().min(1) });
@@ -262,4 +262,25 @@ exports.websitePageSchema = zod_1.z.object({
     seoTitle: zod_1.z.string().min(1),
     seoDescription: zod_1.z.string().min(1),
     sections: zod_1.z.array(websitePageSectionSchema).optional().default([])
+});
+exports.adminRoleSchema = zod_1.z.object({
+    id: zod_1.z.string().optional(),
+    name: zod_1.z.string().min(1),
+    description: zod_1.z.string().optional().default(""),
+    scopes: zod_1.z.array(zod_1.z.string()).optional().default([]),
+    allowedPages: zod_1.z.array(zod_1.z.string().min(1)).optional().default([]),
+    canPublish: zod_1.z.boolean().optional().default(false),
+    canManageUsers: zod_1.z.boolean().optional().default(false)
+});
+exports.adminUserSchema = zod_1.z.object({
+    id: zod_1.z.string().optional(),
+    fullName: zod_1.z.string().min(1),
+    email: zod_1.z.string().email(),
+    password: zod_1.z.string().min(6).optional(),
+    role: zod_1.z.enum(["super_admin", "admin", "employee"]),
+    adminRoleId: zod_1.z.string().optional().default(""),
+    allowedPages: zod_1.z.array(zod_1.z.string().min(1)).optional().default([]),
+    canPublish: zod_1.z.boolean().optional().default(false),
+    canManageUsers: zod_1.z.boolean().optional().default(false),
+    isActive: zod_1.z.boolean().optional().default(true)
 });

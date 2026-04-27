@@ -1,9 +1,14 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminService = void 0;
+const crypto_1 = __importDefault(require("crypto"));
 const mongoose_1 = require("mongoose");
 const AppError_1 = require("../../common/utils/AppError");
 const cloudinary_1 = require("../../common/utils/cloudinary");
+const auth_model_1 = require("../auth/auth.model");
 const admin_model_1 = require("./admin.model");
 const public_model_1 = require("../public/public.model");
 function toLocation(row) {
@@ -89,6 +94,54 @@ function toCustomPlanFoodItem(row) {
             };
         })
             .sort((a, b) => a.displayOrder - b.displayOrder)
+    };
+}
+function createAdminEntityId(prefix) {
+    return `${prefix}-${crypto_1.default.randomUUID().slice(0, 8)}`;
+}
+async function resolveAdminRole(roleId) {
+    const normalizedRoleId = roleId?.trim() ?? "";
+    if (!normalizedRoleId)
+        return null;
+    return auth_model_1.AdminRoleModel.findOne({ roleId: normalizedRoleId }).lean();
+}
+function mergePagePermissions(basePages = [], extraPages = []) {
+    return Array.from(new Set([...basePages, ...extraPages].map((item) => item.trim()).filter(Boolean))).sort();
+}
+async function toAdminRoleRecord(row) {
+    const roleId = String(row.roleId ?? row.id ?? "");
+    const memberCount = await auth_model_1.UserModel.countDocuments({
+        role: { $in: ["super_admin", "admin", "employee"] },
+        adminRoleId: roleId
+    });
+    return {
+        id: roleId,
+        name: String(row.name ?? ""),
+        description: String(row.description ?? ""),
+        scopes: Array.isArray(row.scopes) ? row.scopes.map((scope) => String(scope)) : [],
+        allowedPages: Array.isArray(row.allowedPages) ? row.allowedPages.map((page) => String(page)) : [],
+        canPublish: Boolean(row.canPublish),
+        canManageUsers: Boolean(row.canManageUsers),
+        memberCount
+    };
+}
+async function toAdminUserRecord(row) {
+    const linkedRole = await resolveAdminRole(String(row.adminRoleId ?? ""));
+    const rolePages = Array.isArray(linkedRole?.allowedPages) ? linkedRole.allowedPages.map((page) => String(page)) : [];
+    const userPages = Array.isArray(row.allowedPages) ? row.allowedPages.map((page) => String(page)) : [];
+    return {
+        id: String(row._id ?? row.id ?? ""),
+        fullName: String(row.fullName ?? ""),
+        email: String(row.email ?? ""),
+        role: String(row.role ?? "employee"),
+        adminRoleId: String(row.adminRoleId ?? ""),
+        roleName: linkedRole?.name ?? "",
+        allowedPages: mergePagePermissions(rolePages, userPages),
+        canPublish: Boolean(linkedRole?.canPublish || row.canPublish),
+        canManageUsers: Boolean(linkedRole?.canManageUsers || row.canManageUsers),
+        isActive: row.isActive !== false,
+        createdAt: row.createdAt ? new Date(String(row.createdAt)).toISOString() : "",
+        updatedAt: row.updatedAt ? new Date(String(row.updatedAt)).toISOString() : ""
     };
 }
 function parseMoneyValue(value) {
@@ -179,6 +232,7 @@ function getCustomStepTwoFromPlan(plan) {
         id: String(item.id ?? ""),
         planId: String(item.planId ?? plan.id ?? ""),
         categoryId: String(item.categoryId ?? ""),
+        sourceMealId: String(item.sourceMealId ?? "").trim() || undefined,
         name: String(item.name ?? ""),
         imageUrl: String(item.imageUrl ?? ""),
         description: String(item.description ?? ""),
@@ -368,6 +422,128 @@ function toMealLibraryItem(row) {
         status: String(row.status ?? "active") === "inactive" ? "inactive" : "active",
         image: normalizeMealImage(row.image)
     };
+}
+function normalizeMealLookupValue(value) {
+    return String(value ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+}
+function buildMealLibraryLookup(meals) {
+    return {
+        byId: new Map(meals.map((meal) => [meal.id, meal])),
+        byName: new Map(meals.map((meal) => [normalizeMealLookupValue(meal.name), meal]))
+    };
+}
+function hydrateRegularFoodItem(item, meal) {
+    const itemId = String(item.id ?? "");
+    const sizes = Array.isArray(item.sizes) ? item.sizes : [];
+    return {
+        ...item,
+        sourceMealId: meal.id,
+        name: meal.name,
+        imageUrl: meal.image || String(item.imageUrl ?? ""),
+        sizes: sizes.length > 0
+            ? sizes.map((size, index) => {
+                const row = size;
+                return {
+                    ...row,
+                    id: String(row.id ?? `${itemId}-size-${index + 1}`),
+                    foodItemId: String(row.foodItemId ?? itemId),
+                    calories: meal.calories,
+                    protein: meal.protein,
+                    carbs: meal.carbs,
+                    fat: meal.fat,
+                    displayOrder: Number(row.displayOrder ?? index + 1),
+                    isActive: Boolean(row.isActive ?? true)
+                };
+            })
+            : [
+                {
+                    id: `${itemId}-size-1`,
+                    foodItemId: itemId,
+                    label: "Regular",
+                    unit: "",
+                    price: 0,
+                    calories: meal.calories,
+                    protein: meal.protein,
+                    carbs: meal.carbs,
+                    fat: meal.fat,
+                    displayOrder: 1,
+                    isActive: true
+                }
+            ]
+    };
+}
+function hydratePlanWithMealLibrary(plan, meals) {
+    const content = plan.content && typeof plan.content === "object"
+        ? plan.content
+        : null;
+    const sourceStepTwo = content?.regularStepTwo && typeof content.regularStepTwo === "object"
+        ? content.regularStepTwo
+        : content?.customStepTwo && typeof content.customStepTwo === "object"
+            ? content.customStepTwo
+            : null;
+    if (!content || !sourceStepTwo)
+        return plan;
+    const { byId, byName } = buildMealLibraryLookup(meals);
+    const foodItems = Array.isArray(sourceStepTwo.foodItems) ? sourceStepTwo.foodItems : [];
+    return {
+        ...plan,
+        content: {
+            ...content,
+            regularStepTwo: {
+                ...sourceStepTwo,
+                foodItems: foodItems.map((entry) => {
+                    const item = entry;
+                    const linkedMeal = byId.get(String(item.sourceMealId ?? "").trim()) ??
+                        byName.get(normalizeMealLookupValue(item.name));
+                    return linkedMeal ? hydrateRegularFoodItem(item, linkedMeal) : item;
+                })
+            }
+        }
+    };
+}
+async function syncMealLibraryItemToPlans(meal, previousName) {
+    const rows = await admin_model_1.MonthlyPlanDetailsModel.find({}).lean();
+    const candidateNames = new Set([previousName, meal.name].map((value) => normalizeMealLookupValue(value)).filter(Boolean));
+    for (const row of rows) {
+        const payload = toMonthlyPlanDetailsPayload(row);
+        const content = payload.plan.content && typeof payload.plan.content === "object"
+            ? payload.plan.content
+            : null;
+        const stepTwoKey = content?.regularStepTwo && typeof content.regularStepTwo === "object"
+            ? "regularStepTwo"
+            : content?.customStepTwo && typeof content.customStepTwo === "object"
+                ? "customStepTwo"
+                : null;
+        const stepTwo = stepTwoKey && content
+            ? content[stepTwoKey]
+            : null;
+        if (!content || !stepTwoKey || !stepTwo)
+            continue;
+        const foodItems = Array.isArray(stepTwo.foodItems) ? stepTwo.foodItems : [];
+        let didChange = false;
+        const nextFoodItems = foodItems.map((entry) => {
+            const item = entry;
+            const sourceMealId = String(item.sourceMealId ?? "").trim();
+            const normalizedItemName = normalizeMealLookupValue(item.name);
+            const isMatch = sourceMealId === meal.id ||
+                (sourceMealId.length === 0 && candidateNames.has(normalizedItemName));
+            if (!isMatch)
+                return item;
+            didChange = true;
+            return hydrateRegularFoodItem(item, meal);
+        });
+        if (!didChange)
+            continue;
+        await admin_model_1.MonthlyPlanDetailsModel.updateOne({ planId: payload.plan.id }, {
+            $set: {
+                [`plan.content.${stepTwoKey}.foodItems`]: nextFoodItems,
+                "plan.updatedAt": new Date().toISOString()
+            }
+        });
+    }
 }
 function toPlanStatus(value) {
     const normalized = String(value ?? "").trim().toLowerCase();
@@ -1514,7 +1690,14 @@ exports.adminService = {
         const row = (await ensureMonthlyPlanDetails(planId)) ?? (await admin_model_1.MonthlyPlanDetailsModel.findOne({ planId }).lean());
         if (!row)
             throw new AppError_1.AppError(404, "Plan not found");
-        return toMonthlyPlanDetailsPayload(row);
+        const details = toMonthlyPlanDetailsPayload(row);
+        const mealRows = await admin_model_1.MealLibraryItemModel.find().lean();
+        const mealLibrary = mealRows.map((item) => toMealLibraryItem(item));
+        return {
+            ...details,
+            plan: hydratePlanWithMealLibrary(details.plan, mealLibrary),
+            mealLibrary
+        };
     },
     async upsertMonthlyPlanDetails(payload) {
         const normalized = normalizePlanDetailsPayload(payload);
@@ -1690,27 +1873,48 @@ exports.adminService = {
             const selectedMeals = Array.isArray(customerOrder.selectedMeals)
                 ? customerOrder.selectedMeals
                 : [];
-            const groupedItems = new Map();
-            selectedMeals.forEach((meal) => {
+            const customer = customerOrder.customer && typeof customerOrder.customer === "object"
+                ? customerOrder.customer
+                : {};
+            const totals = customerOrder.totals && typeof customerOrder.totals === "object"
+                ? customerOrder.totals
+                : {};
+            const promoCode = customerOrder.promoCode && typeof customerOrder.promoCode === "object"
+                ? customerOrder.promoCode
+                : {};
+            const items = selectedMeals.map((meal) => {
                 const mealId = String(meal.id ?? "");
-                const mealName = String(meal.title ?? "Meal");
-                const key = `${mealId}:${mealName}`;
-                const existing = groupedItems.get(key);
-                groupedItems.set(key, {
+                return {
                     mealId,
-                    mealName,
-                    qty: Number(existing?.qty ?? 0) + 1,
-                    mealType: String(mealTypeById.get(mealId) ?? "Lunch")
-                });
+                    mealName: String(meal.title ?? "Meal"),
+                    qty: 1,
+                    mealType: String(mealTypeById.get(mealId) ?? "Lunch"),
+                    instanceId: String(meal.instanceId ?? ""),
+                    date: String(meal.date ?? ""),
+                    extrasSummary: String(meal.extrasSummary ?? ""),
+                    calories: Number(meal.calories ?? 0),
+                    protein: Number(meal.protein ?? 0),
+                    carb: Number(meal.carb ?? 0),
+                    fat: Number(meal.fat ?? 0),
+                    basePrice: Number(meal.basePrice ?? 0),
+                    totalPrice: Number(meal.totalPrice ?? 0),
+                };
             });
             const fallback = parseSubscriptionInfo(row.subscriptionInfo);
             const planId = String(plan.id ?? fallback.planId ?? "");
             const deliveryOption = String(delivery.optionId ?? fallback.deliveryOption ?? "");
+            const selectionObj = customerSubscription.selection && typeof customerSubscription.selection === "object"
+                ? customerSubscription.selection
+                : {};
             return {
                 id: String(row._id ?? row.id ?? orderId),
                 orderId,
                 subscriptionId,
-                customerName: String(row.client ?? ""),
+                customerName: String(row.client ?? customer.firstName ? `${customer.firstName} ${customer.lastName || ""}`.trim() : ""),
+                customerEmail: String(customer.email ?? row.customerEmail ?? ""),
+                customerPhone: String(customer.phone ?? row.phone ?? ""),
+                customerEmirate: String(customer.emirate ?? row.customerEmirate ?? ""),
+                customerArea: String(customer.area ?? row.customerArea ?? ""),
                 planId,
                 planTitle: String(row.plan ?? plan.title ?? ""),
                 planKind: planKindById.get(planId) ?? "normal",
@@ -1719,9 +1923,30 @@ exports.adminService = {
                 amount: parseMoneyValue(row.total),
                 orderDate: String(row.date ?? ""),
                 deliveryOption,
+                deliveryAddress: String(delivery.address ?? ""),
                 locationId: String(delivery.pickupLocation?.id ?? ""),
                 locationName: String(row.location ?? delivery.pickupLocation?.name ?? ""),
-                items: Array.from(groupedItems.values())
+                selections: {
+                    meals: Number(selectionObj.meals ?? 0),
+                    days: Number(selectionObj.days ?? 0),
+                    weeks: Number(selectionObj.weeks ?? 0),
+                    snacks: Number(selectionObj.snacks ?? 0),
+                    startDate: String(selectionObj.startDate ?? ""),
+                    deliveryDays: String(selectionObj.deliveryDays ?? ""),
+                    planType: String(selectionObj.planType ?? ""),
+                },
+                items,
+                totals: {
+                    subtotal: Number(totals.subtotal ?? 0),
+                    giftDiscount: Number(totals.giftDiscount ?? 0),
+                    vat: Number(totals.vat ?? 0),
+                    safetyBag: Number(totals.safetyBag ?? 0),
+                    grandTotal: Number(totals.grandTotal ?? 0)
+                },
+                promoCode: {
+                    code: String(promoCode.code ?? ""),
+                    discountAmount: Number(promoCode.discountAmount ?? 0)
+                }
             };
         });
     },
@@ -1755,6 +1980,7 @@ exports.adminService = {
         return rows.map((row) => toMealLibraryItem(row));
     },
     async upsertMealLibraryAdmin(payload) {
+        const existing = await admin_model_1.MealLibraryItemModel.findOne({ mealId: payload.id }).lean();
         const hasImage = payload.image !== undefined;
         const normalizedImage = hasImage
             ? await (0, cloudinary_1.uploadImageIfNeeded)(normalizeMealImage(payload.image), { folder: "proteinbar/meals" })
@@ -1775,7 +2001,9 @@ exports.adminService = {
             updatePayload.image = normalizedImage;
         }
         const row = await admin_model_1.MealLibraryItemModel.findOneAndUpdate({ mealId: payload.id }, updatePayload, { new: true, upsert: true, setDefaultsOnInsert: true }).lean();
-        return toMealLibraryItem(row);
+        const meal = toMealLibraryItem(row);
+        await syncMealLibraryItemToPlans(meal, existing ? String(existing.name ?? "") : undefined);
+        return meal;
     },
     async deleteMealLibraryAdmin(id) {
         const row = await admin_model_1.MealLibraryItemModel.findOneAndDelete({ mealId: id });
@@ -1950,6 +2178,8 @@ exports.adminService = {
             admin_model_1.CustomPlanCategoryModel.find({ planId, isActive: true }).sort({ displayOrder: 1, createdAt: 1 }).lean(),
             admin_model_1.CustomPlanFoodItemModel.find({ planId, isActive: true }).sort({ displayOrder: 1, createdAt: 1 }).lean()
         ]);
+        const mealLibrary = mealRows.map((item) => toMealLibraryItem(item));
+        const hydratedPlan = hydratePlanWithMealLibrary(details.plan, mealLibrary);
         const customPlanBuilder = {
             categories: customCategoryRows.map((item) => toCustomPlanCategory(item)),
             foodItems: customFoodRows
@@ -1960,8 +2190,8 @@ exports.adminService = {
             }))
                 .filter((item) => item.sizes.length > 0)
         };
-        const content = details.plan.content && typeof details.plan.content === "object"
-            ? details.plan.content
+        const content = hydratedPlan.content && typeof hydratedPlan.content === "object"
+            ? hydratedPlan.content
             : {};
         const regularStepTwo = content.regularStepTwo && typeof content.regularStepTwo === "object"
             ? content.regularStepTwo
@@ -1971,13 +2201,13 @@ exports.adminService = {
         return {
             ...details,
             plan: {
-                ...details.plan,
+                ...hydratedPlan,
                 content: {
                     ...content,
                     ...(regularStepTwo ? { regularStepTwo } : {})
                 }
             },
-            mealLibrary: mealRows.map((item) => toMealLibraryItem(item)),
+            mealLibrary,
             customPlanBuilder
         };
     },
@@ -2249,6 +2479,78 @@ exports.adminService = {
         const row = await admin_model_1.WebsitePageModel.findOneAndDelete({ pageId: id }).lean();
         if (!row)
             throw new AppError_1.AppError(404, "Website page not found");
+        return { id };
+    },
+    async listAdminRoles() {
+        const rows = await auth_model_1.AdminRoleModel.find().sort({ name: 1 }).lean();
+        return Promise.all(rows.map((row) => toAdminRoleRecord(row)));
+    },
+    async upsertAdminRole(payload) {
+        const roleId = payload.id?.trim() || createAdminEntityId("role");
+        const row = await auth_model_1.AdminRoleModel.findOneAndUpdate({ roleId }, {
+            roleId,
+            name: payload.name.trim(),
+            description: payload.description?.trim() ?? "",
+            scopes: (payload.scopes ?? []).map((scope) => scope.trim()).filter(Boolean),
+            allowedPages: mergePagePermissions(payload.allowedPages ?? []),
+            canPublish: Boolean(payload.canPublish),
+            canManageUsers: Boolean(payload.canManageUsers)
+        }, { new: true, upsert: true, setDefaultsOnInsert: true }).lean();
+        return toAdminRoleRecord(row);
+    },
+    async deleteAdminRole(id) {
+        const usersUsingRole = await auth_model_1.UserModel.countDocuments({ adminRoleId: id });
+        if (usersUsingRole > 0) {
+            throw new AppError_1.AppError(400, "This role is assigned to one or more admins.");
+        }
+        const row = await auth_model_1.AdminRoleModel.findOneAndDelete({ roleId: id }).lean();
+        if (!row)
+            throw new AppError_1.AppError(404, "Admin role not found");
+        return { id };
+    },
+    async listAdminUsers() {
+        const rows = await auth_model_1.UserModel.find({ role: { $in: ["super_admin", "admin", "employee"] } })
+            .sort({ createdAt: -1 })
+            .lean();
+        return Promise.all(rows.map((row) => toAdminUserRecord(row)));
+    },
+    async upsertAdminUser(payload) {
+        const normalizedEmail = payload.email.trim().toLowerCase();
+        const existingRole = await resolveAdminRole(payload.adminRoleId);
+        const ownPages = mergePagePermissions(payload.allowedPages ?? []);
+        const rolePages = Array.isArray(existingRole?.allowedPages) ? existingRole.allowedPages.map((page) => String(page)) : [];
+        const update = {
+            email: normalizedEmail,
+            fullName: payload.fullName.trim(),
+            role: payload.role,
+            adminRoleId: payload.adminRoleId?.trim() ?? "",
+            allowedPages: mergePagePermissions(rolePages, ownPages),
+            canPublish: Boolean(existingRole?.canPublish || payload.canPublish),
+            canManageUsers: Boolean(existingRole?.canManageUsers || payload.canManageUsers),
+            isActive: payload.isActive !== false
+        };
+        if (payload.password?.trim()) {
+            update.password = payload.password.trim();
+        }
+        const row = payload.id
+            ? await auth_model_1.UserModel.findByIdAndUpdate(payload.id, { $set: update }, { new: true }).lean()
+            : await auth_model_1.UserModel.findOneAndUpdate({ email: normalizedEmail }, { $set: update, $setOnInsert: { password: payload.password?.trim() ?? "admin12345" } }, { upsert: true, new: true, setDefaultsOnInsert: true }).lean();
+        if (!row)
+            throw new AppError_1.AppError(404, "Admin user not found");
+        return toAdminUserRecord(row);
+    },
+    async deleteAdminUser(id) {
+        const row = await auth_model_1.UserModel.findById(id).lean();
+        if (!row || !["super_admin", "admin", "employee"].includes(String(row.role))) {
+            throw new AppError_1.AppError(404, "Admin user not found");
+        }
+        if (row.role === "super_admin") {
+            const totalSuperAdmins = await auth_model_1.UserModel.countDocuments({ role: "super_admin", isActive: true });
+            if (totalSuperAdmins <= 1) {
+                throw new AppError_1.AppError(400, "At least one active super admin is required.");
+            }
+        }
+        await auth_model_1.UserModel.findByIdAndDelete(id);
         return { id };
     }
 };

@@ -9,6 +9,17 @@ declare global {
         role: string;
       };
       currentCustomerSessionToken?: string;
+      currentAdmin?: {
+        id: string;
+        email: string;
+        role: string;
+        fullName: string;
+        adminRoleId: string;
+        allowedPages: string[];
+        canPublish: boolean;
+        canManageUsers: boolean;
+      };
+      currentAdminSessionToken?: string;
     }
   }
 }

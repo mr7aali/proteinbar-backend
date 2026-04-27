@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.authRouter = void 0;
 const express_1 = require("express");
 const validate_1 = require("../../common/middleware/validate");
+const requireAdminSession_1 = require("../../common/middleware/requireAdminSession");
 const requireCustomerSession_1 = require("../../common/middleware/requireCustomerSession");
 const auth_controller_1 = require("./auth.controller");
 const auth_validation_1 = require("./auth.validation");
@@ -12,4 +13,6 @@ exports.authRouter.post("/verify-code", (0, validate_1.validate)(auth_validation
 exports.authRouter.get("/me", requireCustomerSession_1.requireCustomerSession, auth_controller_1.authController.me);
 exports.authRouter.post("/logout", requireCustomerSession_1.requireCustomerSession, auth_controller_1.authController.logout);
 exports.authRouter.post("/admin-login", (0, validate_1.validate)(auth_validation_1.adminLoginSchema), auth_controller_1.authController.adminLogin);
+exports.authRouter.get("/admin-me", requireAdminSession_1.requireAdminSession, auth_controller_1.authController.adminMe);
+exports.authRouter.post("/admin-logout", requireAdminSession_1.requireAdminSession, auth_controller_1.authController.adminLogout);
 exports.authRouter.post("/reset-password", (0, validate_1.validate)(auth_validation_1.resetPasswordSchema), auth_controller_1.authController.resetPassword);
