@@ -2209,14 +2209,32 @@ export const adminService = {
       const startDate = String(selection.startDate ?? "");
       const totalWeeks = Number(row.totalWeeks ?? 0);
       const planId = String(plan.id ?? "");
+      const customer =
+        customerSubscription.customer && typeof customerSubscription.customer === "object"
+          ? (customerSubscription.customer as Record<string, unknown>)
+          : customerOrder.customer && typeof customerOrder.customer === "object"
+            ? (customerOrder.customer as Record<string, unknown>)
+            : {};
+      const selectedMeals = Array.isArray(selection.selectedMeals)
+        ? (selection.selectedMeals as Array<Record<string, unknown>>)
+        : [];
+      const pickupLocation =
+        delivery.pickupLocation && typeof delivery.pickupLocation === "object"
+          ? (delivery.pickupLocation as Record<string, unknown>)
+          : {};
 
       return {
         id: String(row._id ?? row.id ?? subscriptionId),
         subscriptionId,
         customerName: String(row.client ?? ""),
+        customerEmail: String((customer.email ?? "") as string),
         customerPhone: String(
-          ((customerOrder.customer as Record<string, unknown> | undefined)?.phone as string | undefined) ?? ""
+          (customer.phone as string | undefined) ??
+            ((customerOrder.customer as Record<string, unknown> | undefined)?.phone as string | undefined) ??
+            ""
         ),
+        customerEmirate: String((customer.emirate ?? "") as string),
+        customerArea: String((customer.area ?? "") as string),
         planId,
         planTitle: String(row.plan ?? plan.title ?? ""),
         planKind: planKindById.get(planId) ?? "normal",
@@ -2227,9 +2245,12 @@ export const adminService = {
         totalWeeks,
         progressDays: String(row.dayProgress ?? "0/0"),
         remainingMeals: Number(row.remainingMeals ?? 0),
+        deliveryAddress: String(delivery.address ?? ""),
+        pickupLocationName: String(pickupLocation.name ?? ""),
         selections: {
           meals: Number(selection.meals ?? 0),
           days: Number(selection.days ?? 0),
+          weeks: Number(selection.weeks ?? 0),
           snacks: Number(selection.snacks ?? 0),
           startDate,
           deliveryDays: String(selection.deliveryDays ?? "")
@@ -2238,7 +2259,20 @@ export const adminService = {
             .filter(Boolean),
           planType: String(selection.planType ?? "") || undefined,
           deliveryOption: String(delivery.optionId ?? "")
-        }
+        },
+        selectedMeals: selectedMeals.map((meal) => ({
+          instanceId: String(meal.instanceId ?? ""),
+          id: String(meal.id ?? ""),
+          title: String(meal.title ?? ""),
+          date: String(meal.date ?? ""),
+          extrasSummary: String(meal.extrasSummary ?? ""),
+          calories: Number(meal.calories ?? 0),
+          protein: Number(meal.protein ?? 0),
+          carb: Number(meal.carb ?? 0),
+          fat: Number(meal.fat ?? 0),
+          basePrice: Number(meal.basePrice ?? 0),
+          totalPrice: Number(meal.totalPrice ?? 0)
+        }))
       };
     });
   },
