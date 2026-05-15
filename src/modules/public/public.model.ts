@@ -115,6 +115,10 @@ const CustomerOrderSchema = new Schema(
   {
     orderId: { type: String, required: true, unique: true },
     subscriptionId: { type: String, required: true },
+    paymentStatus: { type: String, default: "pending", index: true },
+    paymentMethod: { type: String, default: "CMI" },
+    paymentMeta: { type: Schema.Types.Mixed, default: null },
+    promoUsageApplied: { type: Boolean, default: false },
     rawPayload: { type: Schema.Types.Mixed, default: null },
     customer: {
       firstName: { type: String, required: true },
@@ -159,6 +163,7 @@ const CustomerOrderSchema = new Schema(
       grandTotal: { type: Number, required: true }
     },
     promoCode: {
+      id: { type: String, default: "" },
       code: { type: String, default: "" },
       discountAmount: { type: Number, default: 0 }
     }

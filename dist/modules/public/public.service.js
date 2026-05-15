@@ -2,7 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.publicService = void 0;
 const AppError_1 = require("../../common/utils/AppError");
+const cmi_1 = require("../../common/utils/cmi");
 const cloudinary_1 = require("../../common/utils/cloudinary");
+const env_1 = require("../../config/env");
 const admin_model_1 = require("../admin/admin.model");
 const admin_service_1 = require("../admin/admin.service");
 const public_model_1 = require("./public.model");
@@ -137,6 +139,235 @@ const websiteNavigationOrder = {
     "terms-and-conditions": 6,
     "privacy-policy": 7,
 };
+function getObjectRecord(value) {
+    return value && typeof value === "object"
+        ? value
+        : {};
+}
+function getRequestBaseUrl(req) {
+    const forwardedProto = req
+        .get("x-forwarded-proto")
+        ?.split(",")[0]
+        ?.trim();
+    const forwardedHost = req
+        .get("x-forwarded-host")
+        ?.split(",")[0]
+        ?.trim();
+    const protocol = forwardedProto || req.protocol || "http";
+    const host = forwardedHost || req.get("host");
+    if (!host) {
+        throw new AppError_1.AppError(500, "Unable to resolve backend URL for CMI.");
+    }
+    return `${protocol}://${host}`;
+}
+function safeOrigin(value) {
+    if (!value)
+        return "";
+    try {
+        return new URL(value).origin;
+    }
+    catch {
+        return "";
+    }
+}
+function getFrontendBaseUrl(req) {
+    const origin = safeOrigin(req.get("origin") ?? undefined);
+    if (origin)
+        return origin;
+    const referer = safeOrigin(req.get("referer") ?? undefined);
+    if (referer)
+        return referer;
+    return env_1.env.allowedOrigins[0] || getRequestBaseUrl(req);
+}
+function normalizeGatewayPayload(payload) {
+    return Object.fromEntries(Object.entries(payload).map(([key, value]) => [
+        key,
+        Array.isArray(value) ? String(value[0] ?? "") : String(value ?? ""),
+    ]));
+}
+function buildAuditEntry(action) {
+    return {
+        at: new Date().toLocaleString("en-US"),
+        by: "CMI payment",
+        action,
+    };
+}
+function mergePaymentMeta(existing, patch) {
+    const current = existing && typeof existing === "object"
+        ? existing
+        : {};
+    return {
+        ...current,
+        ...patch,
+    };
+}
+async function prepareCheckoutPayload(payload, ids) {
+    const subscriptionId = ids?.subscriptionId || buildId("SUB");
+    const orderId = ids?.orderId || buildId("ORD");
+    const subscriptionPayload = getObjectRecord(payload.subscription);
+    const orderPayload = getObjectRecord(payload.order);
+    const selection = getObjectRecord(subscriptionPayload.selection);
+    const rawCustomer = getObjectRecord(orderPayload.customer);
+    const rawDelivery = Object.keys(getObjectRecord(orderPayload.delivery)).length
+        ? getObjectRecord(orderPayload.delivery)
+        : getObjectRecord(subscriptionPayload.delivery);
+    const totals = getObjectRecord(orderPayload.totals);
+    const selectedMealsSource = Array.isArray(orderPayload.selectedMeals)
+        ? orderPayload.selectedMeals
+        : Array.isArray(selection.selectedMeals)
+            ? selection.selectedMeals
+            : [];
+    const customer = normalizeCustomer(rawCustomer);
+    const delivery = normalizeDelivery(rawDelivery);
+    const selectedMeals = selectedMealsSource
+        .filter((item) => Boolean(item) && typeof item === "object")
+        .map(normalizeSelectedMeal)
+        .filter((item) => item.id && item.title);
+    const submittedPromoCode = String(orderPayload.promoCode?.code ?? "").trim();
+    const mealsPerDay = Math.max(1, toSafeNumber(selection.meals, 1));
+    const daysPerWeek = Math.max(1, toSafeNumber(selection.days, 1));
+    const totalWeeks = Math.max(1, toSafeNumber(selection.weeks, 4));
+    const totalPlannedMeals = mealsPerDay * daysPerWeek * totalWeeks;
+    const customerName = `${customer.firstName} ${customer.lastName}`.trim();
+    const locationLabel = delivery.pickupLocation.name ||
+        customer.area ||
+        customer.emirate ||
+        "N/A";
+    const subtotal = toSafeNumber(totals.subtotal, 0);
+    const validatedPromoCode = submittedPromoCode
+        ? await admin_service_1.adminService.validatePromoCode(submittedPromoCode, "monthly-plan", subtotal)
+        : null;
+    const giftDiscount = validatedPromoCode?.discountAmount ?? 0;
+    const vat = toSafeNumber(totals.vat, 0);
+    const safetyBag = toSafeNumber(totals.safetyBag, 0);
+    const grandTotal = Number((subtotal - giftDiscount + vat + safetyBag).toFixed(2));
+    const plan = getObjectRecord(subscriptionPayload.plan);
+    return {
+        customer,
+        customerName,
+        daysPerWeek,
+        delivery,
+        giftDiscount,
+        grandTotal,
+        locationLabel,
+        mealsPerDay,
+        orderId,
+        orderPayload,
+        payload,
+        planId: String(plan.id ?? "").trim(),
+        planTitle: String(plan.title ?? "").trim() || "Monthly Plan",
+        safetyBag,
+        selectedMeals,
+        selection,
+        subtotal,
+        subscriptionId,
+        subscriptionPayload,
+        totalPlannedMeals,
+        totalWeeks,
+        validatedPromoCode,
+        vat,
+    };
+}
+async function ensureSuccessfulCheckoutArtifacts(orderRow, gatewayPayload) {
+    const payload = getObjectRecord(orderRow.rawPayload);
+    const subscriptionPayload = getObjectRecord(payload.subscription);
+    const selection = getObjectRecord(subscriptionPayload.selection);
+    const customer = normalizeCustomer(getObjectRecord(orderRow.customer));
+    const delivery = normalizeDelivery(getObjectRecord(orderRow.delivery));
+    const selectedMealsSource = Array.isArray(orderRow.selectedMeals)
+        ? orderRow.selectedMeals
+        : Array.isArray(selection.selectedMeals)
+            ? selection.selectedMeals
+            : [];
+    const selectedMeals = selectedMealsSource
+        .filter((item) => Boolean(item) && typeof item === "object")
+        .map(normalizeSelectedMeal)
+        .filter((item) => item.id && item.title);
+    const plan = getObjectRecord(subscriptionPayload.plan);
+    const planId = String(plan.id ?? "").trim();
+    const planTitle = String(plan.title ?? "").trim() || "Monthly Plan";
+    const subscriptionId = String(orderRow.subscriptionId ?? "").trim();
+    const orderId = String(orderRow.orderId ?? "").trim();
+    const mealsPerDay = Math.max(1, toSafeNumber(selection.meals, 1));
+    const daysPerWeek = Math.max(1, toSafeNumber(selection.days, 1));
+    const totalWeeks = Math.max(1, toSafeNumber(selection.weeks, 4));
+    const totalPlannedMeals = mealsPerDay * daysPerWeek * totalWeeks;
+    const customerName = `${customer.firstName} ${customer.lastName}`.trim() || "Customer";
+    const totals = getObjectRecord(orderRow.totals);
+    await public_model_1.CustomerSubscriptionModel.findOneAndUpdate({ subscriptionId }, {
+        $setOnInsert: {
+            subscriptionId,
+            rawPayload: payload,
+            customer,
+            plan: {
+                id: planId,
+                title: planTitle,
+            },
+            selection: {
+                meals: String(selection.meals ?? "").trim(),
+                days: String(selection.days ?? "").trim(),
+                weeks: String(selection.weeks ?? "").trim(),
+                snacks: String(selection.snacks ?? "").trim(),
+                startDate: String(selection.startDate ?? "").trim(),
+                deliveryDays: String(selection.deliveryDays ?? "").trim(),
+                planType: String(selection.planType ?? "").trim(),
+                selectedMeals,
+            },
+            delivery,
+            status: "active",
+        },
+    }, { upsert: true, setDefaultsOnInsert: true });
+    await admin_model_1.SubscriptionModel.findOneAndUpdate({ subscriptionId }, {
+        $setOnInsert: {
+            subscriptionId,
+            client: customerName,
+            plan: planTitle,
+            totalWeeks,
+            currentWeek: 1,
+            dayProgress: `0/${daysPerWeek}`,
+            remainingMeals: totalPlannedMeals,
+            status: "active",
+            log: [
+                `Payment confirmed on ${new Date().toLocaleString("en-US")}`,
+                `Delivery option: ${String(delivery.optionId ?? "n/a")}`,
+            ],
+        },
+    }, { upsert: true, setDefaultsOnInsert: true });
+    await admin_model_1.OrderModel.updateOne({ orderId, payment: { $ne: "paid" } }, {
+        $set: {
+            payment: "paid",
+        },
+        $push: {
+            auditLog: {
+                $each: [
+                    buildAuditEntry(`Payment confirmed${gatewayPayload?.HostRefNum ? ` (${String(gatewayPayload.HostRefNum)})` : ""}`),
+                ],
+                $position: 0,
+            },
+        },
+    });
+    const promoUsageRow = await public_model_1.CustomerOrderModel.findOneAndUpdate({
+        orderId,
+        promoUsageApplied: false,
+        "promoCode.id": { $exists: true, $ne: "" },
+    }, { $set: { promoUsageApplied: true } }, { new: false }).lean();
+    const promoCodeRecord = getObjectRecord(promoUsageRow?.promoCode);
+    const promoCodeId = String(promoCodeRecord.id ?? "").trim();
+    if (promoCodeId) {
+        await admin_service_1.adminService.incrementPromoCodeUsage(promoCodeId);
+    }
+    return {
+        orderId,
+        subscriptionId,
+        totals: {
+            subtotal: Number(totals.subtotal ?? 0),
+            giftDiscount: Number(totals.giftDiscount ?? 0),
+            vat: Number(totals.vat ?? 0),
+            safetyBag: Number(totals.safetyBag ?? 0),
+            grandTotal: Number(totals.grandTotal ?? 0),
+        },
+    };
+}
 exports.publicService = {
     async listMenuCategories() {
         const [menuItemsRaw, productsRaw] = await Promise.all([
@@ -271,178 +502,250 @@ exports.publicService = {
     async createContactMessage(payload) {
         return public_model_1.ContactMessageModel.create(payload);
     },
-    async checkout(payload) {
-        const subscriptionId = buildId("SUB");
-        const orderId = buildId("ORD");
-        const subscriptionPayload = payload.subscription && typeof payload.subscription === "object"
-            ? payload.subscription
-            : {};
-        const orderPayload = payload.order && typeof payload.order === "object" ? payload.order : {};
-        const selection = subscriptionPayload.selection &&
-            typeof subscriptionPayload.selection === "object"
-            ? subscriptionPayload.selection
-            : {};
-        const rawCustomer = orderPayload.customer && typeof orderPayload.customer === "object"
-            ? orderPayload.customer
-            : {};
-        const rawDelivery = orderPayload.delivery && typeof orderPayload.delivery === "object"
-            ? orderPayload.delivery
-            : subscriptionPayload.delivery &&
-                typeof subscriptionPayload.delivery === "object"
-                ? subscriptionPayload.delivery
-                : {};
-        const totals = orderPayload.totals && typeof orderPayload.totals === "object"
-            ? orderPayload.totals
-            : {};
-        const selectedMealsSource = Array.isArray(orderPayload.selectedMeals)
-            ? orderPayload.selectedMeals
-            : Array.isArray(selection.selectedMeals)
-                ? selection.selectedMeals
-                : [];
-        const customer = normalizeCustomer(rawCustomer);
-        const delivery = normalizeDelivery(rawDelivery);
-        const selectedMeals = selectedMealsSource
-            .filter((item) => Boolean(item) && typeof item === "object")
-            .map(normalizeSelectedMeal)
-            .filter((item) => item.id && item.title);
-        const submittedPromoCode = String(orderPayload.promoCode?.code ?? "").trim();
-        const mealsPerDay = Math.max(1, toSafeNumber(selection.meals, 1));
-        const daysPerWeek = Math.max(1, toSafeNumber(selection.days, 1));
-        const totalWeeks = 4;
-        const totalPlannedMeals = mealsPerDay * daysPerWeek * totalWeeks;
-        const customerName = `${customer.firstName} ${customer.lastName}`.trim();
-        const locationLabel = delivery.pickupLocation.name ||
-            customer.area ||
-            customer.emirate ||
-            "N/A";
-        const subtotal = toSafeNumber(totals.subtotal, 0);
-        const validatedPromoCode = submittedPromoCode
-            ? await admin_service_1.adminService.validatePromoCode(submittedPromoCode, "monthly-plan", subtotal)
-            : null;
-        const giftDiscount = validatedPromoCode?.discountAmount ?? 0;
-        const vat = toSafeNumber(totals.vat, 0);
-        const safetyBag = toSafeNumber(totals.safetyBag, 0);
-        const grandTotal = Number((subtotal - giftDiscount + vat + safetyBag).toFixed(2));
-        // Public-facing records used by checkout success and customer history.
-        const subscription = await public_model_1.CustomerSubscriptionModel.create({
-            subscriptionId,
-            rawPayload: payload,
-            customer,
-            plan: {
-                id: String(subscriptionPayload.plan?.id ?? "").trim(),
-                title: String(subscriptionPayload.plan?.title ?? "").trim(),
-            },
-            selection: {
-                meals: String(selection.meals ?? "").trim(),
-                days: String(selection.days ?? "").trim(),
-                weeks: String(selection.weeks ?? "").trim(),
-                snacks: String(selection.snacks ?? "").trim(),
-                startDate: String(selection.startDate ?? "").trim(),
-                deliveryDays: String(selection.deliveryDays ?? "").trim(),
-                planType: String(selection.planType ?? "").trim(),
-                selectedMeals,
-            },
-            delivery,
-            status: "active",
+    async checkout(payload, req) {
+        if (!env_1.env.CMI_CLIENT_ID || !env_1.env.CMI_STORE_KEY) {
+            throw new AppError_1.AppError(500, "CMI is not configured. Please set CMI_CLIENT_ID and CMI_STORE_KEY.");
+        }
+        const prepared = await prepareCheckoutPayload(payload);
+        const backendBaseUrl = getRequestBaseUrl(req);
+        const returnUrl = `${backendBaseUrl}/api/v1/payments/cmi/return`;
+        const callbackUrl = `${backendBaseUrl}/api/v1/payments/cmi/callback`;
+        const paymentFields = (0, cmi_1.buildCmiPaymentFields)({
+            amount: prepared.grandTotal,
+            callbackUrl,
+            clientId: env_1.env.CMI_CLIENT_ID,
+            currency: env_1.env.CMI_CURRENCY,
+            failUrl: returnUrl,
+            lang: env_1.env.CMI_LANG,
+            okUrl: returnUrl,
+            orderId: prepared.orderId,
+            refreshTime: env_1.env.CMI_REFRESH_TIME,
+            storeKey: env_1.env.CMI_STORE_KEY,
+            storeType: env_1.env.CMI_STORE_TYPE,
+            tranType: env_1.env.CMI_TRAN_TYPE,
+            billingName: prepared.customerName,
         });
+        const paymentMeta = {
+            provider: "CMI",
+            gatewayUrl: env_1.env.CMI_GATEWAY_URL,
+            initiatedAt: new Date().toISOString(),
+            request: {
+                amount: paymentFields.amount,
+                callbackUrl,
+                clientid: paymentFields.clientid,
+                currency: paymentFields.currency,
+                failUrl: paymentFields.failUrl,
+                hashAlgorithm: paymentFields.hashAlgorithm,
+                lang: paymentFields.lang,
+                oid: paymentFields.oid,
+                okUrl: paymentFields.okUrl,
+                rnd: paymentFields.rnd,
+                storetype: paymentFields.storetype,
+                TranType: paymentFields.TranType,
+            },
+        };
         const order = await public_model_1.CustomerOrderModel.create({
-            orderId,
-            subscriptionId,
+            orderId: prepared.orderId,
+            subscriptionId: prepared.subscriptionId,
+            paymentStatus: "pending",
+            paymentMethod: "CMI",
+            paymentMeta,
             rawPayload: payload,
-            customer,
-            delivery,
-            selectedMeals,
-            promoCode: validatedPromoCode
+            customer: prepared.customer,
+            delivery: prepared.delivery,
+            selectedMeals: prepared.selectedMeals,
+            promoCode: prepared.validatedPromoCode
                 ? {
-                    code: validatedPromoCode.promoCode.code,
-                    discountAmount: giftDiscount,
+                    id: prepared.validatedPromoCode.promoCode.id,
+                    code: prepared.validatedPromoCode.promoCode.code,
+                    discountAmount: prepared.giftDiscount,
                 }
                 : undefined,
             totals: {
-                subtotal,
-                giftDiscount,
-                vat,
-                safetyBag,
-                grandTotal,
+                subtotal: prepared.subtotal,
+                giftDiscount: prepared.giftDiscount,
+                vat: prepared.vat,
+                safetyBag: prepared.safetyBag,
+                grandTotal: prepared.grandTotal,
             },
         });
-        // Admin-facing records so checkouts show in Admin Orders/Subscriptions pages.
-        await admin_model_1.SubscriptionModel.create({
-            subscriptionId,
-            client: customerName || "Customer",
-            plan: String(subscriptionPayload.plan?.title ?? "Monthly Plan"),
-            totalWeeks,
-            currentWeek: 1,
-            dayProgress: `0/${daysPerWeek}`,
-            remainingMeals: totalPlannedMeals,
-            status: "active",
-            log: [
-                `Checkout created on ${new Date().toLocaleString("en-US")}`,
-                `Delivery option: ${String(delivery.optionId ?? "n/a")}`,
-            ],
-        });
         await admin_model_1.OrderModel.create({
-            orderId,
-            client: customerName || "Customer",
-            phone: String(customer.phone ?? "N/A"),
-            customerEmail: String(customer.email ?? ""),
-            customerEmirate: String(customer.emirate ?? ""),
-            customerArea: String(customer.area ?? ""),
+            orderId: prepared.orderId,
+            client: prepared.customerName || "Customer",
+            phone: String(prepared.customer.phone ?? "N/A"),
+            customerEmail: String(prepared.customer.email ?? ""),
+            customerEmirate: String(prepared.customer.emirate ?? ""),
+            customerArea: String(prepared.customer.area ?? ""),
             status: "pending",
             confirmationStatus: "pending",
-            plan: String(subscriptionPayload.plan?.title ?? "Monthly Plan"),
-            orderType: toOrderType(delivery.optionId),
-            location: locationLabel,
-            deliveryAddress: String(delivery.address ?? ""),
-            pickupLocation: String(delivery.pickupLocation?.name ?? ""),
-            payment: "paid",
-            schedule: String(delivery.optionId ?? ""),
+            plan: prepared.planTitle,
+            orderType: toOrderType(prepared.delivery.optionId),
+            location: prepared.locationLabel,
+            deliveryAddress: String(prepared.delivery.address ?? ""),
+            pickupLocation: String(prepared.delivery.pickupLocation?.name ?? ""),
+            payment: "unpaid",
+            schedule: String(prepared.delivery.optionId ?? ""),
             date: new Date().toISOString().split("T")[0],
-            total: formatMoney(grandTotal),
-            items: selectedMeals.map((item) => ({
-                name: [
-                    item.title || "Meal",
-                    item.extrasSummary,
-                ]
+            total: formatMoney(prepared.grandTotal),
+            items: prepared.selectedMeals.map((item) => ({
+                name: [item.title || "Meal", item.extrasSummary]
                     .filter(Boolean)
                     .join(" | "),
                 qty: 1,
                 macros: `K:${item.calories} P:${item.protein} C:${item.carb} F:${item.fat}`,
             })),
-            notes: `Customer email: ${customer.email || "N/A"}${validatedPromoCode ? ` | Promo: ${validatedPromoCode.promoCode.code}` : ""}`,
-            subscriptionId,
-            subscriptionInfo: `${String(subscriptionPayload.plan?.id ?? "")} / ${String(delivery.optionId ?? "")}`,
+            notes: `Customer email: ${prepared.customer.email || "N/A"} | Payment: CMI pending${prepared.validatedPromoCode ? ` | Promo: ${prepared.validatedPromoCode.promoCode.code}` : ""}`,
+            subscriptionId: prepared.subscriptionId,
+            subscriptionInfo: `${prepared.planId} / ${String(prepared.delivery.optionId ?? "")}`,
             subscriptionDetails: {
-                daysPerWeek,
-                durationWeeks: totalWeeks,
-                meals: totalPlannedMeals,
+                daysPerWeek: prepared.daysPerWeek,
+                durationWeeks: prepared.totalWeeks,
+                meals: prepared.totalPlannedMeals,
             },
             auditLog: [
                 {
                     at: new Date().toLocaleString("en-US"),
                     by: "Checkout API",
-                    action: "Order created",
+                    action: "Pending CMI payment created",
                 },
             ],
-            promoCode: validatedPromoCode
+            promoCode: prepared.validatedPromoCode
                 ? {
-                    code: validatedPromoCode.promoCode.code,
-                    discountAmount: giftDiscount,
+                    code: prepared.validatedPromoCode.promoCode.code,
+                    discountAmount: prepared.giftDiscount,
                 }
                 : undefined,
         });
-        if (validatedPromoCode) {
-            await admin_service_1.adminService.incrementPromoCodeUsage(validatedPromoCode.promoCode.id);
+        return {
+            order,
+            payment: {
+                provider: "CMI",
+                gatewayUrl: env_1.env.CMI_GATEWAY_URL,
+                method: "POST",
+                fields: paymentFields,
+            },
+        };
+    },
+    async handleCmiReturn(payload, req) {
+        const result = await this.processCmiPaymentResult(payload);
+        const frontendUrl = new URL("/payment/cmi-return", getFrontendBaseUrl(req));
+        frontendUrl.searchParams.set("status", result.status);
+        if (result.orderId) {
+            frontendUrl.searchParams.set("orderId", result.orderId);
+        }
+        if (result.subscriptionId) {
+            frontendUrl.searchParams.set("subscriptionId", result.subscriptionId);
+        }
+        if (result.message) {
+            frontendUrl.searchParams.set("message", result.message);
         }
         return {
-            subscription,
-            order,
-            appliedPromoCode: validatedPromoCode
-                ? {
-                    code: validatedPromoCode.promoCode.code,
-                    discountAmount: giftDiscount,
-                }
-                : null,
+            redirectUrl: frontendUrl.toString(),
+            ...result,
+        };
+    },
+    async handleCmiCallback(payload) {
+        const result = await this.processCmiPaymentResult(payload);
+        return {
+            acknowledged: true,
+            ...result,
+        };
+    },
+    async processCmiPaymentResult(payload) {
+        const responsePayload = normalizeGatewayPayload(payload);
+        const orderId = String(responsePayload.ReturnOid || responsePayload.oid || "").trim();
+        if (!orderId) {
+            return {
+                status: "failed",
+                message: "CMI did not return an order reference.",
+                orderId: "",
+                subscriptionId: "",
+            };
+        }
+        const existingOrder = (await public_model_1.CustomerOrderModel.findOne({ orderId }).lean());
+        if (!existingOrder) {
+            return {
+                status: "failed",
+                message: "Order not found for this CMI response.",
+                orderId,
+                subscriptionId: "",
+            };
+        }
+        const subscriptionId = String(existingOrder.subscriptionId ?? "").trim();
+        const paymentStatus = String(existingOrder.paymentStatus ?? "pending").trim();
+        const hashVerified = (0, cmi_1.verifyCmiResponseHash)(responsePayload, env_1.env.CMI_STORE_KEY);
+        const approved = hashVerified && (0, cmi_1.isCmiApprovedResponse)(responsePayload);
+        const failureMessage = String(responsePayload.ErrMsg ||
+            responsePayload.mdErrorMsg ||
+            responsePayload.Response ||
+            "Payment was not approved.").trim();
+        if (approved) {
+            const paidMeta = mergePaymentMeta(existingOrder.paymentMeta, {
+                approved: true,
+                finalizedAt: new Date().toISOString(),
+                hashVerified: true,
+                response: responsePayload,
+            });
+            await public_model_1.CustomerOrderModel.updateOne({ orderId }, {
+                $set: {
+                    paymentStatus: "paid",
+                    paymentMeta: paidMeta,
+                },
+            });
+            const latestOrder = (await public_model_1.CustomerOrderModel.findOne({ orderId }).lean()) ?? existingOrder;
+            await ensureSuccessfulCheckoutArtifacts(latestOrder, responsePayload);
+            return {
+                status: "success",
+                message: "Payment confirmed successfully.",
+                orderId,
+                subscriptionId,
+            };
+        }
+        if (paymentStatus !== "paid") {
+            const failedMeta = mergePaymentMeta(existingOrder.paymentMeta, {
+                approved: false,
+                finalizedAt: new Date().toISOString(),
+                hashVerified,
+                response: responsePayload,
+            });
+            await public_model_1.CustomerOrderModel.updateOne({ orderId, paymentStatus: { $ne: "paid" } }, {
+                $set: {
+                    paymentStatus: "failed",
+                    paymentMeta: failedMeta,
+                },
+            });
+            await admin_model_1.OrderModel.updateOne({ orderId, payment: { $ne: "paid" } }, {
+                $set: {
+                    payment: "unpaid",
+                },
+                $push: {
+                    auditLog: {
+                        $each: [
+                            buildAuditEntry(hashVerified
+                                ? `Payment failed: ${failureMessage || "declined"}`
+                                : "Payment response failed hash verification"),
+                        ],
+                        $position: 0,
+                    },
+                },
+            });
+        }
+        else {
+            await ensureSuccessfulCheckoutArtifacts(existingOrder, responsePayload);
+            return {
+                status: "success",
+                message: "Payment had already been confirmed earlier.",
+                orderId,
+                subscriptionId,
+            };
+        }
+        return {
+            status: "failed",
+            message: hashVerified
+                ? failureMessage || "Payment was not approved."
+                : "Payment verification failed.",
+            orderId,
+            subscriptionId,
         };
     },
     async createStoreOrder(payload) {

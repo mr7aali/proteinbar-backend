@@ -12,6 +12,7 @@ const env_1 = require("./config/env");
 const routes_1 = require("./routes");
 const errorHandler_1 = require("./common/middleware/errorHandler");
 exports.app = (0, express_1.default)();
+exports.app.set("trust proxy", true);
 exports.app.use((0, helmet_1.default)());
 // app.use(
 //   cors({
@@ -28,6 +29,7 @@ exports.app.use((0, cors_1.default)({
     origin: true, // reflect request origin (allows all)
     credentials: true,
 }));
+exports.app.use(express_1.default.urlencoded({ extended: true }));
 exports.app.use((req, res, next) => {
     res.header("Vary", "Origin");
     next();

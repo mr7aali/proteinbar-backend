@@ -52,8 +52,20 @@ export const publicController = {
     res.status(201).json({ success: true, data });
   }),
   checkout: asyncHandler(async (req: Request, res: Response) => {
-    const data = await publicService.checkout(req.body);
+    const data = await publicService.checkout(req.body, req);
     res.status(201).json({ success: true, data });
+  }),
+  handleCmiReturn: asyncHandler(async (req: Request, res: Response) => {
+    const source =
+      req.method.toUpperCase() === "GET"
+        ? (req.query as Record<string, unknown>)
+        : (req.body as Record<string, unknown>);
+    const data = await publicService.handleCmiReturn(source, req);
+    res.redirect(302, data.redirectUrl);
+  }),
+  handleCmiCallback: asyncHandler(async (req: Request, res: Response) => {
+    const data = await publicService.handleCmiCallback(req.body);
+    res.status(200).send(data.acknowledged ? "OK" : "FAILED");
   }),
   createStoreOrder: asyncHandler(async (req: Request, res: Response) => {
     const data = await publicService.createStoreOrder(req.body);
