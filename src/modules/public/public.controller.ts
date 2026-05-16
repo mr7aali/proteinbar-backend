@@ -65,7 +65,7 @@ export const publicController = {
   }),
   handleCmiCallback: asyncHandler(async (req: Request, res: Response) => {
     const data = await publicService.handleCmiCallback(req.body);
-    res.status(200).send(data.acknowledged ? "OK" : "FAILED");
+    res.status(200).send(data.responseText);
   }),
   createStoreOrder: asyncHandler(async (req: Request, res: Response) => {
     const data = await publicService.createStoreOrder(req.body);

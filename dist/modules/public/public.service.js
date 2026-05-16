@@ -145,6 +145,10 @@ function getObjectRecord(value) {
         : {};
 }
 function getRequestBaseUrl(req) {
+    const configuredBaseUrl = safeOrigin(env_1.env.BACKEND_BASE_URL);
+    if (configuredBaseUrl) {
+        return configuredBaseUrl;
+    }
     const forwardedProto = req
         .get("x-forwarded-proto")
         ?.split(",")[0]
@@ -171,12 +175,17 @@ function safeOrigin(value) {
     }
 }
 function getFrontendBaseUrl(req) {
-    const origin = safeOrigin(req.get("origin") ?? undefined);
-    if (origin)
-        return origin;
-    const referer = safeOrigin(req.get("referer") ?? undefined);
-    if (referer)
-        return referer;
+    const configuredFrontendUrl = safeOrigin(env_1.env.FRONTEND_PUBLIC_URL);
+    if (configuredFrontendUrl) {
+        return configuredFrontendUrl;
+    }
+    const candidates = [
+        safeOrigin(req.get("origin") ?? undefined),
+        safeOrigin(req.get("referer") ?? undefined),
+    ].filter(Boolean);
+    const trustedOrigin = candidates.find((candidate) => env_1.env.allowedOrigins.includes(candidate));
+    if (trustedOrigin)
+        return trustedOrigin;
     return env_1.env.allowedOrigins[0] || getRequestBaseUrl(req);
 }
 function normalizeGatewayPayload(payload) {
@@ -191,6 +200,11 @@ function buildAuditEntry(action) {
         by: "CMI payment",
         action,
     };
+}
+function getCmiSuccessCallbackReply() {
+    return env_1.env.CMI_TRAN_TYPE.trim().toLowerCase() === "preauth"
+        ? "ACTION=POSTAUTH"
+        : "APPROVED";
 }
 function mergePaymentMeta(existing, patch) {
     const current = existing && typeof existing === "object"
@@ -524,6 +538,14 @@ exports.publicService = {
             storeType: env_1.env.CMI_STORE_TYPE,
             tranType: env_1.env.CMI_TRAN_TYPE,
             billingName: prepared.customerName,
+            billingStreet1: prepared.delivery.address ||
+                prepared.delivery.pickupLocation.address ||
+                prepared.customer.area,
+            billingCity: prepared.customer.area,
+            billingStateProv: prepared.customer.emirate,
+            billingCountry: "Morocco",
+            email: prepared.customer.email,
+            phone: prepared.customer.phone,
         });
         const paymentMeta = {
             provider: "CMI",
@@ -542,6 +564,13 @@ exports.publicService = {
                 rnd: paymentFields.rnd,
                 storetype: paymentFields.storetype,
                 TranType: paymentFields.TranType,
+                BillToName: paymentFields.BillToName,
+                BillToStreet1: paymentFields.BillToStreet1,
+                BillToCity: paymentFields.BillToCity,
+                BillToStateProv: paymentFields.BillToStateProv,
+                BillToCountry: paymentFields.BillToCountry,
+                email: paymentFields.email,
+                tel: paymentFields.tel,
             },
         };
         const order = await public_model_1.CustomerOrderModel.create({
@@ -647,7 +676,7 @@ exports.publicService = {
     async handleCmiCallback(payload) {
         const result = await this.processCmiPaymentResult(payload);
         return {
-            acknowledged: true,
+            responseText: result.callbackResponse,
             ...result,
         };
     },
@@ -660,6 +689,7 @@ exports.publicService = {
                 message: "CMI did not return an order reference.",
                 orderId: "",
                 subscriptionId: "",
+                callbackResponse: "FAILURE",
             };
         }
         const existingOrder = (await public_model_1.CustomerOrderModel.findOne({ orderId }).lean());
@@ -669,16 +699,68 @@ exports.publicService = {
                 message: "Order not found for this CMI response.",
                 orderId,
                 subscriptionId: "",
+                callbackResponse: "FAILURE",
             };
         }
         const subscriptionId = String(existingOrder.subscriptionId ?? "").trim();
         const paymentStatus = String(existingOrder.paymentStatus ?? "pending").trim();
         const hashVerified = (0, cmi_1.verifyCmiResponseHash)(responsePayload, env_1.env.CMI_STORE_KEY);
         const approved = hashVerified && (0, cmi_1.isCmiApprovedResponse)(responsePayload);
+        const receivedAmount = toSafeNumber(responsePayload.amount, Number.NaN);
+        const storedTotals = getObjectRecord(existingOrder.totals);
+        const storedAmount = toSafeNumber(storedTotals.grandTotal, Number.NaN);
+        const amountMatches = Number.isFinite(receivedAmount) &&
+            Number.isFinite(storedAmount) &&
+            receivedAmount.toFixed(2) === storedAmount.toFixed(2);
         const failureMessage = String(responsePayload.ErrMsg ||
             responsePayload.mdErrorMsg ||
             responsePayload.Response ||
             "Payment was not approved.").trim();
+        const callbackResponse = hashVerified
+            ? approved && amountMatches
+                ? getCmiSuccessCallbackReply()
+                : amountMatches
+                    ? "APPROVED"
+                    : "FAILURE"
+            : "FAILURE";
+        if (!amountMatches) {
+            const mismatchMeta = mergePaymentMeta(existingOrder.paymentMeta, {
+                approved: false,
+                finalizedAt: new Date().toISOString(),
+                hashVerified,
+                response: responsePayload,
+                amountMismatch: {
+                    expected: Number.isFinite(storedAmount) ? storedAmount : null,
+                    received: Number.isFinite(receivedAmount) ? receivedAmount : null,
+                },
+            });
+            await public_model_1.CustomerOrderModel.updateOne({ orderId, paymentStatus: { $ne: "paid" } }, {
+                $set: {
+                    paymentStatus: "failed",
+                    paymentMeta: mismatchMeta,
+                },
+            });
+            await admin_model_1.OrderModel.updateOne({ orderId, payment: { $ne: "paid" } }, {
+                $set: {
+                    payment: "unpaid",
+                },
+                $push: {
+                    auditLog: {
+                        $each: [
+                            buildAuditEntry(`Payment amount mismatch. Expected ${storedAmount.toFixed(2)}, received ${Number.isFinite(receivedAmount) ? receivedAmount.toFixed(2) : "N/A"}`),
+                        ],
+                        $position: 0,
+                    },
+                },
+            });
+            return {
+                status: "failed",
+                message: "Payment amount did not match the order total.",
+                orderId,
+                subscriptionId,
+                callbackResponse,
+            };
+        }
         if (approved) {
             const paidMeta = mergePaymentMeta(existingOrder.paymentMeta, {
                 approved: true,
@@ -699,6 +781,7 @@ exports.publicService = {
                 message: "Payment confirmed successfully.",
                 orderId,
                 subscriptionId,
+                callbackResponse,
             };
         }
         if (paymentStatus !== "paid") {
@@ -737,6 +820,7 @@ exports.publicService = {
                 message: "Payment had already been confirmed earlier.",
                 orderId,
                 subscriptionId,
+                callbackResponse,
             };
         }
         return {
@@ -746,6 +830,7 @@ exports.publicService = {
                 : "Payment verification failed.",
             orderId,
             subscriptionId,
+            callbackResponse,
         };
     },
     async createStoreOrder(payload) {

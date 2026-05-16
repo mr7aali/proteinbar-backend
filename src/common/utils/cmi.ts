@@ -6,6 +6,14 @@ const APPROVED_MD_STATUSES = new Set(["1", "2", "3", "4"]);
 
 type HashableParams = Record<string, string>;
 
+function sanitizeCmiBillingValue(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_ -]/g, "")
+    .trim();
+}
+
 function escapeHashValue(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
@@ -93,6 +101,14 @@ export function buildCmiPaymentFields(input: {
   storeType: string;
   tranType: string;
   billingName?: string;
+  billingCompany?: string;
+  billingStreet1?: string;
+  billingCity?: string;
+  billingStateProv?: string;
+  billingPostalCode?: string;
+  billingCountry?: string;
+  email?: string;
+  phone?: string;
 }) {
   const rnd = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const fields: HashableParams = {
@@ -108,9 +124,21 @@ export function buildCmiPaymentFields(input: {
     rnd,
     storetype: input.storeType,
     TranType: input.tranType,
-    BillToName: input.billingName?.trim() ?? "",
+    BillToName: sanitizeCmiBillingValue(input.billingName?.trim() ?? ""),
+    BillToCompany: sanitizeCmiBillingValue(input.billingCompany?.trim() ?? ""),
+    BillToStreet1: sanitizeCmiBillingValue(input.billingStreet1?.trim() ?? ""),
+    BillToCity: sanitizeCmiBillingValue(input.billingCity?.trim() ?? ""),
+    BillToStateProv: sanitizeCmiBillingValue(
+      input.billingStateProv?.trim() ?? "",
+    ),
+    BillToPostalCode: sanitizeCmiBillingValue(
+      input.billingPostalCode?.trim() ?? "",
+    ),
+    BillToCountry: sanitizeCmiBillingValue(input.billingCountry?.trim() ?? ""),
+    email: input.email?.trim() ?? "",
+    tel: input.phone?.trim() ?? "",
     Instalment: "",
-    refreshTime: input.refreshTime,
+    refreshtime: input.refreshTime,
     encoding: "UTF-8",
   };
 

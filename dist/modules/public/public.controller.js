@@ -65,7 +65,7 @@ exports.publicController = {
     }),
     handleCmiCallback: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const data = await public_service_1.publicService.handleCmiCallback(req.body);
-        res.status(200).send(data.acknowledged ? "OK" : "FAILED");
+        res.status(200).send(data.responseText);
     }),
     createStoreOrder: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
         const data = await public_service_1.publicService.createStoreOrder(req.body);

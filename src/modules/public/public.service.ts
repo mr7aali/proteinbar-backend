@@ -205,6 +205,11 @@ function getObjectRecord(value: unknown) {
 }
 
 function getRequestBaseUrl(req: Request) {
+  const configuredBaseUrl = safeOrigin(env.BACKEND_BASE_URL);
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
+  }
+
   const forwardedProto = req
     .get("x-forwarded-proto")
     ?.split(",")[0]
@@ -234,11 +239,20 @@ function safeOrigin(value: string | undefined) {
 }
 
 function getFrontendBaseUrl(req: Request) {
-  const origin = safeOrigin(req.get("origin") ?? undefined);
-  if (origin) return origin;
+  const configuredFrontendUrl = safeOrigin(env.FRONTEND_PUBLIC_URL);
+  if (configuredFrontendUrl) {
+    return configuredFrontendUrl;
+  }
 
-  const referer = safeOrigin(req.get("referer") ?? undefined);
-  if (referer) return referer;
+  const candidates = [
+    safeOrigin(req.get("origin") ?? undefined),
+    safeOrigin(req.get("referer") ?? undefined),
+  ].filter(Boolean);
+
+  const trustedOrigin = candidates.find((candidate) =>
+    env.allowedOrigins.includes(candidate),
+  );
+  if (trustedOrigin) return trustedOrigin;
 
   return env.allowedOrigins[0] || getRequestBaseUrl(req);
 }
@@ -258,6 +272,12 @@ function buildAuditEntry(action: string) {
     by: "CMI payment",
     action,
   };
+}
+
+function getCmiSuccessCallbackReply() {
+  return env.CMI_TRAN_TYPE.trim().toLowerCase() === "preauth"
+    ? "ACTION=POSTAUTH"
+    : "APPROVED";
 }
 
 function mergePaymentMeta(
@@ -687,6 +707,15 @@ export const publicService = {
       storeType: env.CMI_STORE_TYPE,
       tranType: env.CMI_TRAN_TYPE,
       billingName: prepared.customerName,
+      billingStreet1:
+        prepared.delivery.address ||
+        prepared.delivery.pickupLocation.address ||
+        prepared.customer.area,
+      billingCity: prepared.customer.area,
+      billingStateProv: prepared.customer.emirate,
+      billingCountry: "Morocco",
+      email: prepared.customer.email,
+      phone: prepared.customer.phone,
     });
 
     const paymentMeta = {
@@ -706,6 +735,13 @@ export const publicService = {
         rnd: paymentFields.rnd,
         storetype: paymentFields.storetype,
         TranType: paymentFields.TranType,
+        BillToName: paymentFields.BillToName,
+        BillToStreet1: paymentFields.BillToStreet1,
+        BillToCity: paymentFields.BillToCity,
+        BillToStateProv: paymentFields.BillToStateProv,
+        BillToCountry: paymentFields.BillToCountry,
+        email: paymentFields.email,
+        tel: paymentFields.tel,
       },
     };
 
@@ -818,7 +854,7 @@ export const publicService = {
   async handleCmiCallback(payload: Record<string, unknown>) {
     const result = await this.processCmiPaymentResult(payload);
     return {
-      acknowledged: true,
+      responseText: result.callbackResponse,
       ...result,
     };
   },
@@ -835,6 +871,7 @@ export const publicService = {
         message: "CMI did not return an order reference.",
         orderId: "",
         subscriptionId: "",
+        callbackResponse: "FAILURE" as const,
       };
     }
 
@@ -849,6 +886,7 @@ export const publicService = {
         message: "Order not found for this CMI response.",
         orderId,
         subscriptionId: "",
+        callbackResponse: "FAILURE" as const,
       };
     }
 
@@ -856,12 +894,76 @@ export const publicService = {
     const paymentStatus = String(existingOrder.paymentStatus ?? "pending").trim();
     const hashVerified = verifyCmiResponseHash(responsePayload, env.CMI_STORE_KEY);
     const approved = hashVerified && isCmiApprovedResponse(responsePayload);
+    const receivedAmount = toSafeNumber(responsePayload.amount, Number.NaN);
+    const storedTotals = getObjectRecord(existingOrder.totals);
+    const storedAmount = toSafeNumber(storedTotals.grandTotal, Number.NaN);
+    const amountMatches =
+      Number.isFinite(receivedAmount) &&
+      Number.isFinite(storedAmount) &&
+      receivedAmount.toFixed(2) === storedAmount.toFixed(2);
     const failureMessage = String(
       responsePayload.ErrMsg ||
         responsePayload.mdErrorMsg ||
         responsePayload.Response ||
         "Payment was not approved.",
     ).trim();
+    const callbackResponse = hashVerified
+      ? approved && amountMatches
+        ? getCmiSuccessCallbackReply()
+        : amountMatches
+          ? "APPROVED"
+          : "FAILURE"
+      : "FAILURE";
+
+    if (!amountMatches) {
+      const mismatchMeta = mergePaymentMeta(existingOrder.paymentMeta, {
+        approved: false,
+        finalizedAt: new Date().toISOString(),
+        hashVerified,
+        response: responsePayload,
+        amountMismatch: {
+          expected: Number.isFinite(storedAmount) ? storedAmount : null,
+          received: Number.isFinite(receivedAmount) ? receivedAmount : null,
+        },
+      });
+
+      await CustomerOrderModel.updateOne(
+        { orderId, paymentStatus: { $ne: "paid" } },
+        {
+          $set: {
+            paymentStatus: "failed",
+            paymentMeta: mismatchMeta,
+          },
+        },
+      );
+
+      await OrderModel.updateOne(
+        { orderId, payment: { $ne: "paid" } },
+        {
+          $set: {
+            payment: "unpaid",
+          },
+          $push: {
+            auditLog: {
+              $each: [
+                buildAuditEntry(
+                  `Payment amount mismatch. Expected ${storedAmount.toFixed(2)}, received ${Number.isFinite(receivedAmount) ? receivedAmount.toFixed(2) : "N/A"}`,
+                ),
+              ],
+              $position: 0,
+            },
+          },
+        },
+      );
+
+      return {
+        status: "failed" as const,
+        message: "Payment amount did not match the order total.",
+        orderId,
+        subscriptionId,
+        callbackResponse,
+      };
+    }
 
     if (approved) {
       const paidMeta = mergePaymentMeta(existingOrder.paymentMeta, {
@@ -893,6 +995,7 @@ export const publicService = {
         message: "Payment confirmed successfully.",
         orderId,
         subscriptionId,
+        callbackResponse,
       };
     }
 
@@ -941,6 +1044,7 @@ export const publicService = {
         message: "Payment had already been confirmed earlier.",
         orderId,
         subscriptionId,
+        callbackResponse,
       };
     }
 
@@ -951,6 +1055,7 @@ export const publicService = {
         : "Payment verification failed.",
       orderId,
       subscriptionId,
+      callbackResponse,
     };
   },
 

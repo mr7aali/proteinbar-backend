@@ -14,6 +14,8 @@ const envSchema = zod_1.z.object({
     JWT_SECRET: zod_1.z.string().min(8),
     JWT_EXPIRES_IN: zod_1.z.string().default("7d"),
     FRONTEND_ORIGINS: zod_1.z.string().default("http://localhost:3000,http://localhost:3001"),
+    FRONTEND_PUBLIC_URL: zod_1.z.string().optional().default(""),
+    BACKEND_BASE_URL: zod_1.z.string().optional().default(""),
     CUSTOMER_SESSION_COOKIE_NAME: zod_1.z.string().default("proteinbar_customer_session"),
     CUSTOMER_SESSION_DAYS: zod_1.z.coerce.number().default(7),
     SMTP_HOST: zod_1.z.string().optional().default(""),
@@ -37,7 +39,7 @@ const envSchema = zod_1.z.object({
     CMI_CURRENCY: zod_1.z.string().default("504"),
     CMI_LANG: zod_1.z.string().default("fr"),
     CMI_STORE_TYPE: zod_1.z.string().default("3D_PAY_HOSTING"),
-    CMI_TRAN_TYPE: zod_1.z.string().default("Auth"),
+    CMI_TRAN_TYPE: zod_1.z.string().default("PreAuth"),
     CMI_REFRESH_TIME: zod_1.z.string().default("5")
 });
 const parsed = envSchema.safeParse(process.env);

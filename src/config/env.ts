@@ -10,6 +10,8 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(8),
   JWT_EXPIRES_IN: z.string().default("7d"),
   FRONTEND_ORIGINS: z.string().default("http://localhost:3000,http://localhost:3001"),
+  FRONTEND_PUBLIC_URL: z.string().optional().default(""),
+  BACKEND_BASE_URL: z.string().optional().default(""),
   CUSTOMER_SESSION_COOKIE_NAME: z.string().default("proteinbar_customer_session"),
   CUSTOMER_SESSION_DAYS: z.coerce.number().default(7),
   SMTP_HOST: z.string().optional().default(""),
@@ -33,7 +35,7 @@ const envSchema = z.object({
   CMI_CURRENCY: z.string().default("504"),
   CMI_LANG: z.string().default("fr"),
   CMI_STORE_TYPE: z.string().default("3D_PAY_HOSTING"),
-  CMI_TRAN_TYPE: z.string().default("Auth"),
+  CMI_TRAN_TYPE: z.string().default("PreAuth"),
   CMI_REFRESH_TIME: z.string().default("5")
 });
 
