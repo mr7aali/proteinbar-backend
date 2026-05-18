@@ -8,6 +8,7 @@ import { apiRouter } from "./routes";
 import { errorHandler, notFound } from "./common/middleware/errorHandler";
 
 export const app = express();
+app.set("trust proxy", true);
 
 app.use(helmet());
 // app.use(
@@ -27,6 +28,7 @@ app.use(
     credentials: true,
   }),
 );
+app.use(express.urlencoded({ extended: true }));
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.header("Vary", "Origin");
   next();
