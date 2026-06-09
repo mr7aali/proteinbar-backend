@@ -16,6 +16,7 @@ const envSchema = zod_1.z.object({
     FRONTEND_ORIGINS: zod_1.z.string().default("http://localhost:3000,http://localhost:3001"),
     FRONTEND_PUBLIC_URL: zod_1.z.string().optional().default(""),
     BACKEND_BASE_URL: zod_1.z.string().optional().default(""),
+    CMI_PUBLIC_BASE_URL: zod_1.z.string().optional().default(""),
     CUSTOMER_SESSION_COOKIE_NAME: zod_1.z.string().default("proteinbar_customer_session"),
     CUSTOMER_SESSION_DAYS: zod_1.z.coerce.number().default(7),
     SMTP_HOST: zod_1.z.string().optional().default(""),

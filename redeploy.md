@@ -202,6 +202,9 @@ cd /var/www/customer && npm run build && pm2 restart customer
 
 ```env
 FRONTEND_ORIGINS=https://proteinbargroup.com,https://www.proteinbargroup.com,https://admin.proteinbargroup.com
+FRONTEND_PUBLIC_URL=https://proteinbargroup.com
+BACKEND_BASE_URL=https://api.proteinbargroup.com
+CMI_PUBLIC_BASE_URL=https://api.proteinbargroup.com
 ```
 
 ### Admin & Customer (`/var/www/admin/.env` and `/var/www/customer/.env`)
@@ -209,6 +212,17 @@ FRONTEND_ORIGINS=https://proteinbargroup.com,https://www.proteinbargroup.com,htt
 ```env
 NEXT_PUBLIC_API_BASE_URL=https://api.proteinbargroup.com/api/v1
 ```
+
+### CMI callback verification
+
+CMI callback, okUrl, and failUrl values must be generated with HTTPS and the API host:
+
+```text
+https://api.proteinbargroup.com/api/v1/payments/cmi/callback
+https://api.proteinbargroup.com/api/v1/payments/cmi/return
+```
+
+If CMI still tests `http://proteinbargroup.com/api/v1/payments/cmi/callback`, configure nginx to proxy that exact API path to the backend instead of returning the global HTTP-to-HTTPS 301. CMI expects the callback response body to be `ACTION=POSTAUTH` for pre-authorization capture or `APPROVED` for direct authorization.
 
 ---
 
