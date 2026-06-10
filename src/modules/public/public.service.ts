@@ -238,10 +238,45 @@ function safeOrigin(value: string | undefined) {
   }
 }
 
+function isLocalOrigin(origin: string) {
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
+}
+
+function forceHttpsForPublicOrigin(origin: string) {
+  if (!origin || isLocalOrigin(origin)) return origin;
+
+  try {
+    const url = new URL(origin);
+    url.protocol = "https:";
+    return url.origin;
+  } catch {
+    return origin;
+  }
+}
+
+function getCmiBackendBaseUrl(req: Request) {
+  const configuredCmiUrl = safeOrigin(env.CMI_PUBLIC_BASE_URL);
+  if (configuredCmiUrl) {
+    return forceHttpsForPublicOrigin(configuredCmiUrl);
+  }
+
+  const configuredBackendUrl = safeOrigin(env.BACKEND_BASE_URL);
+  if (configuredBackendUrl) {
+    return forceHttpsForPublicOrigin(configuredBackendUrl);
+  }
+
+  return forceHttpsForPublicOrigin(getRequestBaseUrl(req));
+}
+
 function getFrontendBaseUrl(req: Request) {
   const configuredFrontendUrl = safeOrigin(env.FRONTEND_PUBLIC_URL);
   if (configuredFrontendUrl) {
-    return configuredFrontendUrl;
+    return forceHttpsForPublicOrigin(configuredFrontendUrl);
   }
 
   const candidates = [
@@ -252,9 +287,9 @@ function getFrontendBaseUrl(req: Request) {
   const trustedOrigin = candidates.find((candidate) =>
     env.allowedOrigins.includes(candidate),
   );
-  if (trustedOrigin) return trustedOrigin;
+  if (trustedOrigin) return forceHttpsForPublicOrigin(trustedOrigin);
 
-  return env.allowedOrigins[0] || getRequestBaseUrl(req);
+  return forceHttpsForPublicOrigin(env.allowedOrigins[0] || getRequestBaseUrl(req));
 }
 
 function normalizeGatewayPayload(payload: Record<string, unknown>) {
@@ -690,17 +725,18 @@ export const publicService = {
     }
 
     const prepared = await prepareCheckoutPayload(payload);
-    const backendBaseUrl = getRequestBaseUrl(req);
-    const returnUrl = `${backendBaseUrl}/api/v1/payments/cmi/return`;
+    const backendBaseUrl = getCmiBackendBaseUrl(req);
+    const returnUrl = new URL("/api/v1/payments/cmi/return", backendBaseUrl);
+    returnUrl.searchParams.set("oid", prepared.orderId);
     const callbackUrl = `${backendBaseUrl}/api/v1/payments/cmi/callback`;
     const paymentFields = buildCmiPaymentFields({
       amount: prepared.grandTotal,
       callbackUrl,
       clientId: env.CMI_CLIENT_ID,
       currency: env.CMI_CURRENCY,
-      failUrl: returnUrl,
+      failUrl: returnUrl.toString(),
       lang: env.CMI_LANG,
-      okUrl: returnUrl,
+      okUrl: returnUrl.toString(),
       orderId: prepared.orderId,
       refreshTime: env.CMI_REFRESH_TIME,
       storeKey: env.CMI_STORE_KEY,
@@ -841,6 +877,9 @@ export const publicService = {
     if (result.subscriptionId) {
       frontendUrl.searchParams.set("subscriptionId", result.subscriptionId);
     }
+    if ("amount" in result && typeof result.amount === "number") {
+      frontendUrl.searchParams.set("amount", result.amount.toFixed(2));
+    }
     if (result.message) {
       frontendUrl.searchParams.set("message", result.message);
     }
@@ -892,10 +931,11 @@ export const publicService = {
 
     const subscriptionId = String(existingOrder.subscriptionId ?? "").trim();
     const paymentStatus = String(existingOrder.paymentStatus ?? "pending").trim();
+    const storedTotals = getObjectRecord(existingOrder.totals);
+    const displayAmount = Number(toSafeNumber(storedTotals.grandTotal, 0).toFixed(2));
     const hashVerified = verifyCmiResponseHash(responsePayload, env.CMI_STORE_KEY);
     const approved = hashVerified && isCmiApprovedResponse(responsePayload);
     const receivedAmount = toSafeNumber(responsePayload.amount, Number.NaN);
-    const storedTotals = getObjectRecord(existingOrder.totals);
     const storedAmount = toSafeNumber(storedTotals.grandTotal, Number.NaN);
     const amountMatches =
       Number.isFinite(receivedAmount) &&
@@ -915,7 +955,7 @@ export const publicService = {
           : "FAILURE"
       : "FAILURE";
 
-    if (!amountMatches) {
+    if (!amountMatches && paymentStatus !== "paid") {
       const mismatchMeta = mergePaymentMeta(existingOrder.paymentMeta, {
         approved: false,
         finalizedAt: new Date().toISOString(),
@@ -961,6 +1001,7 @@ export const publicService = {
         message: "Payment amount did not match the order total.",
         orderId,
         subscriptionId,
+        amount: displayAmount,
         callbackResponse,
       };
     }
@@ -995,6 +1036,7 @@ export const publicService = {
         message: "Payment confirmed successfully.",
         orderId,
         subscriptionId,
+        amount: displayAmount,
         callbackResponse,
       };
     }
@@ -1044,6 +1086,7 @@ export const publicService = {
         message: "Payment had already been confirmed earlier.",
         orderId,
         subscriptionId,
+        amount: displayAmount,
         callbackResponse,
       };
     }
@@ -1055,6 +1098,7 @@ export const publicService = {
         : "Payment verification failed.",
       orderId,
       subscriptionId,
+      amount: displayAmount,
       callbackResponse,
     };
   },

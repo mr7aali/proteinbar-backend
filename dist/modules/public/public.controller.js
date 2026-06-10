@@ -57,14 +57,19 @@ exports.publicController = {
         res.status(201).json({ success: true, data });
     }),
     handleCmiReturn: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-        const source = req.method.toUpperCase() === "GET"
-            ? req.query
-            : req.body;
+        const source = {
+            ...req.query,
+            ...req.body,
+        };
         const data = await public_service_1.publicService.handleCmiReturn(source, req);
         res.redirect(302, data.redirectUrl);
     }),
     handleCmiCallback: (0, asyncHandler_1.asyncHandler)(async (req, res) => {
-        const data = await public_service_1.publicService.handleCmiCallback(req.body);
+        const source = {
+            ...req.query,
+            ...req.body,
+        };
+        const data = await public_service_1.publicService.handleCmiCallback(source);
         res.status(200).send(data.responseText);
     }),
     createStoreOrder: (0, asyncHandler_1.asyncHandler)(async (req, res) => {

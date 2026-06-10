@@ -14,6 +14,15 @@ function sanitizeCmiBillingValue(value: string) {
     .trim();
 }
 
+function firstNonEmptySanitizedValue(...values: string[]) {
+  for (const value of values) {
+    const sanitized = sanitizeCmiBillingValue(value);
+    if (sanitized) return sanitized;
+  }
+
+  return "";
+}
+
 function escapeHashValue(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
 }
@@ -111,6 +120,11 @@ export function buildCmiPaymentFields(input: {
   phone?: string;
 }) {
   const rnd = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const billingName = firstNonEmptySanitizedValue(
+    input.billingName?.trim() ?? "",
+    input.email?.split("@")[0] ?? "",
+    "Proteinbar Customer",
+  );
   const fields: HashableParams = {
     amount: input.amount.toFixed(2),
     callbackUrl: input.callbackUrl,
@@ -124,7 +138,7 @@ export function buildCmiPaymentFields(input: {
     rnd,
     storetype: input.storeType,
     TranType: input.tranType,
-    BillToName: sanitizeCmiBillingValue(input.billingName?.trim() ?? ""),
+    BillToName: billingName,
     BillToCompany: sanitizeCmiBillingValue(input.billingCompany?.trim() ?? ""),
     BillToStreet1: sanitizeCmiBillingValue(input.billingStreet1?.trim() ?? ""),
     BillToCity: sanitizeCmiBillingValue(input.billingCity?.trim() ?? ""),
