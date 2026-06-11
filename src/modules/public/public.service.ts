@@ -207,7 +207,7 @@ function getObjectRecord(value: unknown) {
 function getRequestBaseUrl(req: Request) {
   const configuredBaseUrl = safeOrigin(env.BACKEND_BASE_URL);
   if (configuredBaseUrl) {
-    return configuredBaseUrl;
+    return toCmiPublicOrigin(configuredBaseUrl);
   }
 
   const forwardedProto = req
@@ -225,7 +225,7 @@ function getRequestBaseUrl(req: Request) {
     throw new AppError(500, "Unable to resolve backend URL for CMI.");
   }
 
-  return `${protocol}://${host}`;
+  return toCmiPublicOrigin(`${protocol}://${host}`);
 }
 
 function safeOrigin(value: string | undefined) {
@@ -236,6 +236,25 @@ function safeOrigin(value: string | undefined) {
   } catch {
     return "";
   }
+}
+
+function toCmiPublicOrigin(value: string) {
+  const origin = safeOrigin(value);
+  if (!origin) return "";
+
+  const url = new URL(origin);
+  const hostname = url.hostname.toLowerCase();
+  const isLocal =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname.endsWith(".localhost");
+
+  if (!isLocal) {
+    url.protocol = "https:";
+  }
+
+  return url.origin;
 }
 
 function getFrontendBaseUrl(req: Request) {
@@ -833,6 +852,7 @@ export const publicService = {
   async handleCmiReturn(payload: Record<string, unknown>, req: Request) {
     const result = await this.processCmiPaymentResult(payload);
     const frontendUrl = new URL("/payment/cmi-return", getFrontendBaseUrl(req));
+    const amount = String(payload.amount ?? payload.Amount ?? "").trim();
 
     frontendUrl.searchParams.set("status", result.status);
     if (result.orderId) {
@@ -843,6 +863,9 @@ export const publicService = {
     }
     if (result.message) {
       frontendUrl.searchParams.set("message", result.message);
+    }
+    if (amount) {
+      frontendUrl.searchParams.set("amount", amount);
     }
 
     return {
