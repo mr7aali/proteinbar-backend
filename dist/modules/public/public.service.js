@@ -147,7 +147,7 @@ function getObjectRecord(value) {
 function getRequestBaseUrl(req) {
     const configuredBaseUrl = safeOrigin(env_1.env.BACKEND_BASE_URL);
     if (configuredBaseUrl) {
-        return configuredBaseUrl;
+        return toCmiPublicOrigin(configuredBaseUrl);
     }
     const forwardedProto = req
         .get("x-forwarded-proto")
@@ -162,7 +162,7 @@ function getRequestBaseUrl(req) {
     if (!host) {
         throw new AppError_1.AppError(500, "Unable to resolve backend URL for CMI.");
     }
-    return `${protocol}://${host}`;
+    return toCmiPublicOrigin(`${protocol}://${host}`);
 }
 function safeOrigin(value) {
     if (!value)
@@ -174,37 +174,30 @@ function safeOrigin(value) {
         return "";
     }
 }
-function isLocalOrigin(origin) {
-    try {
-        const hostname = new URL(origin).hostname.toLowerCase();
-        return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
-    }
-    catch {
-        return false;
-    }
-}
-function forceHttpsForPublicOrigin(origin) {
-    if (!origin || isLocalOrigin(origin))
-        return origin;
-    try {
-        const url = new URL(origin);
+function toCmiPublicOrigin(value) {
+    const origin = safeOrigin(value);
+    if (!origin)
+        return "";
+    const url = new URL(origin);
+    const hostname = url.hostname.toLowerCase();
+    const isLocal = hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname.endsWith(".localhost");
+    if (!isLocal) {
         url.protocol = "https:";
-        return url.origin;
     }
-    catch {
-        return origin;
-    }
+    return url.origin;
+}
+function forceHttpsForPublicOrigin(value) {
+    return toCmiPublicOrigin(value);
 }
 function getCmiBackendBaseUrl(req) {
     const configuredCmiUrl = safeOrigin(env_1.env.CMI_PUBLIC_BASE_URL);
     if (configuredCmiUrl) {
-        return forceHttpsForPublicOrigin(configuredCmiUrl);
+        return toCmiPublicOrigin(configuredCmiUrl);
     }
-    const configuredBackendUrl = safeOrigin(env_1.env.BACKEND_BASE_URL);
-    if (configuredBackendUrl) {
-        return forceHttpsForPublicOrigin(configuredBackendUrl);
-    }
-    return forceHttpsForPublicOrigin(getRequestBaseUrl(req));
+    return getRequestBaseUrl(req);
 }
 function getFrontendBaseUrl(req) {
     const configuredFrontendUrl = safeOrigin(env_1.env.FRONTEND_PUBLIC_URL);
@@ -691,6 +684,7 @@ exports.publicService = {
     async handleCmiReturn(payload, req) {
         const result = await this.processCmiPaymentResult(payload);
         const frontendUrl = new URL("/payment/cmi-return", getFrontendBaseUrl(req));
+        const amount = String(payload.amount ?? payload.Amount ?? "").trim();
         frontendUrl.searchParams.set("status", result.status);
         if (result.orderId) {
             frontendUrl.searchParams.set("orderId", result.orderId);
@@ -703,6 +697,9 @@ exports.publicService = {
         }
         if (result.message) {
             frontendUrl.searchParams.set("message", result.message);
+        }
+        if (amount) {
+            frontendUrl.searchParams.set("amount", amount);
         }
         return {
             redirectUrl: frontendUrl.toString(),

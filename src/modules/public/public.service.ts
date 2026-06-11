@@ -257,6 +257,19 @@ function toCmiPublicOrigin(value: string) {
   return url.origin;
 }
 
+function forceHttpsForPublicOrigin(value: string) {
+  return toCmiPublicOrigin(value);
+}
+
+function getCmiBackendBaseUrl(req: Request) {
+  const configuredCmiUrl = safeOrigin(env.CMI_PUBLIC_BASE_URL);
+  if (configuredCmiUrl) {
+    return toCmiPublicOrigin(configuredCmiUrl);
+  }
+
+  return getRequestBaseUrl(req);
+}
+
 function getFrontendBaseUrl(req: Request) {
   const configuredFrontendUrl = safeOrigin(env.FRONTEND_PUBLIC_URL);
   if (configuredFrontendUrl) {
