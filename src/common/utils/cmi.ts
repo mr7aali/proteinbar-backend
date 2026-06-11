@@ -16,7 +16,8 @@ function sanitizeCmiBillingValue(value: string) {
 
 function cmiBillingValue(value: string | undefined, fallback = "") {
   const sanitized = sanitizeCmiBillingValue(value?.trim() ?? "");
-  return sanitized || fallback;
+  const sanitizedFallback = sanitizeCmiBillingValue(fallback.trim());
+  return sanitized || sanitizedFallback;
 }
 
 function escapeHashValue(value: string) {
@@ -116,7 +117,7 @@ export function buildCmiPaymentFields(input: {
   phone?: string;
 }) {
   const rnd = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const billingNameFallback = cmiBillingValue(input.email, "Customer");
+  const billingNameFallback = cmiBillingValue(input.email, "Customer") || "Customer";
   const fields: HashableParams = {
     amount: input.amount.toFixed(2),
     callbackUrl: input.callbackUrl,
@@ -130,7 +131,7 @@ export function buildCmiPaymentFields(input: {
     rnd,
     storetype: input.storeType,
     TranType: input.tranType,
-    BillToName: cmiBillingValue(input.billingName, billingNameFallback),
+    BillToName: cmiBillingValue(input.billingName, billingNameFallback) || "Customer",
     BillToCompany: cmiBillingValue(input.billingCompany),
     BillToStreet1: cmiBillingValue(input.billingStreet1),
     BillToCity: cmiBillingValue(input.billingCity),
