@@ -14,13 +14,9 @@ function sanitizeCmiBillingValue(value: string) {
     .trim();
 }
 
-function firstNonEmptySanitizedValue(...values: string[]) {
-  for (const value of values) {
-    const sanitized = sanitizeCmiBillingValue(value);
-    if (sanitized) return sanitized;
-  }
-
-  return "";
+function cmiBillingValue(value: string | undefined, fallback = "") {
+  const sanitized = sanitizeCmiBillingValue(value?.trim() ?? "");
+  return sanitized || fallback;
 }
 
 function escapeHashValue(value: string) {
@@ -120,11 +116,7 @@ export function buildCmiPaymentFields(input: {
   phone?: string;
 }) {
   const rnd = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const billingName = firstNonEmptySanitizedValue(
-    input.billingName?.trim() ?? "",
-    input.email?.split("@")[0] ?? "",
-    "Proteinbar Customer",
-  );
+  const billingNameFallback = cmiBillingValue(input.email, "Customer");
   const fields: HashableParams = {
     amount: input.amount.toFixed(2),
     callbackUrl: input.callbackUrl,
@@ -138,17 +130,13 @@ export function buildCmiPaymentFields(input: {
     rnd,
     storetype: input.storeType,
     TranType: input.tranType,
-    BillToName: billingName,
-    BillToCompany: sanitizeCmiBillingValue(input.billingCompany?.trim() ?? ""),
-    BillToStreet1: sanitizeCmiBillingValue(input.billingStreet1?.trim() ?? ""),
-    BillToCity: sanitizeCmiBillingValue(input.billingCity?.trim() ?? ""),
-    BillToStateProv: sanitizeCmiBillingValue(
-      input.billingStateProv?.trim() ?? "",
-    ),
-    BillToPostalCode: sanitizeCmiBillingValue(
-      input.billingPostalCode?.trim() ?? "",
-    ),
-    BillToCountry: sanitizeCmiBillingValue(input.billingCountry?.trim() ?? ""),
+    BillToName: cmiBillingValue(input.billingName, billingNameFallback),
+    BillToCompany: cmiBillingValue(input.billingCompany),
+    BillToStreet1: cmiBillingValue(input.billingStreet1),
+    BillToCity: cmiBillingValue(input.billingCity),
+    BillToStateProv: cmiBillingValue(input.billingStateProv),
+    BillToPostalCode: cmiBillingValue(input.billingPostalCode),
+    BillToCountry: cmiBillingValue(input.billingCountry),
     email: input.email?.trim() ?? "",
     tel: input.phone?.trim() ?? "",
     Instalment: "",
