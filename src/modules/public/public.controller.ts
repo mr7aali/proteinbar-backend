@@ -56,15 +56,19 @@ export const publicController = {
     res.status(201).json({ success: true, data });
   }),
   handleCmiReturn: asyncHandler(async (req: Request, res: Response) => {
-    const source =
-      req.method.toUpperCase() === "GET"
-        ? (req.query as Record<string, unknown>)
-        : (req.body as Record<string, unknown>);
+    const source = {
+      ...(req.query as Record<string, unknown>),
+      ...(req.body as Record<string, unknown>),
+    };
     const data = await publicService.handleCmiReturn(source, req);
     res.redirect(302, data.redirectUrl);
   }),
   handleCmiCallback: asyncHandler(async (req: Request, res: Response) => {
-    const data = await publicService.handleCmiCallback(req.body);
+    const source = {
+      ...(req.query as Record<string, unknown>),
+      ...(req.body as Record<string, unknown>),
+    };
+    const data = await publicService.handleCmiCallback(source);
     res.status(200).send(data.responseText);
   }),
   createStoreOrder: asyncHandler(async (req: Request, res: Response) => {

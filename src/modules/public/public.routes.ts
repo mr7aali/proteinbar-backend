@@ -20,6 +20,7 @@ publicRouter.post("/public/promo-codes/validate", validate(validatePromoCodeSche
 publicRouter.post("/contact", validate(contactSchema), publicController.createContactMessage);
 publicRouter.get("/payments/cmi/return", publicController.handleCmiReturn);
 publicRouter.post("/payments/cmi/return", publicController.handleCmiReturn);
+publicRouter.get("/payments/cmi/callback", publicController.handleCmiCallback);
 publicRouter.post("/payments/cmi/callback", publicController.handleCmiCallback);
 publicRouter.post("/checkout", requireCustomerSession, validate(checkoutSchema), publicController.checkout);
 publicRouter.post("/store-orders", validate(storeOrderSchema), publicController.createStoreOrder);

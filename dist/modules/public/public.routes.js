@@ -21,6 +21,7 @@ exports.publicRouter.post("/public/promo-codes/validate", (0, validate_1.validat
 exports.publicRouter.post("/contact", (0, validate_1.validate)(public_validation_1.contactSchema), public_controller_1.publicController.createContactMessage);
 exports.publicRouter.get("/payments/cmi/return", public_controller_1.publicController.handleCmiReturn);
 exports.publicRouter.post("/payments/cmi/return", public_controller_1.publicController.handleCmiReturn);
+exports.publicRouter.get("/payments/cmi/callback", public_controller_1.publicController.handleCmiCallback);
 exports.publicRouter.post("/payments/cmi/callback", public_controller_1.publicController.handleCmiCallback);
 exports.publicRouter.post("/checkout", requireCustomerSession_1.requireCustomerSession, (0, validate_1.validate)(public_validation_1.checkoutSchema), public_controller_1.publicController.checkout);
 exports.publicRouter.post("/store-orders", (0, validate_1.validate)(public_validation_1.storeOrderSchema), public_controller_1.publicController.createStoreOrder);
