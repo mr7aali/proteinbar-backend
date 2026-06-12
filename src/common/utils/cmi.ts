@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 const REQUEST_HASH_EXCLUDED_KEYS = new Set(["hash", "encoding"]);
-const RESPONSE_HASH_EXCLUDED_KEYS = new Set(["hash", "encoding", "countdown"]);
+const RESPONSE_HASH_EXCLUDED_KEYS = new Set(["hash", "encoding"]);
 const APPROVED_MD_STATUSES = new Set(["1", "2", "3", "4"]);
 
 type HashableParams = Record<string, string>;
@@ -21,22 +21,37 @@ function cmiBillingValue(value: string | undefined, fallback = "") {
 }
 
 function escapeHashValue(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/[\t\n\r]+/g, "");
 }
 
-function normalizeParams(
+function normalizeHashEntries(
   params: Record<string, unknown>,
   excludedKeys: Set<string>,
 ) {
-  const normalized = new Map<string, string>();
+  const normalized: Array<[string, string]> = [];
 
   Object.entries(params).forEach(([key, value]) => {
-    const normalizedKey = key.trim().toLowerCase();
-    if (!normalizedKey || excludedKeys.has(normalizedKey)) return;
-    normalized.set(normalizedKey, String(value ?? ""));
+    const normalizedKey = key.trim();
+    const lowerKey = normalizedKey.toLowerCase();
+    if (!normalizedKey || excludedKeys.has(lowerKey)) return;
+    normalized.push([
+      normalizedKey,
+      Array.isArray(value) ? String(value[0] ?? "") : String(value ?? ""),
+    ]);
   });
 
-  return normalized;
+  return normalized.sort(([leftKey], [rightKey]) => {
+    const left = leftKey.toUpperCase();
+    const right = rightKey.toUpperCase();
+    if (left < right) return -1;
+    if (left > right) return 1;
+    if (leftKey < rightKey) return -1;
+    if (leftKey > rightKey) return 1;
+    return 0;
+  });
 }
 
 function computeHash(
@@ -44,11 +59,8 @@ function computeHash(
   storeKey: string,
   excludedKeys: Set<string>,
 ) {
-  const normalized = normalizeParams(params, excludedKeys);
-  const sortedKeys = [...normalized.keys()].sort((left, right) =>
-    left.localeCompare(right),
-  );
-  const values = sortedKeys.map((key) => escapeHashValue(normalized.get(key) ?? ""));
+  const normalized = normalizeHashEntries(params, excludedKeys);
+  const values = normalized.map(([, value]) => escapeHashValue(value));
   const plainText = [...values, escapeHashValue(storeKey)].join("|");
 
   return crypto
@@ -86,11 +98,11 @@ export function isCmiApprovedResponse(params: Record<string, unknown>) {
   ).trim();
   const mdStatus = String(params.mdStatus ?? params.mdstatus ?? "").trim();
 
-  return (
-    response === "approved" &&
-    procReturnCode === "00" &&
-    APPROVED_MD_STATUSES.has(mdStatus)
-  );
+  if (procReturnCode !== "00") return false;
+  if (response && response !== "approved") return false;
+  if (mdStatus && !APPROVED_MD_STATUSES.has(mdStatus)) return false;
+
+  return true;
 }
 
 export function buildCmiPaymentFields(input: {
