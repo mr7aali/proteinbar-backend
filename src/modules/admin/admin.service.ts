@@ -45,6 +45,18 @@ type MealLibraryItemPayload = {
   addOnOptions?: string[];
   status: "active" | "inactive";
   image?: string;
+  archiveReason?: string;
+  archivedReferenceCount?: number;
+  archivedPlanCount?: number;
+};
+
+type MealLibraryDeleteResult = {
+  id: string;
+  action: "archived" | "deleted";
+  status: "inactive" | "deleted";
+  referenceCount: number;
+  planCount: number;
+  message: string;
 };
 
 type SelectionMode = "single" | "multi";
@@ -648,7 +660,10 @@ function toMealLibraryItem(row: Record<string, unknown>): MealLibraryItemPayload
     tags: Array.isArray(row.tags) ? row.tags.map((item) => String(item)) : [],
     addOnOptions: Array.isArray(row.addOnOptions) ? row.addOnOptions.map((item) => String(item)) : [],
     status: String(row.status ?? "active") === "inactive" ? "inactive" : "active",
-    image: normalizeMealImage(row.image)
+    image: normalizeMealImage(row.image),
+    archiveReason: String(row.archiveReason ?? "").trim() || undefined,
+    archivedReferenceCount: Number(row.archivedReferenceCount ?? 0),
+    archivedPlanCount: Number(row.archivedPlanCount ?? 0)
   };
 }
 
@@ -663,6 +678,264 @@ function buildMealLibraryLookup(meals: MealLibraryItemPayload[]) {
   return {
     byId: new Map(meals.map((meal) => [meal.id, meal])),
     byName: new Map(meals.map((meal) => [normalizeMealLookupValue(meal.name), meal]))
+  };
+}
+
+function toMealMacroNumber(value: unknown) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, numeric);
+}
+
+function createLegacyMealLibraryId(name: string, mealType: string) {
+  const baseName = normalizeMealLookupValue(name) || "meal";
+  const baseType = normalizeMealLookupValue(mealType) || "lunch";
+  const hash = crypto.createHash("sha1").update(`${baseName}|${baseType}`).digest("hex").slice(0, 10);
+  return `legacy-meal-${toSlug(name) || "meal"}-${hash}`;
+}
+
+function collectMealReferenceKeys(details: MonthlyPlanDetailsPayload) {
+  const mealIds = new Set<string>();
+  const mealNames = new Set<string>();
+  const weekAssignments = Array.isArray(details.weekAssignments) ? details.weekAssignments : [];
+
+  for (const week of weekAssignments) {
+    const mealsByDate =
+      week.mealsByDate && typeof week.mealsByDate === "object"
+        ? (week.mealsByDate as Record<string, unknown>)
+        : {};
+
+    for (const assignedMeals of Object.values(mealsByDate)) {
+      for (const entry of Array.isArray(assignedMeals) ? assignedMeals : []) {
+        const meal = entry as Record<string, unknown>;
+        const mealId = String(meal.mealId ?? "").trim();
+        const mealName = normalizeMealLookupValue(meal.mealName);
+        if (mealId) mealIds.add(mealId);
+        if (mealName) mealNames.add(mealName);
+      }
+    }
+  }
+
+  const content =
+    details.plan.content && typeof details.plan.content === "object"
+      ? (details.plan.content as Record<string, unknown>)
+      : null;
+  const stepTwo =
+    content?.regularStepTwo && typeof content.regularStepTwo === "object"
+      ? (content.regularStepTwo as Record<string, unknown>)
+      : content?.customStepTwo && typeof content.customStepTwo === "object"
+        ? (content.customStepTwo as Record<string, unknown>)
+        : null;
+  const foodItems = Array.isArray(stepTwo?.foodItems) ? stepTwo.foodItems : [];
+
+  for (const entry of foodItems) {
+    const item = entry as Record<string, unknown>;
+    const sourceMealId = String(item.sourceMealId ?? "").trim();
+    const name = normalizeMealLookupValue(item.name);
+    if (sourceMealId) mealIds.add(sourceMealId);
+    if (name) mealNames.add(name);
+  }
+
+  return { mealIds, mealNames };
+}
+
+function collectMissingMealLibraryItems(details: MonthlyPlanDetailsPayload, meals: MealLibraryItemPayload[]) {
+  const { byId, byName } = buildMealLibraryLookup(meals);
+  const missingMeals = new Map<string, MealLibraryItemPayload>();
+
+  const addMissingMeal = (candidate: {
+    name: unknown;
+    mealType?: unknown;
+    image?: unknown;
+    calories?: unknown;
+    protein?: unknown;
+    carbs?: unknown;
+    fat?: unknown;
+  }) => {
+    const name = String(candidate.name ?? "").trim();
+    if (!name) return;
+
+    const normalizedName = normalizeMealLookupValue(name);
+    if (byName.has(normalizedName)) return;
+
+    const mealType = String(candidate.mealType ?? "").trim() || "Lunch";
+    const key = `${normalizedName}::${normalizeMealLookupValue(mealType)}`;
+    if (missingMeals.has(key)) return;
+
+    const id = createLegacyMealLibraryId(name, mealType);
+    if (byId.has(id)) return;
+
+    missingMeals.set(key, {
+      id,
+      name,
+      mealType,
+      calories: toMealMacroNumber(candidate.calories),
+      protein: toMealMacroNumber(candidate.protein),
+      carbs: toMealMacroNumber(candidate.carbs),
+      fat: toMealMacroNumber(candidate.fat),
+      tags: [],
+      addOnOptions: [],
+      status: "inactive",
+      image: normalizeMealImage(candidate.image)
+    });
+  };
+
+  const weekAssignments = Array.isArray(details.weekAssignments) ? details.weekAssignments : [];
+  for (const week of weekAssignments) {
+    const mealsByDate =
+      week.mealsByDate && typeof week.mealsByDate === "object"
+        ? (week.mealsByDate as Record<string, unknown>)
+        : {};
+
+    for (const assignedMeals of Object.values(mealsByDate)) {
+      for (const entry of Array.isArray(assignedMeals) ? assignedMeals : []) {
+        const meal = entry as Record<string, unknown>;
+        const mealId = String(meal.mealId ?? "").trim();
+        const mealName = String(meal.mealName ?? "").trim();
+        const linkedMeal = byId.get(mealId) ?? byName.get(normalizeMealLookupValue(mealName));
+        if (linkedMeal) continue;
+
+        addMissingMeal({
+          name: mealName,
+          mealType: meal.mealType
+        });
+      }
+    }
+  }
+
+  const content =
+    details.plan.content && typeof details.plan.content === "object"
+      ? (details.plan.content as Record<string, unknown>)
+      : null;
+  const stepTwo =
+    content?.regularStepTwo && typeof content.regularStepTwo === "object"
+      ? (content.regularStepTwo as Record<string, unknown>)
+      : content?.customStepTwo && typeof content.customStepTwo === "object"
+        ? (content.customStepTwo as Record<string, unknown>)
+        : null;
+  const foodItems = Array.isArray(stepTwo?.foodItems) ? stepTwo.foodItems : [];
+
+  for (const entry of foodItems) {
+    const item = entry as Record<string, unknown>;
+    const sourceMealId = String(item.sourceMealId ?? "").trim();
+    const name = String(item.name ?? "").trim();
+    const linkedMeal = byId.get(sourceMealId) ?? byName.get(normalizeMealLookupValue(name));
+    if (linkedMeal) continue;
+
+    const sizes = Array.isArray(item.sizes) ? item.sizes : [];
+    const primarySize = sizes[0] as Record<string, unknown> | undefined;
+
+    addMissingMeal({
+      name,
+      mealType: item.mealType,
+      image: item.imageUrl,
+      calories: primarySize?.calories,
+      protein: primarySize?.protein,
+      carbs: primarySize?.carbs,
+      fat: primarySize?.fat
+    });
+  }
+
+  return Array.from(missingMeals.values());
+}
+
+async function ensureMealLibraryCoverageForDetails(details: MonthlyPlanDetailsPayload, meals: MealLibraryItemPayload[]) {
+  const missingMeals = collectMissingMealLibraryItems(details, meals);
+  if (missingMeals.length === 0) {
+    return meals;
+  }
+
+  const createdMeals = await Promise.all(
+    missingMeals.map(async (meal) => {
+      const row = await MealLibraryItemModel.findOneAndUpdate(
+        { mealId: meal.id },
+        {
+          mealId: meal.id,
+          name: meal.name,
+          mealType: meal.mealType,
+          calories: meal.calories,
+          protein: meal.protein,
+          carbs: meal.carbs,
+          fat: meal.fat,
+          tags: meal.tags,
+          addOnOptions: meal.addOnOptions ?? [],
+          status: "inactive",
+          image: meal.image ?? ""
+        },
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      ).lean();
+
+      return toMealLibraryItem(row as unknown as Record<string, unknown>);
+    })
+  );
+
+  const mergedMeals = new Map(meals.map((meal) => [meal.id, meal]));
+  for (const meal of createdMeals) {
+    mergedMeals.set(meal.id, meal);
+  }
+
+  return Array.from(mergedMeals.values());
+}
+
+function hydrateAssignedMealsWithMealLibrary(
+  weekAssignments: Array<Record<string, unknown>>,
+  meals: MealLibraryItemPayload[]
+) {
+  const { byId, byName } = buildMealLibraryLookup(meals);
+  let didChange = false;
+
+  const nextWeekAssignments = weekAssignments.map((week) => {
+    const mealsByDate =
+      week.mealsByDate && typeof week.mealsByDate === "object"
+        ? (week.mealsByDate as Record<string, unknown>)
+        : {};
+
+    const nextMealsByDate = Object.fromEntries(
+      Object.entries(mealsByDate).map(([dateIso, assignedMeals]) => {
+        const normalizedMeals = Array.isArray(assignedMeals) ? assignedMeals : [];
+
+        return [
+          dateIso,
+          normalizedMeals.map((entry) => {
+            const meal = entry as Record<string, unknown>;
+            const mealId = String(meal.mealId ?? "").trim();
+            const mealName = String(meal.mealName ?? "").trim();
+            const linkedMeal =
+              byId.get(mealId) ??
+              byName.get(normalizeMealLookupValue(mealName));
+
+            if (!linkedMeal) {
+              return meal;
+            }
+
+            if (
+              mealId !== linkedMeal.id ||
+              mealName !== linkedMeal.name ||
+              !String(meal.mealType ?? "").trim()
+            ) {
+              didChange = true;
+            }
+
+            return {
+              ...meal,
+              mealId: linkedMeal.id,
+              mealName: linkedMeal.name,
+              mealType: String(meal.mealType ?? "").trim() || linkedMeal.mealType || "Lunch"
+            };
+          })
+        ];
+      })
+    );
+
+    return {
+      ...week,
+      mealsByDate: nextMealsByDate
+    };
+  });
+
+  return {
+    weekAssignments: nextWeekAssignments,
+    didChange
   };
 }
 
@@ -790,6 +1063,43 @@ async function syncMealLibraryItemToPlans(meal: MealLibraryItemPayload, previous
       return hydrateRegularFoodItem(item, meal);
     });
 
+    const weekAssignments = Array.isArray(payload.weekAssignments) ? payload.weekAssignments : [];
+    const nextWeekAssignments = weekAssignments.map((week) => {
+      const mealsByDate =
+        week.mealsByDate && typeof week.mealsByDate === "object"
+          ? (week.mealsByDate as Record<string, unknown>)
+          : {};
+
+      return {
+        ...week,
+        mealsByDate: Object.fromEntries(
+          Object.entries(mealsByDate).map(([dateIso, assignedMeals]) => [
+            dateIso,
+            (Array.isArray(assignedMeals) ? assignedMeals : []).map((entry) => {
+              const assignedMeal = entry as Record<string, unknown>;
+              const assignedMealId = String(assignedMeal.mealId ?? "").trim();
+              const assignedMealName = normalizeMealLookupValue(assignedMeal.mealName);
+              const isAssignedMealMatch =
+                assignedMealId === meal.id ||
+                candidateNames.has(assignedMealName);
+
+              if (!isAssignedMealMatch) {
+                return assignedMeal;
+              }
+
+              didChange = true;
+              return {
+                ...assignedMeal,
+                mealId: meal.id,
+                mealName: meal.name,
+                mealType: String(assignedMeal.mealType ?? "").trim() || meal.mealType || "Lunch"
+              };
+            })
+          ])
+        )
+      };
+    });
+
     if (!didChange) continue;
 
     await MonthlyPlanDetailsModel.updateOne(
@@ -797,6 +1107,7 @@ async function syncMealLibraryItemToPlans(meal: MealLibraryItemPayload, previous
         {
           $set: {
             [`plan.content.${stepTwoKey}.foodItems`]: nextFoodItems,
+            weekAssignments: nextWeekAssignments,
             "plan.updatedAt": new Date().toISOString()
           }
         }
@@ -1116,7 +1427,8 @@ function createWebsiteSection(section: WebsitePageSectionPayload): WebsitePageSe
 
 const legalSlugAliases: Record<string, string> = {
   terms: "terms-and-conditions",
-  privacy: "privacy-policy"
+  privacy: "privacy-policy",
+  "monthly-plan": "meal-prep"
 };
 
 const legalPageIds = new Set(["terms", "privacy"]);
@@ -1124,6 +1436,77 @@ const legalPageIds = new Set(["terms", "privacy"]);
 function resolveWebsitePageSlug(slug: string) {
   const normalizedSlug = toSlug(slug);
   return legalSlugAliases[normalizedSlug] ?? normalizedSlug;
+}
+
+async function summarizeMealLibraryUsage(meal: MealLibraryItemPayload) {
+  const rows = await MonthlyPlanDetailsModel.find({}, { planId: 1, plan: 1, weekAssignments: 1 }).lean();
+  const candidateNames = new Set([normalizeMealLookupValue(meal.name)].filter(Boolean));
+  const referencedPlanIds = new Set<string>();
+  let weekAssignmentCount = 0;
+  let stepTwoCount = 0;
+
+  for (const row of rows) {
+    const payload = toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
+    let isReferencedByPlan = false;
+
+    for (const week of payload.weekAssignments) {
+      const mealsByDate =
+        week.mealsByDate && typeof week.mealsByDate === "object"
+          ? (week.mealsByDate as Record<string, unknown>)
+          : {};
+
+      for (const assignedMeals of Object.values(mealsByDate)) {
+        for (const entry of Array.isArray(assignedMeals) ? assignedMeals : []) {
+          const assignedMeal = entry as Record<string, unknown>;
+          const assignedMealId = String(assignedMeal.mealId ?? "").trim();
+          const assignedMealName = normalizeMealLookupValue(assignedMeal.mealName);
+          if (assignedMealId === meal.id || candidateNames.has(assignedMealName)) {
+            weekAssignmentCount += 1;
+            isReferencedByPlan = true;
+          }
+        }
+      }
+    }
+
+    const content =
+      payload.plan.content && typeof payload.plan.content === "object"
+        ? (payload.plan.content as Record<string, unknown>)
+        : null;
+    const stepTwo =
+      content?.regularStepTwo && typeof content.regularStepTwo === "object"
+        ? (content.regularStepTwo as Record<string, unknown>)
+        : content?.customStepTwo && typeof content.customStepTwo === "object"
+          ? (content.customStepTwo as Record<string, unknown>)
+          : null;
+    const foodItems = Array.isArray(stepTwo?.foodItems) ? stepTwo.foodItems : [];
+
+    for (const entry of foodItems) {
+      const item = entry as Record<string, unknown>;
+      const sourceMealId = String(item.sourceMealId ?? "").trim();
+      const itemName = normalizeMealLookupValue(item.name);
+      if (sourceMealId === meal.id || candidateNames.has(itemName)) {
+        stepTwoCount += 1;
+        isReferencedByPlan = true;
+      }
+    }
+
+    if (isReferencedByPlan) {
+      referencedPlanIds.add(payload.plan.id);
+    }
+  }
+
+  return {
+    planCount: referencedPlanIds.size,
+    referenceCount: weekAssignmentCount + stepTwoCount,
+    weekAssignmentCount,
+    stepTwoCount
+  };
+}
+
+function getLegacyWebsitePageSlugs(slug: string) {
+  return Object.entries(legalSlugAliases)
+    .filter(([, canonicalSlug]) => canonicalSlug === slug)
+    .map(([legacySlug]) => legacySlug);
 }
 
 function getDefaultWebsitePages(): WebsitePagePayload[] {
@@ -1530,6 +1913,47 @@ async function ensureWebsitePagesSeeded() {
 
   await Promise.all(
     defaults.map(async (page) => {
+      const currentPage = await WebsitePageModel.findOne(
+        { pageId: page.id },
+        { _id: 1, slug: 1 }
+      ).lean();
+
+      if (currentPage && currentPage.slug !== page.slug) {
+        await WebsitePageModel.updateOne(
+          { _id: currentPage._id },
+          {
+            $set: {
+              slug: page.slug,
+              kind: page.kind
+            }
+          }
+        );
+      }
+
+      if (!currentPage) {
+        const legacySlugs = getLegacyWebsitePageSlugs(page.slug);
+
+        if (legacySlugs.length > 0) {
+          const legacyPage = await WebsitePageModel.findOne(
+            { slug: { $in: legacySlugs } },
+            { _id: 1, slug: 1, pageId: 1 }
+          ).lean();
+
+          if (legacyPage) {
+            await WebsitePageModel.updateOne(
+              { _id: legacyPage._id },
+              {
+                $set: {
+                  pageId: page.id,
+                  slug: page.slug,
+                  kind: page.kind
+                }
+              }
+            );
+          }
+        }
+      }
+
       if (!legalPageIds.has(page.id)) {
         return;
       }
@@ -2083,11 +2507,37 @@ export const adminService = {
     if (!row) throw new AppError(404, "Plan not found");
     const details = toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>);
     const mealRows = await MealLibraryItemModel.find().lean();
-    const mealLibrary = mealRows.map((item) => toMealLibraryItem(item as unknown as Record<string, unknown>));
+    const mealLibrary = await ensureMealLibraryCoverageForDetails(
+      details,
+      mealRows.map((item) => toMealLibraryItem(item as unknown as Record<string, unknown>))
+    );
+    const hydratedAssignments = hydrateAssignedMealsWithMealLibrary(details.weekAssignments, mealLibrary);
+    const hydratedPlan = hydratePlanWithMealLibrary(details.plan, mealLibrary);
+    const nextPlan =
+      hydratedAssignments.didChange || JSON.stringify(hydratedPlan) !== JSON.stringify(details.plan)
+        ? {
+            ...hydratedPlan,
+            updatedAt: new Date().toISOString()
+          }
+        : hydratedPlan;
+    const didPlanChange = JSON.stringify(nextPlan) !== JSON.stringify(details.plan);
+
+    if (hydratedAssignments.didChange || didPlanChange) {
+      await MonthlyPlanDetailsModel.updateOne(
+        { planId },
+        {
+          $set: {
+            weekAssignments: hydratedAssignments.weekAssignments,
+            plan: nextPlan
+          }
+        }
+      );
+    }
 
     return {
       ...details,
-      plan: hydratePlanWithMealLibrary(details.plan, mealLibrary),
+      weekAssignments: hydratedAssignments.weekAssignments,
+      plan: nextPlan,
       mealLibrary
     };
   },
@@ -2097,6 +2547,18 @@ export const adminService = {
     const planId = normalized.plan.id;
 
     if (!planId) throw new AppError(400, "Plan id is required");
+
+    const mealRows = await MealLibraryItemModel.find().lean();
+    const mealLibrary = await ensureMealLibraryCoverageForDetails(
+      normalized,
+      mealRows.map((item) => toMealLibraryItem(item as unknown as Record<string, unknown>))
+    );
+    const hydratedAssignments = hydrateAssignedMealsWithMealLibrary(
+      normalized.weekAssignments,
+      mealLibrary
+    );
+    normalized.weekAssignments = hydratedAssignments.weekAssignments;
+    normalized.plan = hydratePlanWithMealLibrary(normalized.plan, mealLibrary);
 
     const hasPlanImage = Object.prototype.hasOwnProperty.call(normalized.plan, "image");
     if (hasPlanImage) {
@@ -2476,7 +2938,43 @@ export const adminService = {
 
   async listMealLibraryAdmin() {
     const rows = await MealLibraryItemModel.find().sort({ name: 1 }).lean();
-    return rows.map((row) => toMealLibraryItem(row as unknown as Record<string, unknown>));
+    const meals = rows.map((row) => toMealLibraryItem(row as unknown as Record<string, unknown>));
+
+    return Promise.all(
+      meals.map(async (meal) => {
+        if (meal.status !== "inactive" || meal.archiveReason) {
+          return meal;
+        }
+
+        const usage = await summarizeMealLibraryUsage(meal);
+        if (usage.referenceCount === 0) {
+          return meal;
+        }
+
+        const archiveReason =
+          usage.planCount === 1
+            ? "Archived because this meal is still assigned to 1 plan."
+            : `Archived because this meal is still assigned to ${usage.planCount} plans.`;
+
+        await MealLibraryItemModel.findOneAndUpdate(
+          { mealId: meal.id },
+          {
+            $set: {
+              archiveReason,
+              archivedReferenceCount: usage.referenceCount,
+              archivedPlanCount: usage.planCount
+            }
+          }
+        );
+
+        return {
+          ...meal,
+          archiveReason,
+          archivedReferenceCount: usage.referenceCount,
+          archivedPlanCount: usage.planCount
+        };
+      })
+    );
   },
 
   async upsertMealLibraryAdmin(payload: MealLibraryItemPayload) {
@@ -2497,6 +2995,15 @@ export const adminService = {
       addOnOptions: normalizeStringList(payload.addOnOptions ?? []),
       status: payload.status
     };
+    if (payload.status === "active") {
+      updatePayload.archiveReason = "";
+      updatePayload.archivedReferenceCount = 0;
+      updatePayload.archivedPlanCount = 0;
+    } else if (existing) {
+      updatePayload.archiveReason = String((existing as Record<string, unknown>).archiveReason ?? "");
+      updatePayload.archivedReferenceCount = Number((existing as Record<string, unknown>).archivedReferenceCount ?? 0);
+      updatePayload.archivedPlanCount = Number((existing as Record<string, unknown>).archivedPlanCount ?? 0);
+    }
     if (hasImage) {
       updatePayload.image = normalizedImage;
     }
@@ -2515,9 +3022,52 @@ export const adminService = {
     return meal;
   },
 
-  async deleteMealLibraryAdmin(id: string) {
-    const row = await MealLibraryItemModel.findOneAndDelete({ mealId: id });
+  async deleteMealLibraryAdmin(id: string): Promise<MealLibraryDeleteResult> {
+    const row = await MealLibraryItemModel.findOne({ mealId: id }).lean();
     if (!row) throw new AppError(404, "Meal not found");
+
+    const meal = toMealLibraryItem(row as unknown as Record<string, unknown>);
+    const usage = await summarizeMealLibraryUsage(meal);
+
+    if (usage.referenceCount > 0) {
+      await MealLibraryItemModel.findOneAndUpdate(
+        { mealId: id },
+        {
+          $set: {
+            status: "inactive",
+            archiveReason:
+              usage.planCount === 1
+                ? "Archived because this meal is still assigned to 1 plan."
+                : `Archived because this meal is still assigned to ${usage.planCount} plans.`,
+            archivedReferenceCount: usage.referenceCount,
+            archivedPlanCount: usage.planCount
+          }
+        },
+        { new: true }
+      ).lean();
+
+      return {
+        id,
+        action: "archived",
+        status: "inactive",
+        referenceCount: usage.referenceCount,
+        planCount: usage.planCount,
+        message:
+          usage.planCount === 1
+            ? "Meal archived instead of deleted because it is still used in 1 plan. Existing plans will keep working."
+            : `Meal archived instead of deleted because it is still used in ${usage.planCount} plans. Existing plans will keep working.`
+      };
+    }
+
+    await MealLibraryItemModel.findOneAndDelete({ mealId: id });
+    return {
+      id,
+      action: "deleted",
+      status: "deleted",
+      referenceCount: 0,
+      planCount: 0,
+      message: "Meal permanently deleted."
+    };
   },
 
   async listCustomPlanCategoriesAdmin(planId: string) {
@@ -2716,12 +3266,27 @@ export const adminService = {
     }
 
     const [mealRows, customCategoryRows, customFoodRows] = await Promise.all([
-      MealLibraryItemModel.find({ status: "active" }).lean(),
+      MealLibraryItemModel.find().lean(),
       CustomPlanCategoryModel.find({ planId, isActive: true }).sort({ displayOrder: 1, createdAt: 1 }).lean(),
       CustomPlanFoodItemModel.find({ planId, isActive: true }).sort({ displayOrder: 1, createdAt: 1 }).lean()
     ]);
-    const mealLibrary = mealRows.map((item) => toMealLibraryItem(item as unknown as Record<string, unknown>));
-    const hydratedPlan = hydratePlanWithMealLibrary(details.plan, mealLibrary);
+    const fullMealLibrary = await ensureMealLibraryCoverageForDetails(
+      details,
+      mealRows.map((item) => toMealLibraryItem(item as unknown as Record<string, unknown>))
+    );
+    const hydratedAssignments = hydrateAssignedMealsWithMealLibrary(details.weekAssignments, fullMealLibrary);
+    const hydratedPlan = hydratePlanWithMealLibrary(details.plan, fullMealLibrary);
+    const referencedMeals = collectMealReferenceKeys({
+      ...details,
+      weekAssignments: hydratedAssignments.weekAssignments,
+      plan: hydratedPlan
+    });
+    const mealLibrary = fullMealLibrary.filter(
+      (meal) =>
+        meal.status === "active" ||
+        referencedMeals.mealIds.has(meal.id) ||
+        referencedMeals.mealNames.has(normalizeMealLookupValue(meal.name))
+    );
 
     const customPlanBuilder = {
       categories: customCategoryRows.map((item) => toCustomPlanCategory(item as unknown as Record<string, unknown>)),
@@ -2746,6 +3311,7 @@ export const adminService = {
 
     return {
       ...details,
+      weekAssignments: hydratedAssignments.weekAssignments,
       plan: {
         ...hydratedPlan,
         content: {

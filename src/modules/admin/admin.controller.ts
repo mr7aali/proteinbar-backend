@@ -149,8 +149,8 @@ export const adminController = {
     res.json({ success: true, data });
   }),
   deleteMealLibraryAdmin: asyncHandler(async (req: Request, res: Response) => {
-    await adminService.deleteMealLibraryAdmin(req.params.id);
-    res.status(204).send();
+    const data = await adminService.deleteMealLibraryAdmin(req.params.id);
+    res.json({ success: true, data, message: data.message });
   }),
 
   listCustomPlanCategoriesAdmin: asyncHandler(async (req: Request, res: Response) => {

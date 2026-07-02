@@ -110,7 +110,10 @@ const MealLibraryItemSchema = new Schema(
     tags: { type: [String], default: [] },
     addOnOptions: { type: [String], default: [] },
     status: { type: String, default: "active", trim: true },
-    image: { type: String, default: "" }
+    image: { type: String, default: "" },
+    archiveReason: { type: String, default: "", trim: true },
+    archivedReferenceCount: { type: Number, default: 0 },
+    archivedPlanCount: { type: Number, default: 0 }
   },
   { timestamps: true }
 );
