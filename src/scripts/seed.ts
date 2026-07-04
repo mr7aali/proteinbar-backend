@@ -279,7 +279,7 @@ async function seed() {
       heroPrimaryCtaLabel: "See Our Menu",
       heroPrimaryCtaLink: "/pages/menu",
       heroSecondaryCtaLabel: "Start A Monthly Plan",
-      heroSecondaryCtaLink: "/plans",
+      heroSecondaryCtaLink: "/mealprep",
       seoTitle: "Proteinbar | Healthy Meals & Meal Plans",
       seoDescription: "Fresh meals, flexible plans, and delivery that fits your week.",
       sections: []
