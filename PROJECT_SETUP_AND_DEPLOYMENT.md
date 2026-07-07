@@ -123,8 +123,9 @@ SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=<smtp-user>
 SMTP_PASS=<smtp-password-or-app-password>
-SMTP_FROM_EMAIL=<sender-email>
+SMTP_FROM_EMAIL=no-reply@proteinbargroup.com
 SMTP_FROM_NAME=Proteinbar
+ORDER_NOTIFICATION_EMAIL=<admin-order-notification-email>
 
 CMI_GATEWAY_URL=https://test-lanacash.cmi.co.ma/fim/est3dgate
 CMI_CLIENT_ID=<cmi-client-id>

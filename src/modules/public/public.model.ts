@@ -166,6 +166,13 @@ const CustomerOrderSchema = new Schema(
       id: { type: String, default: "" },
       code: { type: String, default: "" },
       discountAmount: { type: Number, default: 0 }
+    },
+    transactionalEmails: {
+      startedAt: { type: Date, default: null },
+      customerConfirmationSentAt: { type: Date, default: null },
+      adminNotificationSentAt: { type: Date, default: null },
+      failedAt: { type: Date, default: null },
+      error: { type: String, default: "" }
     }
   },
   { timestamps: true }
@@ -197,6 +204,13 @@ const StoreOrderSchema = new Schema(
       subtotal: { type: Number, required: true },
       vat: { type: Number, required: true },
       total: { type: Number, required: true }
+    },
+    transactionalEmails: {
+      startedAt: { type: Date, default: null },
+      customerConfirmationSentAt: { type: Date, default: null },
+      adminNotificationSentAt: { type: Date, default: null },
+      failedAt: { type: Date, default: null },
+      error: { type: String, default: "" }
     }
   },
   { timestamps: true }
