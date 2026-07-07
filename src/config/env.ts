@@ -26,6 +26,7 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional().default(""),
   SMTP_FROM_EMAIL: z.string().optional().default(""),
   SMTP_FROM_NAME: z.string().optional().default("Proteinbar"),
+  ORDER_NOTIFICATION_EMAIL: z.string().optional().default(""),
   CLOUDINARY_CLOUD_NAME: z.string().optional().default(""),
   CLOUDINARY_API_KEY: z.string().optional().default(""),
   CLOUDINARY_API_SECRET: z.string().optional().default(""),

@@ -6,6 +6,10 @@ import {
   verifyCmiResponseHash,
 } from "../../common/utils/cmi";
 import { normalizeImageInput } from "../../common/utils/cloudinary";
+import {
+  sendAdminNewOrderNotificationEmail,
+  sendCustomerOrderConfirmationEmail,
+} from "../../common/utils/mailer";
 import { env } from "../../config/env";
 import { OrderModel, SubscriptionModel } from "../admin/admin.model";
 import { adminService } from "../admin/admin.service";
@@ -325,6 +329,201 @@ function mergePaymentMeta(
     ...current,
     ...patch,
   };
+}
+
+function toEmailErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error ?? "Unknown email error");
+}
+
+function buildMonthlyOrderEmailPayload(orderRow: Record<string, unknown>) {
+  const customer = normalizeCustomer(getObjectRecord(orderRow.customer));
+  const delivery = normalizeDelivery(getObjectRecord(orderRow.delivery));
+  const totals = getObjectRecord(orderRow.totals);
+  const payload = getObjectRecord(orderRow.rawPayload);
+  const subscriptionPayload = getObjectRecord(payload.subscription);
+  const plan = getObjectRecord(subscriptionPayload.plan);
+  const selectedMealsSource = Array.isArray(orderRow.selectedMeals)
+    ? orderRow.selectedMeals
+    : [];
+  const customerName = `${customer.firstName} ${customer.lastName}`.trim() || "Customer";
+  const deliverySummary =
+    delivery.pickupLocation.name ||
+    delivery.address ||
+    customer.area ||
+    customer.emirate ||
+    "N/A";
+
+  return {
+    orderId: String(orderRow.orderId ?? ""),
+    orderType: "monthly-plan" as const,
+    customerName,
+    customerEmail: customer.email,
+    customerPhone: customer.phone,
+    planTitle: String(plan.title ?? "").trim() || "Monthly Plan",
+    deliverySummary,
+    paymentStatus: "Paid by CMI",
+    items: selectedMealsSource
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+      .map((item) => {
+        const meal = normalizeSelectedMeal(item);
+        return {
+          title: meal.title || "Meal",
+          quantity: 1,
+          lineTotal: meal.totalPrice || meal.basePrice || undefined,
+          note: [meal.date, meal.extrasSummary].filter(Boolean).join(" | "),
+        };
+      }),
+    totals: {
+      subtotal: toSafeNumber(totals.subtotal, 0),
+      discount: toSafeNumber(totals.giftDiscount, 0),
+      vat: toSafeNumber(totals.vat, 0),
+      safetyBag: toSafeNumber(totals.safetyBag, 0),
+      total: toSafeNumber(totals.grandTotal, 0),
+    },
+  };
+}
+
+function buildStoreOrderEmailPayload(orderRow: Record<string, unknown>) {
+  const customer = getObjectRecord(orderRow.customer);
+  const totals = getObjectRecord(orderRow.totals);
+  const items = Array.isArray(orderRow.items) ? orderRow.items : [];
+  const customerName = `${String(customer.firstName ?? "").trim()} ${String(customer.lastName ?? "").trim()}`.trim() || "Customer";
+  const address = String(customer.address ?? "").trim();
+  const cityArea = String(customer.cityArea ?? "").trim();
+
+  return {
+    orderId: String(orderRow.orderId ?? ""),
+    orderType: "store-order" as const,
+    customerName,
+    customerEmail: String(customer.email ?? "").trim().toLowerCase(),
+    customerPhone: String(customer.phone ?? "").trim(),
+    deliverySummary: [address, cityArea].filter(Boolean).join(", ") || "N/A",
+    paymentStatus: "Order received",
+    items: items
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+      .map((item) => {
+        const quantity = Math.max(1, toSafeNumber(item.quantity, 1));
+        const price = toSafeNumber(item.priceMad, 0);
+        return {
+          title: String(item.title ?? "Item"),
+          quantity,
+          price,
+          lineTotal: price * quantity,
+        };
+      }),
+    totals: {
+      subtotal: toSafeNumber(totals.subtotal, 0),
+      vat: toSafeNumber(totals.vat, 0),
+      total: toSafeNumber(totals.total, 0),
+    },
+  };
+}
+
+async function sendCustomerOrderTransactionalEmailsOnce(orderId: string) {
+  const now = new Date();
+  const claimedOrder = await CustomerOrderModel.findOneAndUpdate(
+    {
+      orderId,
+      paymentStatus: "paid",
+      $or: [
+        { "transactionalEmails.startedAt": null },
+        { "transactionalEmails.startedAt": { $exists: false } },
+      ],
+    },
+    {
+      $set: {
+        "transactionalEmails.startedAt": now,
+        "transactionalEmails.failedAt": null,
+        "transactionalEmails.error": "",
+      },
+    },
+    { new: true },
+  ).lean();
+
+  if (!claimedOrder) return;
+
+  const emailPayload = buildMonthlyOrderEmailPayload(claimedOrder as unknown as Record<string, unknown>);
+
+  try {
+    if (emailPayload.customerEmail) {
+      await sendCustomerOrderConfirmationEmail(emailPayload);
+      await CustomerOrderModel.updateOne(
+        { orderId },
+        { $set: { "transactionalEmails.customerConfirmationSentAt": new Date() } },
+      );
+    }
+
+    await sendAdminNewOrderNotificationEmail(emailPayload);
+    await CustomerOrderModel.updateOne(
+      { orderId },
+      { $set: { "transactionalEmails.adminNotificationSentAt": new Date() } },
+    );
+  } catch (error) {
+    const message = toEmailErrorMessage(error);
+    console.error(`Order email failed for ${orderId}:`, error);
+    await CustomerOrderModel.updateOne(
+      { orderId },
+      {
+        $set: {
+          "transactionalEmails.failedAt": new Date(),
+          "transactionalEmails.error": message,
+        },
+      },
+    );
+  }
+}
+
+async function sendStoreOrderTransactionalEmailsOnce(orderId: string) {
+  const now = new Date();
+  const claimedOrder = await StoreOrderModel.findOneAndUpdate(
+    {
+      orderId,
+      $or: [
+        { "transactionalEmails.startedAt": null },
+        { "transactionalEmails.startedAt": { $exists: false } },
+      ],
+    },
+    {
+      $set: {
+        "transactionalEmails.startedAt": now,
+        "transactionalEmails.failedAt": null,
+        "transactionalEmails.error": "",
+      },
+    },
+    { new: true },
+  ).lean();
+
+  if (!claimedOrder) return;
+
+  const emailPayload = buildStoreOrderEmailPayload(claimedOrder as unknown as Record<string, unknown>);
+
+  try {
+    if (emailPayload.customerEmail) {
+      await sendCustomerOrderConfirmationEmail(emailPayload);
+      await StoreOrderModel.updateOne(
+        { orderId },
+        { $set: { "transactionalEmails.customerConfirmationSentAt": new Date() } },
+      );
+    }
+
+    await sendAdminNewOrderNotificationEmail(emailPayload);
+    await StoreOrderModel.updateOne(
+      { orderId },
+      { $set: { "transactionalEmails.adminNotificationSentAt": new Date() } },
+    );
+  } catch (error) {
+    const message = toEmailErrorMessage(error);
+    console.error(`Store order email failed for ${orderId}:`, error);
+    await StoreOrderModel.updateOne(
+      { orderId },
+      {
+        $set: {
+          "transactionalEmails.failedAt": new Date(),
+          "transactionalEmails.error": message,
+        },
+      },
+    );
+  }
 }
 
 async function prepareCheckoutPayload(
@@ -1031,6 +1230,7 @@ export const publicService = {
           | null) ?? existingOrder;
 
       await ensureSuccessfulCheckoutArtifacts(latestOrder, responsePayload);
+      await sendCustomerOrderTransactionalEmailsOnce(orderId);
 
       return {
         status: "success" as const,
@@ -1082,6 +1282,7 @@ export const publicService = {
       );
     } else {
       await ensureSuccessfulCheckoutArtifacts(existingOrder, responsePayload);
+      await sendCustomerOrderTransactionalEmailsOnce(orderId);
       return {
         status: "success" as const,
         message: "Payment had already been confirmed earlier.",
@@ -1109,6 +1310,8 @@ export const publicService = {
       orderId: buildId("STORE-ORD"),
       ...payload,
     });
+
+    await sendStoreOrderTransactionalEmailsOnce(order.orderId);
 
     return order;
   },
