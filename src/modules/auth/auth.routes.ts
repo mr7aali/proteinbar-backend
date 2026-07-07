@@ -10,7 +10,7 @@ export const authRouter = Router();
 authRouter.post("/send-code", validate(sendCodeSchema), authController.sendCode);
 authRouter.post("/verify-code", validate(verifyCodeSchema), authController.verifyCode);
 authRouter.get("/me", requireCustomerSession, authController.me);
-authRouter.post("/logout", requireCustomerSession, authController.logout);
+authRouter.post("/logout", authController.logout);
 authRouter.post("/admin-login", validate(adminLoginSchema), authController.adminLogin);
 authRouter.get("/admin-me", requireAdminSession, authController.adminMe);
 authRouter.post("/admin-logout", requireAdminSession, authController.adminLogout);

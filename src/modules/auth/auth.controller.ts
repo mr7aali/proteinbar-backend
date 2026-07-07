@@ -3,6 +3,16 @@ import { asyncHandler } from "../../common/utils/asyncHandler";
 import { env } from "../../config/env";
 import { authService } from "./auth.service";
 
+function getCookieValue(cookieHeader: string | undefined, cookieName: string) {
+  if (!cookieHeader) return "";
+
+  const cookies = cookieHeader.split(";").map((entry) => entry.trim());
+  const found = cookies.find((entry) => entry.startsWith(`${cookieName}=`));
+  if (!found) return "";
+
+  return decodeURIComponent(found.slice(cookieName.length + 1));
+}
+
 function setCustomerSessionCookie(res: Response, token: string, expiresAt: Date) {
   res.cookie(env.CUSTOMER_SESSION_COOKIE_NAME, token, {
     httpOnly: true,
@@ -32,7 +42,9 @@ export const authController = {
   }),
 
   logout: asyncHandler(async (req: Request, res: Response) => {
-    const token = req.currentCustomerSessionToken ?? "";
+    const token =
+      req.currentCustomerSessionToken ??
+      getCookieValue(req.headers.cookie, env.CUSTOMER_SESSION_COOKIE_NAME);
     await authService.logoutCustomerSession(token);
     res.clearCookie(env.CUSTOMER_SESSION_COOKIE_NAME, {
       httpOnly: true,
