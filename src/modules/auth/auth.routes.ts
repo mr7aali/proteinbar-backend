@@ -13,5 +13,5 @@ authRouter.get("/me", requireCustomerSession, authController.me);
 authRouter.post("/logout", authController.logout);
 authRouter.post("/admin-login", validate(adminLoginSchema), authController.adminLogin);
 authRouter.get("/admin-me", requireAdminSession, authController.adminMe);
-authRouter.post("/admin-logout", requireAdminSession, authController.adminLogout);
+authRouter.post("/admin-logout", authController.adminLogout);
 authRouter.post("/reset-password", validate(resetPasswordSchema), authController.resetPassword);

@@ -141,6 +141,13 @@ export const monthlyPlanAdminFiltersSchema = z.object({
   search: z.string().optional()
 });
 
+export const monthlyPlanClientFiltersSchema = z.object({
+  search: z.string().optional(),
+  status: z.enum(["active", "paused", "lead", "all"]).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(100).optional()
+});
+
 export const monthlyPlanDetailsParamSchema = z.object({
   id: z.string().min(1)
 });
