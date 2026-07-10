@@ -23,6 +23,13 @@ function setCustomerSessionCookie(res: Response, token: string, expiresAt: Date)
   });
 }
 
+function getBearerToken(headerValue: string | undefined) {
+  if (!headerValue) return "";
+  const [scheme, token] = headerValue.split(" ");
+  if (scheme?.toLowerCase() !== "bearer") return "";
+  return token?.trim() ?? "";
+}
+
 export const authController = {
   sendCode: asyncHandler(async (req: Request, res: Response) => {
     const data = await authService.sendCode(req.body.email);
@@ -67,7 +74,7 @@ export const authController = {
   }),
 
   adminLogout: asyncHandler(async (req: Request, res: Response) => {
-    const token = req.currentAdminSessionToken ?? "";
+    const token = req.currentAdminSessionToken ?? getBearerToken(req.headers.authorization);
     await authService.logoutAdminSession(token);
     res.json({ success: true, data: { loggedOut: true } });
   }),

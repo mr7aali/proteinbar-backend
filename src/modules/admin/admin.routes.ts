@@ -20,6 +20,7 @@ import {
   mongoIdParamSchema,
   restaurantSchema,
   monthlyPlanAdminFiltersSchema,
+  monthlyPlanClientFiltersSchema,
   monthlyPlanDetailsParamSchema,
   monthlyPlanDetailsUpsertSchema,
   monthlyPlanSchema,
@@ -77,6 +78,8 @@ adminRouter.get("/admin/monthly-plan/subscriptions", adminController.listMonthly
 adminRouter.patch("/admin/monthly-plan/subscriptions/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.updateMonthlyPlanSubscriptionAdmin);
 adminRouter.get("/admin/monthly-plan/orders", adminController.listMonthlyPlanOrdersAdmin);
 adminRouter.patch("/admin/monthly-plan/orders/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.updateMonthlyPlanOrderAdmin);
+adminRouter.get("/admin/monthly-plan/clients", validate(monthlyPlanClientFiltersSchema, "query"), adminController.listMonthlyPlanClientsAdmin);
+adminRouter.get("/admin/monthly-plan/clients/:clientKey", adminController.getMonthlyPlanClientDetailsAdmin);
 adminRouter.get("/admin/monthly-plan/meals", adminController.listMealLibraryAdmin);
 adminRouter.put(
   "/admin/monthly-plan/meals/:id",

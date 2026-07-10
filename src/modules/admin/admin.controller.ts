@@ -136,6 +136,14 @@ export const adminController = {
     const data = await adminService.updateMonthlyPlanOrderAdmin(req.params.id, req.body);
     res.json({ success: true, data });
   }),
+  listMonthlyPlanClientsAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.listMonthlyPlanClientsAdmin(req.query as Record<string, string | undefined>);
+    res.json({ success: true, data });
+  }),
+  getMonthlyPlanClientDetailsAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.getMonthlyPlanClientDetailsAdmin(req.params.clientKey);
+    res.json({ success: true, data });
+  }),
 
   listMealLibraryAdmin: asyncHandler(async (_req: Request, res: Response) => {
     const data = await adminService.listMealLibraryAdmin();

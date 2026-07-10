@@ -360,6 +360,20 @@ function parseMoneyValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function firstNonEmptyString(...values: unknown[]) {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text) return text;
+  }
+
+  return "";
+}
+
+function extractEmailFromText(value: unknown) {
+  const match = String(value ?? "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return match?.[0]?.trim().toLowerCase() ?? "";
+}
+
 function normalizeMonthlySubscriptionStatus(value: unknown) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (normalized === "paused") return "paused";
@@ -400,6 +414,202 @@ function addDaysToIsoDate(startDate: string, days: number) {
   if (Number.isNaN(date.getTime())) return "";
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+type MonthlyClientAdminRecord = Record<string, unknown> & {
+  key: string;
+  id: string;
+  fullName: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  state: string;
+  area: string;
+  address: string;
+  preferredDeliveryOption: string;
+  selectedPlan: string;
+  meals: number;
+  days: number;
+  snacks: number;
+  startDate: string;
+  status: "Active" | "Paused" | "Lead";
+  orderCount: number;
+  subscriptionCount: number;
+  totalSpent: number;
+  lastOrderDate: string;
+  orders: Array<Record<string, unknown>>;
+  subscriptions: Array<Record<string, unknown>>;
+};
+
+function normalizeClientIdentity(value: unknown) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function getMonthlyClientKey({
+  email,
+  phone,
+  subscriptionId,
+  name,
+  fallback
+}: {
+  email?: unknown;
+  phone?: unknown;
+  subscriptionId?: unknown;
+  name?: unknown;
+  fallback: string;
+}) {
+  const normalizedEmail = normalizeClientIdentity(email);
+  if (normalizedEmail) return `email:${normalizedEmail}`;
+
+  const normalizedPhone = normalizeClientIdentity(phone);
+  if (normalizedPhone) return `phone:${normalizedPhone}`;
+
+  const normalizedSubscriptionId = normalizeClientIdentity(subscriptionId);
+  if (normalizedSubscriptionId) return `subscription:${normalizedSubscriptionId}`;
+
+  const normalizedName = normalizeClientIdentity(name);
+  if (normalizedName) return `name:${normalizedName}`;
+
+  return `unknown:${fallback}`;
+}
+
+function splitClientName(fullName: unknown) {
+  const name = firstNonEmptyString(fullName, "Customer");
+  const [firstName = name, ...rest] = name.split(/\s+/);
+  return { firstName, lastName: rest.join(" ") };
+}
+
+function normalizeClientStatus(status: unknown) {
+  const normalized = String(status ?? "").toLowerCase();
+  if (normalized === "paused") return "Paused";
+  if (normalized === "cancelled" || normalized === "canceled") return "Lead";
+  return "Active";
+}
+
+function createEmptyMonthlyClientRecord(clientKey: string, fullName: unknown): MonthlyClientAdminRecord {
+  const name = firstNonEmptyString(fullName, "Customer");
+  const { firstName, lastName } = splitClientName(name);
+
+  return {
+    id: clientKey,
+    key: clientKey,
+    fullName: name,
+    firstName,
+    lastName,
+    phone: "-",
+    email: clientKey.startsWith("email:") ? clientKey.slice("email:".length) : "-",
+    state: "-",
+    area: "-",
+    address: "-",
+    preferredDeliveryOption: "-",
+    selectedPlan: "-",
+    meals: 0,
+    days: 0,
+    snacks: 0,
+    startDate: "",
+    status: "Lead",
+    orderCount: 0,
+    subscriptionCount: 0,
+    totalSpent: 0,
+    lastOrderDate: "",
+    orders: [],
+    subscriptions: []
+  };
+}
+
+function setKnownString(target: MonthlyClientAdminRecord, key: keyof MonthlyClientAdminRecord, value: unknown) {
+  const text = firstNonEmptyString(value);
+  if (text && (target[key] === "-" || target[key] === "")) {
+    (target as Record<string, unknown>)[key] = text;
+  }
+}
+
+function buildMonthlyClientRecords(
+  orders: Array<Record<string, any>>,
+  subscriptions: Array<Record<string, any>>
+) {
+  const records = new Map<string, MonthlyClientAdminRecord>();
+
+  const ensureRecord = (clientKey: string, fullName: unknown) => {
+    const existing = records.get(clientKey);
+    if (existing) return existing;
+    const next = createEmptyMonthlyClientRecord(clientKey, fullName);
+    records.set(clientKey, next);
+    return next;
+  };
+
+  subscriptions.forEach((subscription, index) => {
+    const clientKey = getMonthlyClientKey({
+      email: subscription.customerEmail,
+      phone: subscription.customerPhone,
+      subscriptionId: subscription.subscriptionId,
+      name: subscription.customerName,
+      fallback: `subscription-${index + 1}`
+    });
+    const record = ensureRecord(clientKey, subscription.customerName);
+
+    setKnownString(record, "fullName", subscription.customerName);
+    const { firstName, lastName } = splitClientName(record.fullName);
+    record.firstName = firstName;
+    record.lastName = lastName;
+    setKnownString(record, "email", subscription.customerEmail);
+    setKnownString(record, "phone", subscription.customerPhone);
+    setKnownString(record, "state", subscription.customerEmirate);
+    setKnownString(record, "area", subscription.customerArea);
+    setKnownString(record, "address", subscription.deliveryAddress || subscription.pickupLocationName);
+    setKnownString(record, "preferredDeliveryOption", subscription.selections?.deliveryOption);
+    setKnownString(record, "selectedPlan", subscription.planTitle);
+    record.meals ||= Number(subscription.selections?.meals ?? 0);
+    record.days ||= Number(subscription.selections?.days ?? 0);
+    record.snacks ||= Number(subscription.selections?.snacks ?? 0);
+    record.startDate ||= String(subscription.startDate ?? "");
+    record.status = normalizeClientStatus(subscription.status);
+    record.subscriptions.push(subscription);
+    record.subscriptionCount = record.subscriptions.length;
+  });
+
+  orders.forEach((order, index) => {
+    const clientKey = getMonthlyClientKey({
+      email: order.customerEmail,
+      phone: order.customerPhone,
+      subscriptionId: order.subscriptionId,
+      name: order.customerName,
+      fallback: `order-${index + 1}`
+    });
+    const record = ensureRecord(clientKey, order.customerName);
+
+    setKnownString(record, "fullName", order.customerName);
+    const { firstName, lastName } = splitClientName(record.fullName);
+    record.firstName = firstName;
+    record.lastName = lastName;
+    setKnownString(record, "email", order.customerEmail);
+    setKnownString(record, "phone", order.customerPhone);
+    setKnownString(record, "state", order.customerEmirate);
+    setKnownString(record, "area", order.customerArea || order.locationName);
+    setKnownString(record, "address", order.deliveryAddress || order.locationName);
+    setKnownString(record, "preferredDeliveryOption", order.deliveryOption);
+    setKnownString(record, "selectedPlan", order.planTitle);
+    record.meals ||= Array.isArray(order.items)
+      ? order.items.reduce((sum: number, item: Record<string, unknown>) => sum + Number(item.qty ?? 0), 0)
+      : 0;
+    record.days ||= Number(order.selections?.days ?? 0);
+    record.snacks ||= Number(order.selections?.snacks ?? 0);
+    record.startDate ||= String(order.selections?.startDate || order.orderDate || "");
+    if (record.status === "Lead") record.status = "Active";
+    record.orders.push(order);
+    record.orderCount = record.orders.length;
+    record.totalSpent += Number(order.amount ?? 0);
+    if (!record.lastOrderDate || String(order.orderDate ?? "") > record.lastOrderDate) {
+      record.lastOrderDate = String(order.orderDate ?? "");
+    }
+  });
+
+  return Array.from(records.values()).map((client) => ({
+    ...client,
+    orders: client.orders.sort((a, b) => String(b.orderDate ?? "").localeCompare(String(a.orderDate ?? ""))),
+    subscriptions: client.subscriptions.sort((a, b) => String(b.startDate ?? "").localeCompare(String(a.startDate ?? "")))
+  }));
 }
 
 function getCustomStepTwoFromPlan(
@@ -2704,14 +2914,10 @@ export const adminService = {
         id: String(row._id ?? row.id ?? subscriptionId),
         subscriptionId,
         customerName: String(row.client ?? ""),
-        customerEmail: String((customer.email ?? "") as string),
-        customerPhone: String(
-          (customer.phone as string | undefined) ??
-            ((customerOrder.customer as Record<string, unknown> | undefined)?.phone as string | undefined) ??
-            ""
-        ),
-        customerEmirate: String((customer.emirate ?? "") as string),
-        customerArea: String((customer.area ?? "") as string),
+        customerEmail: firstNonEmptyString(customer.email, (customerOrder.customer as Record<string, unknown> | undefined)?.email),
+        customerPhone: firstNonEmptyString(customer.phone, (customerOrder.customer as Record<string, unknown> | undefined)?.phone),
+        customerEmirate: firstNonEmptyString(customer.emirate, (customerOrder.customer as Record<string, unknown> | undefined)?.emirate),
+        customerArea: firstNonEmptyString(customer.area, (customerOrder.customer as Record<string, unknown> | undefined)?.area),
         planId,
         planTitle: String(row.plan ?? plan.title ?? ""),
         planKind: planKindById.get(planId) ?? "normal",
@@ -2860,16 +3066,20 @@ export const adminService = {
       const selectionObj = customerSubscription.selection && typeof customerSubscription.selection === "object"
         ? (customerSubscription.selection as Record<string, unknown>)
         : {};
+      const rowClientName = String(row.client ?? "").trim();
+      const customerFirstName = String(customer.firstName ?? "").trim();
+      const customerLastName = String(customer.lastName ?? "").trim();
+      const customerName = rowClientName || `${customerFirstName} ${customerLastName}`.trim() || "Customer";
 
       return {
         id: String(row._id ?? row.id ?? orderId),
         orderId,
         subscriptionId,
-        customerName: String(row.client ?? customer.firstName ? `${customer.firstName} ${customer.lastName || ""}`.trim() : ""),
-        customerEmail: String(customer.email ?? row.customerEmail ?? ""),
-        customerPhone: String(customer.phone ?? row.phone ?? ""),
-        customerEmirate: String(customer.emirate ?? row.customerEmirate ?? ""),
-        customerArea: String(customer.area ?? row.customerArea ?? ""),
+        customerName,
+        customerEmail: firstNonEmptyString(customer.email, row.customerEmail, extractEmailFromText(row.notes)),
+        customerPhone: firstNonEmptyString(customer.phone, row.phone),
+        customerEmirate: firstNonEmptyString(customer.emirate, row.customerEmirate),
+        customerArea: firstNonEmptyString(customer.area, row.customerArea),
         planId,
         planTitle: String(row.plan ?? plan.title ?? ""),
         planKind: planKindById.get(planId) ?? "normal",
@@ -2904,6 +3114,104 @@ export const adminService = {
         }
       };
     });
+  },
+
+  async listMonthlyPlanClientsAdmin(filters: Record<string, string | undefined>) {
+    const [orders, subscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin(),
+      this.listMonthlyPlanSubscriptionsAdmin()
+    ]);
+    const page = Math.max(1, Number(filters.page ?? 1) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 10) || 10));
+    const statusFilter = String(filters.status ?? "all").trim().toLowerCase();
+    const search = String(filters.search ?? "").trim().toLowerCase();
+    const allClients = buildMonthlyClientRecords(
+      orders as Array<Record<string, any>>,
+      subscriptions as Array<Record<string, any>>
+    );
+    let clients = [...allClients];
+
+    if (statusFilter !== "all") {
+      clients = clients.filter((client) => client.status.toLowerCase() === statusFilter);
+    }
+
+    if (search) {
+      clients = clients.filter((client) => {
+        const searchable = [
+          client.fullName,
+          client.email,
+          client.phone,
+          client.state,
+          client.area,
+          ...client.orders.flatMap((order) => [
+            order.orderId,
+            order.customerEmail,
+            order.customerName,
+            order.customerPhone,
+            order.subscriptionId
+          ]),
+          ...client.subscriptions.flatMap((subscription) => [
+            subscription.subscriptionId,
+            subscription.customerEmail,
+            subscription.customerName,
+            subscription.customerPhone
+          ])
+        ];
+        return searchable.some((value) => String(value ?? "").toLowerCase().includes(search));
+      });
+    }
+
+    clients.sort((a, b) => {
+      const dateCompare = b.lastOrderDate.localeCompare(a.lastOrderDate);
+      return dateCompare || a.fullName.localeCompare(b.fullName);
+    });
+
+    const total = clients.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * limit;
+    const items = clients.slice(start, start + limit);
+
+    return {
+      items: items.map((client) => ({
+        ...client,
+        orders: [],
+        subscriptions: []
+      })),
+      pagination: {
+        page: safePage,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: safePage < totalPages,
+        hasPreviousPage: safePage > 1
+      },
+      summary: {
+        totalClients: allClients.length,
+        activeClients: allClients.filter((client) => client.status === "Active").length,
+        pausedClients: allClients.filter((client) => client.status === "Paused").length,
+        leadClients: allClients.filter((client) => client.status === "Lead").length
+      }
+    };
+  },
+
+  async getMonthlyPlanClientDetailsAdmin(clientKey: string) {
+    const [orders, subscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin(),
+      this.listMonthlyPlanSubscriptionsAdmin()
+    ]);
+    const decodedKey = decodeURIComponent(clientKey);
+    const clients = buildMonthlyClientRecords(
+      orders as Array<Record<string, any>>,
+      subscriptions as Array<Record<string, any>>
+    );
+    const client = clients.find((item) => item.key === decodedKey || item.id === decodedKey);
+
+    if (!client) {
+      throw new AppError(404, "Client not found");
+    }
+
+    return client;
   },
 
   async updateMonthlyPlanOrderAdmin(id: string, patch: Record<string, unknown>) {
