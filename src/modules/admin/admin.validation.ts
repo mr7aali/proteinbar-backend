@@ -159,7 +159,7 @@ export const monthlyPlanOrderArchiveFiltersSchema = z.object({
   planKind: z.enum(["custom", "normal", "all"]).optional(),
   status: z.enum(["pending", "confirmed", "preparing", "out-for-delivery", "completed", "all"]).optional(),
   deliveryOption: z.enum(["daily-delivery", "daily-pickup", "weekly-delivery", "weekly-pickup", "all"]).optional(),
-  paymentStatus: z.enum(["paid", "unpaid", "cod", "all"]).optional(),
+  paymentStatus: z.enum(["paid", "unpaid", "failed", "cod", "all"]).optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(100).optional()
 });
@@ -187,6 +187,7 @@ export const mealLibraryItemSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   mealType: z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]),
+  mealTypes: z.array(z.enum(["Breakfast", "Lunch", "Dinner", "Snack"])).optional().default([]),
   calories: z.number(),
   protein: z.number(),
   carbs: z.number(),

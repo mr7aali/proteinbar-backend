@@ -241,6 +241,7 @@ async function main() {
             mealId: "seed-chicken-burrito-bowl",
             name: "Chicken Burrito Bowl",
             mealType: "Lunch",
+            mealTypes: ["Lunch"],
             calories: 620,
             protein: 48,
             carbs: 58,

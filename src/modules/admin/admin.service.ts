@@ -37,6 +37,7 @@ type MealLibraryItemPayload = {
   id: string;
   name: string;
   mealType: string;
+  mealTypes?: string[];
   calories: number;
   protein: number;
   carbs: number;
@@ -369,9 +370,37 @@ function firstNonEmptyString(...values: unknown[]) {
   return "";
 }
 
+function getObjectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function extractEmailFromText(value: unknown) {
   const match = String(value ?? "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   return match?.[0]?.trim().toLowerCase() ?? "";
+}
+
+function getPaymentFailureReason(paymentMeta: unknown) {
+  const meta = getObjectRecord(paymentMeta);
+  const response = getObjectRecord(meta.response);
+  const amountMismatch = getObjectRecord(meta.amountMismatch);
+  const expected = amountMismatch.expected;
+  const received = amountMismatch.received;
+  const mismatchReason =
+    expected !== undefined || received !== undefined
+      ? `Amount mismatch: expected ${expected ?? "N/A"}, received ${received ?? "N/A"}`
+      : "";
+
+  return firstNonEmptyString(
+    response.ErrMsg,
+    response.mdErrorMsg,
+    response.Response,
+    response.ProcReturnCode,
+    meta.error,
+    mismatchReason,
+    "Payment failed or was declined by CMI"
+  );
 }
 
 function normalizeMonthlySubscriptionStatus(value: unknown) {
@@ -394,6 +423,7 @@ function normalizeMonthlyOrderStatus(value: unknown) {
 function normalizeMonthlyPaymentStatus(value: unknown) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (normalized === "cod") return "cod";
+  if (normalized === "failed" || normalized === "declined") return "failed";
   if (normalized === "unpaid") return "unpaid";
   return "paid";
 }
@@ -761,6 +791,23 @@ function normalizeStringList(value: unknown) {
   }, []);
 }
 
+const mealTypeOptions = ["Breakfast", "Lunch", "Dinner", "Snack"];
+
+function normalizeMealTypes(value: unknown, fallback?: unknown) {
+  const fallbackValues = Array.isArray(fallback) ? fallback : [fallback];
+  const candidates = [...normalizeStringList(value), ...normalizeStringList(fallbackValues)];
+  const seen = new Set<string>();
+  const mealTypes = candidates.reduce<string[]>((acc, item) => {
+    const match = mealTypeOptions.find((option) => option.toLowerCase() === item.toLowerCase());
+    if (!match || seen.has(match)) return acc;
+    seen.add(match);
+    acc.push(match);
+    return acc;
+  }, []);
+
+  return mealTypes.length > 0 ? mealTypes : ["Lunch"];
+}
+
 function findRestaurantIdByName(
   restaurantIdByName: Map<string, string>,
   names: string[]
@@ -858,10 +905,12 @@ function toMonthlyPlanDetailsPayload(row: Record<string, unknown>): MonthlyPlanD
 }
 
 function toMealLibraryItem(row: Record<string, unknown>): MealLibraryItemPayload {
+  const mealTypes = normalizeMealTypes(row.mealTypes, row.mealType);
   return {
     id: String(row.mealId ?? row.id ?? ""),
     name: String(row.name ?? ""),
-    mealType: String(row.mealType ?? ""),
+    mealType: mealTypes[0] ?? "Lunch",
+    mealTypes,
     calories: Number(row.calories ?? 0),
     protein: Number(row.protein ?? 0),
     carbs: Number(row.carbs ?? 0),
@@ -978,6 +1027,7 @@ function collectMissingMealLibraryItems(details: MonthlyPlanDetailsPayload, meal
       id,
       name,
       mealType,
+      mealTypes: [mealType],
       calories: toMealMacroNumber(candidate.calories),
       protein: toMealMacroNumber(candidate.protein),
       carbs: toMealMacroNumber(candidate.carbs),
@@ -1062,6 +1112,7 @@ async function ensureMealLibraryCoverageForDetails(details: MonthlyPlanDetailsPa
           mealId: meal.id,
           name: meal.name,
           mealType: meal.mealType,
+          mealTypes: normalizeMealTypes(meal.mealTypes, meal.mealType),
           calories: meal.calories,
           protein: meal.protein,
           carbs: meal.carbs,
@@ -3007,17 +3058,80 @@ export const adminService = {
         String((item as unknown as Record<string, unknown>).planKind ?? "").toLowerCase() === "custom" ? "custom" : "normal"
       ])
     );
+    const adminOrderByOrderId = new Map(
+      adminOrders.map((item) => [
+        String((item as unknown as Record<string, unknown>).orderId ?? ""),
+        item as unknown as Record<string, unknown>
+      ])
+    );
+    const failedPaymentOnlyOrders = archiveMode === "active"
+      ? customerOrders
+          .map((item) => item as unknown as Record<string, unknown>)
+          .filter((item) => {
+            const orderId = String(item.orderId ?? "");
+            return orderId && !adminOrderByOrderId.has(orderId) && normalizeMonthlyPaymentStatus(item.paymentStatus) === "failed";
+          })
+          .map((item) => {
+            const customer = getObjectRecord(item.customer);
+            const delivery = getObjectRecord(item.delivery);
+            const pickupLocation = getObjectRecord(delivery.pickupLocation);
+            const totals = getObjectRecord(item.totals);
+            const rawPayload = getObjectRecord(item.rawPayload);
+            const subscriptionPayload = getObjectRecord(rawPayload.subscription);
+            const plan = getObjectRecord(subscriptionPayload.plan);
+            const customerName = `${String(customer.firstName ?? "").trim()} ${String(customer.lastName ?? "").trim()}`.trim();
+            const createdAt = item.createdAt ? new Date(String(item.createdAt)).toISOString().split("T")[0] : "";
 
-    return adminOrders.map((item) => {
+            return {
+              _id: item._id,
+              orderId: item.orderId,
+              subscriptionId: item.subscriptionId,
+              client: customerName || "Customer",
+              phone: customer.phone,
+              customerEmail: customer.email,
+              customerEmirate: customer.emirate,
+              customerArea: customer.area,
+              status: "pending",
+              confirmationStatus: "pending",
+              plan: firstNonEmptyString(plan.title, "Monthly Plan"),
+              orderType: String(delivery.optionId ?? ""),
+              location: firstNonEmptyString(pickupLocation.name, customer.area, customer.emirate),
+              deliveryAddress: delivery.address,
+              pickupLocation: pickupLocation.name,
+              payment: "failed",
+              schedule: delivery.optionId,
+              date: createdAt,
+              total: `$${Number(totals.grandTotal ?? 0).toFixed(2)}`,
+              items: [],
+              notes: `Recoverable failed CMI payment attempt. ${getPaymentFailureReason(item.paymentMeta)}`,
+              subscriptionInfo: `${String(plan.id ?? "")} / ${String(delivery.optionId ?? "")}`,
+              subscriptionDetails: { daysPerWeek: 0, durationWeeks: 0, meals: 0 },
+              paymentFailureReason: getPaymentFailureReason(item.paymentMeta),
+              paymentSource: "customer-order",
+              isRecoveryOnly: true,
+              createdAt: item.createdAt,
+            };
+          })
+      : [];
+    const orderRows = [...adminOrders, ...failedPaymentOnlyOrders].sort((a, b) =>
+      String((b as unknown as Record<string, unknown>).createdAt ?? "").localeCompare(
+        String((a as unknown as Record<string, unknown>).createdAt ?? "")
+      )
+    );
+
+    return orderRows.map((item) => {
       const row = item as unknown as Record<string, unknown>;
       const orderId = String(row.orderId ?? "");
       const subscriptionId = String(row.subscriptionId ?? "");
       const customerOrder = customerOrderByOrderId.get(orderId) ?? {};
       const customerSubscription = customerSubscriptionById.get(subscriptionId) ?? {};
+      const rawPayload = getObjectRecord(customerOrder.rawPayload);
+      const subscriptionPayload = getObjectRecord(rawPayload.subscription);
+      const rawPlan = getObjectRecord(subscriptionPayload.plan);
       const plan =
         customerSubscription.plan && typeof customerSubscription.plan === "object"
           ? (customerSubscription.plan as Record<string, unknown>)
-          : {};
+          : rawPlan;
       const delivery =
         customerOrder.delivery && typeof customerOrder.delivery === "object"
           ? (customerOrder.delivery as Record<string, unknown>)
@@ -3064,7 +3178,7 @@ export const adminService = {
       
       const selectionObj = customerSubscription.selection && typeof customerSubscription.selection === "object"
         ? (customerSubscription.selection as Record<string, unknown>)
-        : {};
+        : getObjectRecord(subscriptionPayload.selection);
       const rowClientName = String(row.client ?? "").trim();
       const customerFirstName = String(customer.firstName ?? "").trim();
       const customerLastName = String(customer.lastName ?? "").trim();
@@ -3083,7 +3197,11 @@ export const adminService = {
         planTitle: String(row.plan ?? plan.title ?? ""),
         planKind: planKindById.get(planId) ?? "normal",
         status: normalizeMonthlyOrderStatus(row.status),
-        paymentStatus: normalizeMonthlyPaymentStatus(row.payment),
+        paymentStatus: normalizeMonthlyPaymentStatus(firstNonEmptyString(customerOrder.paymentStatus, row.payment)),
+        paymentFailureReason: normalizeMonthlyPaymentStatus(firstNonEmptyString(customerOrder.paymentStatus, row.payment)) === "failed"
+          ? firstNonEmptyString(row.paymentFailureReason, getPaymentFailureReason(customerOrder.paymentMeta))
+          : "",
+        isRecoveryOnly: Boolean(row.isRecoveryOnly ?? false),
         amount: parseMoneyValue(row.total),
         orderDate: String(row.date ?? ""),
         deliveryOption,
@@ -3235,6 +3353,7 @@ export const adminService = {
         filteredArchivedOrders: total,
         paidOrders: allArchivedOrders.filter((order) => order.paymentStatus === "paid").length,
         unpaidOrders: allArchivedOrders.filter((order) => order.paymentStatus === "unpaid").length,
+        failedOrders: allArchivedOrders.filter((order) => order.paymentStatus === "failed").length,
         codOrders: allArchivedOrders.filter((order) => order.paymentStatus === "cod").length
       }
     };
@@ -3527,6 +3646,7 @@ export const adminService = {
 
   async upsertMealLibraryAdmin(payload: MealLibraryItemPayload) {
     const existing = await MealLibraryItemModel.findOne({ mealId: payload.id }).lean();
+    const mealTypes = normalizeMealTypes(payload.mealTypes, payload.mealType);
     const hasImage = payload.image !== undefined;
     const normalizedImage = hasImage
       ? await uploadImageIfNeeded(normalizeMealImage(payload.image), { folder: "proteinbar/meals" })
@@ -3534,7 +3654,8 @@ export const adminService = {
     const updatePayload: Record<string, unknown> = {
       mealId: payload.id,
       name: payload.name.trim(),
-      mealType: payload.mealType,
+      mealType: mealTypes[0] ?? "Lunch",
+      mealTypes,
       calories: Number(payload.calories),
       protein: Number(payload.protein),
       carbs: Number(payload.carbs),
