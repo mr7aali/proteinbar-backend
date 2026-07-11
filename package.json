@@ -9,6 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "seed": "tsx src/scripts/seed.ts",
+    "seed:subscription-demo": "tsx src/scripts/seed-subscription-demo.ts",
+    "seed:demo-all": "tsx src/scripts/seed-demo-all.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
