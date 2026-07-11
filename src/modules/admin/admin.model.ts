@@ -231,6 +231,10 @@ const OrderSchema = new Schema(
       code: { type: String, default: "" },
       discountAmount: { type: Number, default: 0 }
     },
+    isArchived: { type: Boolean, default: false, index: true },
+    archivedAt: { type: String, default: "" },
+    archivedBy: { type: String, default: "" },
+    archiveReason: { type: String, default: "" },
     auditLog: { type: [OrderAuditSchema], default: [] }
   },
   { timestamps: true }
