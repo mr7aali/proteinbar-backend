@@ -148,6 +148,12 @@ export const monthlyPlanClientFiltersSchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional()
 });
 
+export const monthlyPlanClientUpdateSchema = z.object({
+  email: z.string().email().optional(),
+  phone: z.string().min(1).optional(),
+  address: z.string().optional()
+});
+
 export const monthlyPlanOrderArchiveFiltersSchema = z.object({
   search: z.string().optional(),
   planKind: z.enum(["custom", "normal", "all"]).optional(),

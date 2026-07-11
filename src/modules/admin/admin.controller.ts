@@ -152,6 +152,10 @@ export const adminController = {
     const data = await adminService.getMonthlyPlanClientDetailsAdmin(req.params.clientKey);
     res.json({ success: true, data });
   }),
+  updateMonthlyPlanClientAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.updateMonthlyPlanClientAdmin(req.params.clientKey, req.body);
+    res.json({ success: true, data, message: "Client info updated" });
+  }),
 
   listMealLibraryAdmin: asyncHandler(async (_req: Request, res: Response) => {
     const data = await adminService.listMealLibraryAdmin();

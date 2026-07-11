@@ -596,7 +596,6 @@ function buildMonthlyClientRecords(
     record.days ||= Number(order.selections?.days ?? 0);
     record.snacks ||= Number(order.selections?.snacks ?? 0);
     record.startDate ||= String(order.selections?.startDate || order.orderDate || "");
-    if (record.status === "Lead") record.status = "Active";
     record.orders.push(order);
     record.orderCount = record.orders.length;
     record.totalSpent += Number(order.amount ?? 0);
@@ -3242,10 +3241,12 @@ export const adminService = {
   },
 
   async listMonthlyPlanClientsAdmin(filters: Record<string, string | undefined>) {
-    const [orders, subscriptions] = await Promise.all([
-      this.listMonthlyPlanOrdersAdmin(),
+    const [activeOrders, archivedOrders, subscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin("active"),
+      this.listMonthlyPlanOrdersAdmin("archived"),
       this.listMonthlyPlanSubscriptionsAdmin()
     ]);
+    const orders = [...activeOrders, ...archivedOrders];
     const page = Math.max(1, Number(filters.page ?? 1) || 1);
     const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 10) || 10));
     const statusFilter = String(filters.status ?? "all").trim().toLowerCase();
@@ -3315,16 +3316,27 @@ export const adminService = {
         totalClients: allClients.length,
         activeClients: allClients.filter((client) => client.status === "Active").length,
         pausedClients: allClients.filter((client) => client.status === "Paused").length,
-        leadClients: allClients.filter((client) => client.status === "Lead").length
+        leadClients: allClients.filter((client) => client.status === "Lead").length,
+        clientsWithOrders: allClients.filter((client) => client.orderCount > 0).length,
+        activeSubscriptions: allClients.reduce(
+          (sum, client) =>
+            sum +
+            client.subscriptions.filter((subscription) => String(subscription.status ?? "").toLowerCase() === "active")
+              .length,
+          0
+        ),
+        totalRevenue: allClients.reduce((sum, client) => sum + client.totalSpent, 0)
       }
     };
   },
 
   async getMonthlyPlanClientDetailsAdmin(clientKey: string) {
-    const [orders, subscriptions] = await Promise.all([
-      this.listMonthlyPlanOrdersAdmin(),
+    const [activeOrders, archivedOrders, subscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin("active"),
+      this.listMonthlyPlanOrdersAdmin("archived"),
       this.listMonthlyPlanSubscriptionsAdmin()
     ]);
+    const orders = [...activeOrders, ...archivedOrders];
     const decodedKey = decodeURIComponent(clientKey);
     const clients = buildMonthlyClientRecords(
       orders as Array<Record<string, any>>,
@@ -3337,6 +3349,109 @@ export const adminService = {
     }
 
     return client;
+  },
+
+  async updateMonthlyPlanClientAdmin(clientKey: string, patch: Record<string, unknown>) {
+    const decodedKey = decodeURIComponent(clientKey);
+    const [activeOrders, archivedOrders, subscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin("active"),
+      this.listMonthlyPlanOrdersAdmin("archived"),
+      this.listMonthlyPlanSubscriptionsAdmin()
+    ]);
+    const clients = buildMonthlyClientRecords(
+      [...activeOrders, ...archivedOrders] as Array<Record<string, any>>,
+      subscriptions as Array<Record<string, any>>
+    );
+    const client = clients.find((item) => item.key === decodedKey || item.id === decodedKey);
+
+    if (!client) {
+      throw new AppError(404, "Client not found");
+    }
+
+    const nextEmail = firstNonEmptyString(patch.email).trim().toLowerCase();
+    const nextPhone = firstNonEmptyString(patch.phone).trim();
+    const nextAddress = patch.address === undefined ? "" : String(patch.address ?? "").trim();
+    const shouldUpdateEmail = Boolean(nextEmail);
+    const shouldUpdatePhone = Boolean(nextPhone);
+    const shouldUpdateAddress = patch.address !== undefined;
+    const orderIds = Array.from(new Set(client.orders.map((order) => String(order.orderId ?? "")).filter(Boolean)));
+    const adminOrderObjectIds = Array.from(new Set(client.orders.map((order) => String(order.id ?? "")).filter(isValidObjectId)));
+    const subscriptionIds = Array.from(
+      new Set([
+        ...client.subscriptions.map((subscription) => String(subscription.subscriptionId ?? "")),
+        ...client.orders.map((order) => String(order.subscriptionId ?? ""))
+      ].filter(Boolean))
+    );
+
+    const adminOrderSet: Record<string, unknown> = {};
+    if (shouldUpdateEmail) adminOrderSet.customerEmail = nextEmail;
+    if (shouldUpdatePhone) adminOrderSet.phone = nextPhone;
+    if (shouldUpdateAddress) adminOrderSet.deliveryAddress = nextAddress;
+
+    const customerSet: Record<string, unknown> = {};
+    if (shouldUpdateEmail) customerSet["customer.email"] = nextEmail;
+    if (shouldUpdatePhone) customerSet["customer.phone"] = nextPhone;
+    if (shouldUpdateAddress) customerSet["delivery.address"] = nextAddress;
+
+    const updates: Array<Promise<unknown>> = [];
+
+    if (Object.keys(adminOrderSet).length && (adminOrderObjectIds.length || orderIds.length)) {
+      updates.push(
+        OrderModel.updateMany(
+          {
+            $or: [
+              ...(adminOrderObjectIds.length ? [{ _id: { $in: adminOrderObjectIds } }] : []),
+              ...(orderIds.length ? [{ orderId: { $in: orderIds } }] : [])
+            ]
+          },
+          {
+            $set: adminOrderSet,
+            $push: {
+              auditLog: {
+                $each: [
+                  {
+                    at: new Date().toISOString(),
+                    by: "Monthly plan admin",
+                    action: "Client contact info updated"
+                  }
+                ],
+                $position: 0
+              }
+            }
+          }
+        )
+      );
+    }
+
+    if (Object.keys(customerSet).length && orderIds.length) {
+      updates.push(CustomerOrderModel.updateMany({ orderId: { $in: orderIds } }, { $set: customerSet }));
+    }
+
+    if (Object.keys(customerSet).length && subscriptionIds.length) {
+      updates.push(CustomerSubscriptionModel.updateMany({ subscriptionId: { $in: subscriptionIds } }, { $set: customerSet }));
+    }
+
+    await Promise.all(updates);
+
+    const [nextActiveOrders, nextArchivedOrders, nextSubscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin("active"),
+      this.listMonthlyPlanOrdersAdmin("archived"),
+      this.listMonthlyPlanSubscriptionsAdmin()
+    ]);
+    const nextClients = buildMonthlyClientRecords(
+      [...nextActiveOrders, ...nextArchivedOrders] as Array<Record<string, any>>,
+      nextSubscriptions as Array<Record<string, any>>
+    );
+    const nextClient =
+      (shouldUpdateEmail ? nextClients.find((item) => item.email.toLowerCase() === nextEmail) : null) ??
+      (shouldUpdatePhone ? nextClients.find((item) => item.phone === nextPhone) : null) ??
+      nextClients.find((item) => item.key === decodedKey || item.id === decodedKey);
+
+    if (!nextClient) {
+      throw new AppError(404, "Updated client not found");
+    }
+
+    return nextClient;
   },
 
   async updateMonthlyPlanOrderAdmin(id: string, patch: Record<string, unknown>) {
@@ -3865,11 +3980,13 @@ export const adminService = {
   },
 
   async listOrdersOfDay() {
-    return OrderModel.find().sort({ createdAt: -1 }).limit(20).lean();
+    const today = new Date().toISOString().slice(0, 10);
+    return OrderModel.find({ date: today, isArchived: { $ne: true } }).sort({ createdAt: -1 }).lean();
   },
 
   async listPrintableOrders() {
-    const rows = await OrderModel.find().sort({ createdAt: -1 }).limit(50).lean();
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await OrderModel.find({ date: today, isArchived: { $ne: true } }).sort({ createdAt: -1 }).lean();
     return rows.flatMap((order) =>
       order.items.map((item: { name: string; macros: string }) => ({
         orderId: order.orderId,
