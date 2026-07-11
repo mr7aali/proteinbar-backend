@@ -2984,9 +2984,9 @@ export const adminService = {
     return updated;
   },
 
-  async listMonthlyPlanOrdersAdmin() {
+  async listMonthlyPlanOrdersAdmin(archiveMode: "active" | "archived" = "active") {
     const [adminOrders, customerOrders, customerSubscriptions, mealRows, planRows] = await Promise.all([
-      OrderModel.find().sort({ createdAt: -1 }).lean(),
+      OrderModel.find(archiveMode === "archived" ? { isArchived: true } : { isArchived: { $ne: true } }).sort({ createdAt: -1 }).lean(),
       CustomerOrderModel.find().lean(),
       CustomerSubscriptionModel.find().lean(),
       MealLibraryItemModel.find().lean(),
@@ -3111,9 +3111,134 @@ export const adminService = {
         promoCode: {
           code: String(promoCode.code ?? ""),
           discountAmount: Number(promoCode.discountAmount ?? 0)
-        }
+        },
+        isArchived: Boolean(row.isArchived ?? false),
+        archivedAt: String(row.archivedAt ?? ""),
+        archivedBy: String(row.archivedBy ?? ""),
+        archiveReason: String(row.archiveReason ?? "")
       };
     });
+  },
+
+  async bulkArchiveMonthlyPlanOrdersAdmin(payload: Record<string, unknown>) {
+    const requestedIds = Array.isArray(payload.ids) ? payload.ids.map((id) => String(id).trim()).filter(Boolean) : [];
+    const uniqueIds = Array.from(new Set(requestedIds));
+    const validIds = uniqueIds.filter((id) => isValidObjectId(id));
+
+    if (!validIds.length) {
+      throw new AppError(400, "Select at least one valid order to archive");
+    }
+
+    const now = new Date().toISOString();
+    const reason = firstNonEmptyString(payload.reason, "Archived from Meal Prep Management orders cleanup");
+    const result = await OrderModel.updateMany(
+      { _id: { $in: validIds }, isArchived: { $ne: true } },
+      {
+        $set: {
+          isArchived: true,
+          archivedAt: now,
+          archivedBy: "Monthly plan admin",
+          archiveReason: reason
+        },
+        $push: {
+          auditLog: {
+            $each: [
+              {
+                at: now,
+                by: "Monthly plan admin",
+                action: `Archived: ${reason}`
+              }
+            ],
+            $position: 0
+          }
+        }
+      }
+    );
+
+    const archivedCount = Number(result.modifiedCount ?? 0);
+    const invalidCount = uniqueIds.length - validIds.length;
+
+    return {
+      requestedCount: uniqueIds.length,
+      archivedCount,
+      skippedCount: uniqueIds.length - archivedCount,
+      invalidCount,
+      message:
+        archivedCount === 1
+          ? "1 order archived. It was not deleted and remains in the database history."
+          : `${archivedCount} orders archived. They were not deleted and remain in the database history.`
+    };
+  },
+
+  async listArchivedMonthlyPlanOrdersAdmin(filters: Record<string, string | undefined>) {
+    const page = Math.max(1, Number(filters.page ?? 1) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 10) || 10));
+    const search = String(filters.search ?? "").trim().toLowerCase();
+    const planKind = String(filters.planKind ?? "all").trim().toLowerCase();
+    const status = String(filters.status ?? "all").trim().toLowerCase();
+    const deliveryOption = String(filters.deliveryOption ?? "all").trim().toLowerCase();
+    const paymentStatus = String(filters.paymentStatus ?? "all").trim().toLowerCase();
+    const allArchivedOrders = await this.listMonthlyPlanOrdersAdmin("archived") as Array<Record<string, any>>;
+
+    let orders = [...allArchivedOrders];
+
+    if (search) {
+      orders = orders.filter((order) => {
+        const searchable = [
+          order.orderId,
+          order.subscriptionId,
+          order.customerName,
+          order.customerEmail,
+          order.customerPhone,
+          order.planTitle,
+          order.locationName,
+          order.deliveryAddress,
+          order.archiveReason
+        ];
+        return searchable.some((value) => String(value ?? "").toLowerCase().includes(search));
+      });
+    }
+
+    if (planKind !== "all") {
+      orders = orders.filter((order) => String(order.planKind ?? "").toLowerCase() === planKind);
+    }
+
+    if (status !== "all") {
+      orders = orders.filter((order) => String(order.status ?? "").toLowerCase() === status);
+    }
+
+    if (deliveryOption !== "all") {
+      orders = orders.filter((order) => String(order.deliveryOption ?? "").toLowerCase() === deliveryOption);
+    }
+
+    if (paymentStatus !== "all") {
+      orders = orders.filter((order) => String(order.paymentStatus ?? "").toLowerCase() === paymentStatus);
+    }
+
+    const total = orders.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * limit;
+    const items = orders.slice(start, start + limit);
+
+    return {
+      items,
+      pagination: {
+        page: safePage,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: safePage < totalPages,
+        hasPreviousPage: safePage > 1
+      },
+      summary: {
+        totalArchivedOrders: allArchivedOrders.length,
+        filteredArchivedOrders: total,
+        paidOrders: allArchivedOrders.filter((order) => order.paymentStatus === "paid").length,
+        unpaidOrders: allArchivedOrders.filter((order) => order.paymentStatus === "unpaid").length,
+        codOrders: allArchivedOrders.filter((order) => order.paymentStatus === "cod").length
+      }
+    };
   },
 
   async listMonthlyPlanClientsAdmin(filters: Record<string, string | undefined>) {

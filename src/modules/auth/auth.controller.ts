@@ -73,8 +73,13 @@ export const authController = {
     res.json({ success: true, data });
   }),
 
+  adminRefresh: asyncHandler(async (req: Request, res: Response) => {
+    const data = await authService.refreshAdminSession(req.body.refreshToken);
+    res.json({ success: true, data });
+  }),
+
   adminLogout: asyncHandler(async (req: Request, res: Response) => {
-    const token = req.currentAdminSessionToken ?? getBearerToken(req.headers.authorization);
+    const token = req.currentAdminSessionToken || getBearerToken(req.headers.authorization) || String(req.body?.refreshToken ?? "");
     await authService.logoutAdminSession(token);
     res.json({ success: true, data: { loggedOut: true } });
   }),

@@ -10,7 +10,8 @@ import {
   UserModel
 } from "./auth.model";
 
-const ADMIN_SESSION_DAYS = 7;
+const ADMIN_ACCESS_TOKEN_MINUTES = 15;
+const ADMIN_REFRESH_TOKEN_DAYS = 7;
 const ADMIN_ROLES = new Set(["super_admin", "admin", "employee"]);
 
 function generateCode() {
@@ -19,6 +20,22 @@ function generateCode() {
 
 function generateSessionToken() {
   return crypto.randomBytes(32).toString("hex");
+}
+
+function buildAdminAuthResponse(user: Awaited<ReturnType<typeof buildAdminUserPayload>>, token: string, refreshToken: string, expiresAt: Date, refreshExpiresAt: Date) {
+  return {
+    user,
+    token,
+    accessToken: token,
+    refreshToken,
+    session: {
+      token,
+      accessToken: token,
+      refreshToken,
+      expiresAt,
+      refreshExpiresAt
+    }
+  };
 }
 
 type AdminLikeUser = {
@@ -188,25 +205,22 @@ export const authService = {
       email: normalizedEmail
     });
 
-    const expiresAt = new Date(Date.now() + ADMIN_SESSION_DAYS * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + ADMIN_ACCESS_TOKEN_MINUTES * 60 * 1000);
+    const refreshExpiresAt = new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
     const token = generateSessionToken();
+    const refreshToken = generateSessionToken();
 
     await AdminSessionModel.create({
       token,
+      refreshToken,
       userId: user._id,
       email: normalizedEmail,
-      expiresAt
+      expiresAt,
+      refreshExpiresAt
     });
 
     const adminUser = await buildAdminUserPayload(user);
-    return {
-      user: adminUser,
-      token,
-      session: {
-        token,
-        expiresAt
-      }
-    };
+    return buildAdminAuthResponse(adminUser, token, refreshToken, expiresAt, refreshExpiresAt);
   },
 
   async getAdminSession(token: string) {
@@ -218,35 +232,75 @@ export const authService = {
     const session = await AdminSessionModel.findOne({
       token: normalizedToken,
       expiresAt: { $gt: new Date() }
-    }).lean();
+    });
 
     if (!session) {
       throw new AppError(401, "Authentication required");
     }
 
-    const user = await UserModel.findById(session.userId).lean();
+    const user = await UserModel.findById(session.userId);
     if (!user || !ADMIN_ROLES.has(user.role) || !user.isActive) {
       throw new AppError(401, "Authentication required");
     }
 
-    return {
-      user: await buildAdminUserPayload(user),
-      session: {
-        token: normalizedToken,
-        expiresAt: session.expiresAt
-      }
-    };
+    if (!session.refreshToken) {
+      session.refreshToken = generateSessionToken();
+      session.refreshExpiresAt = new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+      await session.save();
+    }
+
+    const refreshExpiresAt = session.refreshExpiresAt ?? new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+    const adminUser = await buildAdminUserPayload(user);
+    return buildAdminAuthResponse(adminUser, normalizedToken, session.refreshToken, session.expiresAt, refreshExpiresAt);
   },
 
   async logoutAdminSession(token: string) {
     const normalizedToken = token.trim();
     if (!normalizedToken) return;
 
-    await AdminSessionModel.deleteOne({ token: normalizedToken });
+    await AdminSessionModel.deleteOne({
+      $or: [{ token: normalizedToken }, { refreshToken: normalizedToken }]
+    });
   },
 
   async getAdminMe(token: string) {
     return this.getAdminSession(token);
+  },
+
+  async refreshAdminSession(refreshToken: string) {
+    const normalizedToken = refreshToken.trim();
+    if (!normalizedToken) {
+      throw new AppError(401, "Refresh token required");
+    }
+
+    const session = await AdminSessionModel.findOne({
+      refreshToken: normalizedToken,
+      refreshExpiresAt: { $gt: new Date() }
+    });
+
+    if (!session) {
+      throw new AppError(401, "Invalid or expired refresh token");
+    }
+
+    const user = await UserModel.findById(session.userId);
+    if (!user || !ADMIN_ROLES.has(user.role) || !user.isActive) {
+      await AdminSessionModel.deleteOne({ _id: session._id });
+      throw new AppError(401, "Authentication required");
+    }
+
+    const nextAccessToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + ADMIN_ACCESS_TOKEN_MINUTES * 60 * 1000);
+    const refreshExpiresAt = session.refreshExpiresAt ?? new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+
+    session.token = nextAccessToken;
+    session.expiresAt = expiresAt;
+    if (!session.refreshExpiresAt) {
+      session.refreshExpiresAt = refreshExpiresAt;
+    }
+    await session.save();
+
+    const adminUser = await buildAdminUserPayload(user);
+    return buildAdminAuthResponse(adminUser, nextAccessToken, normalizedToken, expiresAt, refreshExpiresAt);
   },
 
   async resetPassword(email: string, newPassword: string) {

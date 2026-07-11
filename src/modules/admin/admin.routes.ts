@@ -23,6 +23,8 @@ import {
   monthlyPlanClientFiltersSchema,
   monthlyPlanDetailsParamSchema,
   monthlyPlanDetailsUpsertSchema,
+  monthlyPlanOrderBulkArchiveSchema,
+  monthlyPlanOrderArchiveFiltersSchema,
   monthlyPlanSchema,
   orderUpdateSchema,
   planFlowSchema,
@@ -77,6 +79,8 @@ adminRouter.delete("/admin/monthly-plan/plans/:id", validate(monthlyPlanDetailsP
 adminRouter.get("/admin/monthly-plan/subscriptions", adminController.listMonthlyPlanSubscriptionsAdmin);
 adminRouter.patch("/admin/monthly-plan/subscriptions/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.updateMonthlyPlanSubscriptionAdmin);
 adminRouter.get("/admin/monthly-plan/orders", adminController.listMonthlyPlanOrdersAdmin);
+adminRouter.get("/admin/monthly-plan/orders/archived", validate(monthlyPlanOrderArchiveFiltersSchema, "query"), adminController.listArchivedMonthlyPlanOrdersAdmin);
+adminRouter.patch("/admin/monthly-plan/orders/bulk-archive", validate(monthlyPlanOrderBulkArchiveSchema), adminController.bulkArchiveMonthlyPlanOrdersAdmin);
 adminRouter.patch("/admin/monthly-plan/orders/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.updateMonthlyPlanOrderAdmin);
 adminRouter.get("/admin/monthly-plan/clients", validate(monthlyPlanClientFiltersSchema, "query"), adminController.listMonthlyPlanClientsAdmin);
 adminRouter.get("/admin/monthly-plan/clients/:clientKey", adminController.getMonthlyPlanClientDetailsAdmin);

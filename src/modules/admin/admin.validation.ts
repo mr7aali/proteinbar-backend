@@ -148,6 +148,16 @@ export const monthlyPlanClientFiltersSchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional()
 });
 
+export const monthlyPlanOrderArchiveFiltersSchema = z.object({
+  search: z.string().optional(),
+  planKind: z.enum(["custom", "normal", "all"]).optional(),
+  status: z.enum(["pending", "confirmed", "preparing", "out-for-delivery", "completed", "all"]).optional(),
+  deliveryOption: z.enum(["daily-delivery", "daily-pickup", "weekly-delivery", "weekly-pickup", "all"]).optional(),
+  paymentStatus: z.enum(["paid", "unpaid", "cod", "all"]).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(100).optional()
+});
+
 export const monthlyPlanDetailsParamSchema = z.object({
   id: z.string().min(1)
 });
@@ -201,6 +211,11 @@ export const customPlanCategorySchema = z.object({
 export const customPlanCategoryReorderSchema = z.object({
   planId: z.string().min(1),
   categoryIds: z.array(z.string().min(1)).default([])
+});
+
+export const monthlyPlanOrderBulkArchiveSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "Select at least one order to archive"),
+  reason: z.string().optional()
 });
 
 export const customPlanFoodItemListQuerySchema = z.object({
