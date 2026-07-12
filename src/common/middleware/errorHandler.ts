@@ -11,6 +11,19 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ) {
+  if (
+    err &&
+    typeof err === "object" &&
+    "type" in err &&
+    (err as { type?: string }).type === "entity.too.large"
+  ) {
+    return res.status(413).json({
+      success: false,
+      message: "Uploaded data is too large. Please use a smaller image.",
+      details: null,
+    });
+  }
+
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       success: false,

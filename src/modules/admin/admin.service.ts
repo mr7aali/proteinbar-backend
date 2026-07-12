@@ -244,6 +244,21 @@ function normalizeMealImage(value: unknown) {
   return normalizeImageInput(value);
 }
 
+const maxMealImageDataUrlBytes = 8 * 1024 * 1024;
+
+function getDataUrlByteSize(value: string) {
+  const base64 = value.split(",")[1] ?? "";
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+function assertMealImageSize(value: string) {
+  if (!value.startsWith("data:image/")) return;
+
+  if (getDataUrlByteSize(value) > maxMealImageDataUrlBytes) {
+    throw new AppError(413, "Meal image is too large. Please upload a smaller image.");
+  }
+}
+
 function toSelectionMode(value: unknown): SelectionMode {
   return String(value ?? "").trim().toLowerCase() === "multi" ? "multi" : "single";
 }
@@ -3772,9 +3787,16 @@ export const adminService = {
     const existing = await MealLibraryItemModel.findOne({ mealId: payload.id }).lean();
     const mealTypes = normalizeMealTypes(payload.mealTypes, payload.mealType);
     const hasImage = payload.image !== undefined;
+    const incomingImage = hasImage ? normalizeMealImage(payload.image) : "";
+    if (hasImage) {
+      assertMealImageSize(incomingImage);
+    }
     const normalizedImage = hasImage
-      ? await uploadImageIfNeeded(normalizeMealImage(payload.image), { folder: "proteinbar/meals" })
+      ? await uploadImageIfNeeded(incomingImage, { folder: "proteinbar/meals" })
       : undefined;
+    if (hasImage) {
+      assertMealImageSize(normalizedImage ?? "");
+    }
     const updatePayload: Record<string, unknown> = {
       mealId: payload.id,
       name: payload.name.trim(),
