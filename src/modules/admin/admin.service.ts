@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { FilterQuery, isValidObjectId } from "mongoose";
+import mongoose, { FilterQuery, isValidObjectId } from "mongoose";
 import { AppError } from "../../common/utils/AppError";
 import { normalizeImageInput, uploadImageIfNeeded } from "../../common/utils/cloudinary";
 import { AdminRoleModel, UserModel } from "../auth/auth.model";
@@ -53,11 +53,13 @@ type MealLibraryItemPayload = {
 
 type MealLibraryDeleteResult = {
   id: string;
-  action: "archived" | "deleted";
+  action: "archived" | "deleted" | "force-deleted";
   status: "inactive" | "deleted";
   referenceCount: number;
   planCount: number;
   message: string;
+  removedWeekAssignments?: number;
+  removedFoodItems?: number;
 };
 
 type SelectionMode = "single" | "multi";
@@ -240,6 +242,21 @@ function toLocation(row: Record<string, unknown>) {
 
 function normalizeMealImage(value: unknown) {
   return normalizeImageInput(value);
+}
+
+const maxMealImageDataUrlBytes = 8 * 1024 * 1024;
+
+function getDataUrlByteSize(value: string) {
+  const base64 = value.split(",")[1] ?? "";
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+function assertMealImageSize(value: string) {
+  if (!value.startsWith("data:image/")) return;
+
+  if (getDataUrlByteSize(value) > maxMealImageDataUrlBytes) {
+    throw new AppError(413, "Meal image is too large. Please upload a smaller image.");
+  }
 }
 
 function toSelectionMode(value: unknown): SelectionMode {
@@ -808,6 +825,16 @@ function normalizeMealTypes(value: unknown, fallback?: unknown) {
   return mealTypes.length > 0 ? mealTypes : ["Lunch"];
 }
 
+function resolveMealTypeForMeal(value: unknown, meal: MealLibraryItemPayload) {
+  const requested = String(value ?? "").trim();
+  const allowedTypes = normalizeMealTypes(meal.mealTypes, meal.mealType);
+  if (allowedTypes.some((type) => type.toLowerCase() === requested.toLowerCase())) {
+    return allowedTypes.find((type) => type.toLowerCase() === requested.toLowerCase()) ?? requested;
+  }
+
+  return allowedTypes[0] ?? "Lunch";
+}
+
 function findRestaurantIdByName(
   restaurantIdByName: Map<string, string>,
   names: string[]
@@ -1180,7 +1207,7 @@ function hydrateAssignedMealsWithMealLibrary(
               ...meal,
               mealId: linkedMeal.id,
               mealName: linkedMeal.name,
-              mealType: String(meal.mealType ?? "").trim() || linkedMeal.mealType || "Lunch"
+              mealType: resolveMealTypeForMeal(meal.mealType, linkedMeal)
             };
           })
         ];
@@ -1352,7 +1379,7 @@ async function syncMealLibraryItemToPlans(meal: MealLibraryItemPayload, previous
                 ...assignedMeal,
                 mealId: meal.id,
                 mealName: meal.name,
-                mealType: String(assignedMeal.mealType ?? "").trim() || meal.mealType || "Lunch"
+                mealType: resolveMealTypeForMeal(assignedMeal.mealType, meal)
               };
             })
           ])
@@ -1732,21 +1759,21 @@ async function summarizeMealLibraryUsage(meal: MealLibraryItemPayload) {
       payload.plan.content && typeof payload.plan.content === "object"
         ? (payload.plan.content as Record<string, unknown>)
         : null;
-    const stepTwo =
-      content?.regularStepTwo && typeof content.regularStepTwo === "object"
-        ? (content.regularStepTwo as Record<string, unknown>)
-        : content?.customStepTwo && typeof content.customStepTwo === "object"
-          ? (content.customStepTwo as Record<string, unknown>)
+    for (const stepTwoKey of ["regularStepTwo", "customStepTwo"]) {
+      const stepTwo =
+        content?.[stepTwoKey] && typeof content[stepTwoKey] === "object"
+          ? (content[stepTwoKey] as Record<string, unknown>)
           : null;
-    const foodItems = Array.isArray(stepTwo?.foodItems) ? stepTwo.foodItems : [];
+      const foodItems = Array.isArray(stepTwo?.foodItems) ? stepTwo.foodItems : [];
 
-    for (const entry of foodItems) {
-      const item = entry as Record<string, unknown>;
-      const sourceMealId = String(item.sourceMealId ?? "").trim();
-      const itemName = normalizeMealLookupValue(item.name);
-      if (sourceMealId === meal.id || candidateNames.has(itemName)) {
-        stepTwoCount += 1;
-        isReferencedByPlan = true;
+      for (const entry of foodItems) {
+        const item = entry as Record<string, unknown>;
+        const sourceMealId = String(item.sourceMealId ?? "").trim();
+        const itemName = normalizeMealLookupValue(item.name);
+        if (sourceMealId === meal.id || candidateNames.has(itemName)) {
+          stepTwoCount += 1;
+          isReferencedByPlan = true;
+        }
       }
     }
 
@@ -1760,6 +1787,115 @@ async function summarizeMealLibraryUsage(meal: MealLibraryItemPayload) {
     referenceCount: weekAssignmentCount + stepTwoCount,
     weekAssignmentCount,
     stepTwoCount
+  };
+}
+
+function removeMealLibraryReferencesFromDetails(
+  details: MonthlyPlanDetailsPayload,
+  meal: MealLibraryItemPayload
+) {
+  const candidateNames = new Set([normalizeMealLookupValue(meal.name)].filter(Boolean));
+  let removedWeekAssignments = 0;
+  let removedFoodItems = 0;
+  let didChange = false;
+
+  const nextWeekAssignments = details.weekAssignments.map((week) => {
+    const mealsByDate =
+      week.mealsByDate && typeof week.mealsByDate === "object"
+        ? (week.mealsByDate as Record<string, unknown>)
+        : {};
+    let weekDidChange = false;
+
+    const nextMealsByDate = Object.fromEntries(
+      Object.entries(mealsByDate).map(([dateIso, assignedMeals]) => {
+        const mealRows = Array.isArray(assignedMeals) ? assignedMeals : [];
+        const nextMeals = mealRows.filter((entry) => {
+          const assignedMeal = entry as Record<string, unknown>;
+          const assignedMealId = String(assignedMeal.mealId ?? "").trim();
+          const assignedMealName = normalizeMealLookupValue(assignedMeal.mealName);
+          const shouldRemove =
+            assignedMealId === meal.id ||
+            candidateNames.has(assignedMealName);
+
+          if (shouldRemove) {
+            removedWeekAssignments += 1;
+            weekDidChange = true;
+          }
+
+          return !shouldRemove;
+        });
+
+        return [dateIso, nextMeals];
+      })
+    );
+
+    if (weekDidChange) didChange = true;
+    return {
+      ...week,
+      mealsByDate: nextMealsByDate
+    };
+  });
+
+  const content =
+    details.plan.content && typeof details.plan.content === "object"
+      ? (details.plan.content as Record<string, unknown>)
+      : null;
+
+  if (!content) {
+    return {
+      nextDetails: {
+        ...details,
+        weekAssignments: nextWeekAssignments
+      },
+      didChange,
+      removedWeekAssignments,
+      removedFoodItems
+    };
+  }
+
+  const nextContent = { ...content };
+  for (const stepTwoKey of ["regularStepTwo", "customStepTwo"]) {
+    const stepTwo =
+      nextContent[stepTwoKey] && typeof nextContent[stepTwoKey] === "object"
+        ? (nextContent[stepTwoKey] as Record<string, unknown>)
+        : null;
+    if (!stepTwo) continue;
+
+    const foodItems = Array.isArray(stepTwo.foodItems) ? stepTwo.foodItems : [];
+    const nextFoodItems = foodItems.filter((entry) => {
+      const item = entry as Record<string, unknown>;
+      const sourceMealId = String(item.sourceMealId ?? "").trim();
+      const itemName = normalizeMealLookupValue(item.name);
+      const shouldRemove =
+        sourceMealId === meal.id ||
+        candidateNames.has(itemName);
+
+      if (shouldRemove) {
+        removedFoodItems += 1;
+        didChange = true;
+      }
+
+      return !shouldRemove;
+    });
+
+    nextContent[stepTwoKey] = {
+      ...stepTwo,
+      foodItems: nextFoodItems
+    };
+  }
+
+  return {
+    nextDetails: {
+      ...details,
+      plan: {
+        ...details.plan,
+        content: nextContent
+      },
+      weekAssignments: nextWeekAssignments
+    },
+    didChange,
+    removedWeekAssignments,
+    removedFoodItems
   };
 }
 
@@ -3050,7 +3186,10 @@ export const adminService = {
       customerSubscriptions.map((item) => [String((item as unknown as Record<string, unknown>).subscriptionId ?? ""), item as unknown as Record<string, unknown>])
     );
     const mealTypeById = new Map(
-      mealRows.map((item) => [String((item as unknown as Record<string, unknown>).mealId ?? ""), String((item as unknown as Record<string, unknown>).mealType ?? "Lunch")])
+      mealRows.map((item) => {
+        const meal = toMealLibraryItem(item as unknown as Record<string, unknown>);
+        return [meal.id, meal.mealType];
+      })
     );
     const planKindById = new Map(
       planRows.map((item) => [
@@ -3648,9 +3787,16 @@ export const adminService = {
     const existing = await MealLibraryItemModel.findOne({ mealId: payload.id }).lean();
     const mealTypes = normalizeMealTypes(payload.mealTypes, payload.mealType);
     const hasImage = payload.image !== undefined;
+    const incomingImage = hasImage ? normalizeMealImage(payload.image) : "";
+    if (hasImage) {
+      assertMealImageSize(incomingImage);
+    }
     const normalizedImage = hasImage
-      ? await uploadImageIfNeeded(normalizeMealImage(payload.image), { folder: "proteinbar/meals" })
+      ? await uploadImageIfNeeded(incomingImage, { folder: "proteinbar/meals" })
       : undefined;
+    if (hasImage) {
+      assertMealImageSize(normalizedImage ?? "");
+    }
     const updatePayload: Record<string, unknown> = {
       mealId: payload.id,
       name: payload.name.trim(),
@@ -3737,6 +3883,67 @@ export const adminService = {
       planCount: 0,
       message: "Meal permanently deleted."
     };
+  },
+
+  async forceDeleteMealLibraryAdmin(id: string): Promise<MealLibraryDeleteResult> {
+    const session = await mongoose.startSession();
+    let result: MealLibraryDeleteResult | null = null;
+
+    try {
+      await session.withTransaction(async () => {
+        const row = await MealLibraryItemModel.findOne({ mealId: id }).session(session).lean();
+        if (!row) throw new AppError(404, "Meal not found");
+
+        const meal = toMealLibraryItem(row as unknown as Record<string, unknown>);
+        const planRows = await MonthlyPlanDetailsModel.find({}).session(session).lean();
+        const changedPlanIds = new Set<string>();
+        let removedWeekAssignments = 0;
+        let removedFoodItems = 0;
+
+        for (const planRow of planRows) {
+          const details = toMonthlyPlanDetailsPayload(planRow as unknown as Record<string, unknown>);
+          const cleanup = removeMealLibraryReferencesFromDetails(details, meal);
+          if (!cleanup.didChange) continue;
+
+          changedPlanIds.add(details.plan.id);
+          removedWeekAssignments += cleanup.removedWeekAssignments;
+          removedFoodItems += cleanup.removedFoodItems;
+
+          await MonthlyPlanDetailsModel.updateOne(
+            { planId: details.plan.id },
+            {
+              $set: {
+                plan: cleanup.nextDetails.plan,
+                weekAssignments: cleanup.nextDetails.weekAssignments
+              }
+            },
+            { session }
+          );
+        }
+
+        await MealLibraryItemModel.deleteOne({ mealId: id }).session(session);
+
+        const referenceCount = removedWeekAssignments + removedFoodItems;
+        result = {
+          id,
+          action: "force-deleted",
+          status: "deleted",
+          referenceCount,
+          planCount: changedPlanIds.size,
+          removedWeekAssignments,
+          removedFoodItems,
+          message:
+            referenceCount > 0
+              ? `Meal permanently deleted and removed from ${referenceCount} references across ${changedPlanIds.size} plans.`
+              : "Meal permanently deleted."
+        };
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    if (!result) throw new AppError(500, "Failed to force delete meal.");
+    return result;
   },
 
   async listCustomPlanCategoriesAdmin(planId: string) {
