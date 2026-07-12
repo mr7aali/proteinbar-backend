@@ -37,6 +37,7 @@ type MealLibraryItemPayload = {
   id: string;
   name: string;
   mealType: string;
+  mealTypes?: string[];
   calories: number;
   protein: number;
   carbs: number;
@@ -369,9 +370,37 @@ function firstNonEmptyString(...values: unknown[]) {
   return "";
 }
 
+function getObjectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function extractEmailFromText(value: unknown) {
   const match = String(value ?? "").match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   return match?.[0]?.trim().toLowerCase() ?? "";
+}
+
+function getPaymentFailureReason(paymentMeta: unknown) {
+  const meta = getObjectRecord(paymentMeta);
+  const response = getObjectRecord(meta.response);
+  const amountMismatch = getObjectRecord(meta.amountMismatch);
+  const expected = amountMismatch.expected;
+  const received = amountMismatch.received;
+  const mismatchReason =
+    expected !== undefined || received !== undefined
+      ? `Amount mismatch: expected ${expected ?? "N/A"}, received ${received ?? "N/A"}`
+      : "";
+
+  return firstNonEmptyString(
+    response.ErrMsg,
+    response.mdErrorMsg,
+    response.Response,
+    response.ProcReturnCode,
+    meta.error,
+    mismatchReason,
+    "Payment failed or was declined by CMI"
+  );
 }
 
 function normalizeMonthlySubscriptionStatus(value: unknown) {
@@ -394,6 +423,7 @@ function normalizeMonthlyOrderStatus(value: unknown) {
 function normalizeMonthlyPaymentStatus(value: unknown) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (normalized === "cod") return "cod";
+  if (normalized === "failed" || normalized === "declined") return "failed";
   if (normalized === "unpaid") return "unpaid";
   return "paid";
 }
@@ -596,7 +626,6 @@ function buildMonthlyClientRecords(
     record.days ||= Number(order.selections?.days ?? 0);
     record.snacks ||= Number(order.selections?.snacks ?? 0);
     record.startDate ||= String(order.selections?.startDate || order.orderDate || "");
-    if (record.status === "Lead") record.status = "Active";
     record.orders.push(order);
     record.orderCount = record.orders.length;
     record.totalSpent += Number(order.amount ?? 0);
@@ -762,6 +791,23 @@ function normalizeStringList(value: unknown) {
   }, []);
 }
 
+const mealTypeOptions = ["Breakfast", "Lunch", "Dinner", "Snack"];
+
+function normalizeMealTypes(value: unknown, fallback?: unknown) {
+  const fallbackValues = Array.isArray(fallback) ? fallback : [fallback];
+  const candidates = [...normalizeStringList(value), ...normalizeStringList(fallbackValues)];
+  const seen = new Set<string>();
+  const mealTypes = candidates.reduce<string[]>((acc, item) => {
+    const match = mealTypeOptions.find((option) => option.toLowerCase() === item.toLowerCase());
+    if (!match || seen.has(match)) return acc;
+    seen.add(match);
+    acc.push(match);
+    return acc;
+  }, []);
+
+  return mealTypes.length > 0 ? mealTypes : ["Lunch"];
+}
+
 function findRestaurantIdByName(
   restaurantIdByName: Map<string, string>,
   names: string[]
@@ -859,10 +905,12 @@ function toMonthlyPlanDetailsPayload(row: Record<string, unknown>): MonthlyPlanD
 }
 
 function toMealLibraryItem(row: Record<string, unknown>): MealLibraryItemPayload {
+  const mealTypes = normalizeMealTypes(row.mealTypes, row.mealType);
   return {
     id: String(row.mealId ?? row.id ?? ""),
     name: String(row.name ?? ""),
-    mealType: String(row.mealType ?? ""),
+    mealType: mealTypes[0] ?? "Lunch",
+    mealTypes,
     calories: Number(row.calories ?? 0),
     protein: Number(row.protein ?? 0),
     carbs: Number(row.carbs ?? 0),
@@ -979,6 +1027,7 @@ function collectMissingMealLibraryItems(details: MonthlyPlanDetailsPayload, meal
       id,
       name,
       mealType,
+      mealTypes: [mealType],
       calories: toMealMacroNumber(candidate.calories),
       protein: toMealMacroNumber(candidate.protein),
       carbs: toMealMacroNumber(candidate.carbs),
@@ -1063,6 +1112,7 @@ async function ensureMealLibraryCoverageForDetails(details: MonthlyPlanDetailsPa
           mealId: meal.id,
           name: meal.name,
           mealType: meal.mealType,
+          mealTypes: normalizeMealTypes(meal.mealTypes, meal.mealType),
           calories: meal.calories,
           protein: meal.protein,
           carbs: meal.carbs,
@@ -3008,17 +3058,80 @@ export const adminService = {
         String((item as unknown as Record<string, unknown>).planKind ?? "").toLowerCase() === "custom" ? "custom" : "normal"
       ])
     );
+    const adminOrderByOrderId = new Map(
+      adminOrders.map((item) => [
+        String((item as unknown as Record<string, unknown>).orderId ?? ""),
+        item as unknown as Record<string, unknown>
+      ])
+    );
+    const failedPaymentOnlyOrders = archiveMode === "active"
+      ? customerOrders
+          .map((item) => item as unknown as Record<string, unknown>)
+          .filter((item) => {
+            const orderId = String(item.orderId ?? "");
+            return orderId && !adminOrderByOrderId.has(orderId) && normalizeMonthlyPaymentStatus(item.paymentStatus) === "failed";
+          })
+          .map((item) => {
+            const customer = getObjectRecord(item.customer);
+            const delivery = getObjectRecord(item.delivery);
+            const pickupLocation = getObjectRecord(delivery.pickupLocation);
+            const totals = getObjectRecord(item.totals);
+            const rawPayload = getObjectRecord(item.rawPayload);
+            const subscriptionPayload = getObjectRecord(rawPayload.subscription);
+            const plan = getObjectRecord(subscriptionPayload.plan);
+            const customerName = `${String(customer.firstName ?? "").trim()} ${String(customer.lastName ?? "").trim()}`.trim();
+            const createdAt = item.createdAt ? new Date(String(item.createdAt)).toISOString().split("T")[0] : "";
 
-    return adminOrders.map((item) => {
+            return {
+              _id: item._id,
+              orderId: item.orderId,
+              subscriptionId: item.subscriptionId,
+              client: customerName || "Customer",
+              phone: customer.phone,
+              customerEmail: customer.email,
+              customerEmirate: customer.emirate,
+              customerArea: customer.area,
+              status: "pending",
+              confirmationStatus: "pending",
+              plan: firstNonEmptyString(plan.title, "Monthly Plan"),
+              orderType: String(delivery.optionId ?? ""),
+              location: firstNonEmptyString(pickupLocation.name, customer.area, customer.emirate),
+              deliveryAddress: delivery.address,
+              pickupLocation: pickupLocation.name,
+              payment: "failed",
+              schedule: delivery.optionId,
+              date: createdAt,
+              total: `$${Number(totals.grandTotal ?? 0).toFixed(2)}`,
+              items: [],
+              notes: `Recoverable failed CMI payment attempt. ${getPaymentFailureReason(item.paymentMeta)}`,
+              subscriptionInfo: `${String(plan.id ?? "")} / ${String(delivery.optionId ?? "")}`,
+              subscriptionDetails: { daysPerWeek: 0, durationWeeks: 0, meals: 0 },
+              paymentFailureReason: getPaymentFailureReason(item.paymentMeta),
+              paymentSource: "customer-order",
+              isRecoveryOnly: true,
+              createdAt: item.createdAt,
+            };
+          })
+      : [];
+    const orderRows = [...adminOrders, ...failedPaymentOnlyOrders].sort((a, b) =>
+      String((b as unknown as Record<string, unknown>).createdAt ?? "").localeCompare(
+        String((a as unknown as Record<string, unknown>).createdAt ?? "")
+      )
+    );
+
+    return orderRows.map((item) => {
       const row = item as unknown as Record<string, unknown>;
       const orderId = String(row.orderId ?? "");
       const subscriptionId = String(row.subscriptionId ?? "");
       const customerOrder = customerOrderByOrderId.get(orderId) ?? {};
       const customerSubscription = customerSubscriptionById.get(subscriptionId) ?? {};
+      const rawPayload = getObjectRecord(customerOrder.rawPayload);
+      const subscriptionPayload = getObjectRecord(rawPayload.subscription);
+      const rawPlan = getObjectRecord(subscriptionPayload.plan);
       const plan =
         customerSubscription.plan && typeof customerSubscription.plan === "object"
           ? (customerSubscription.plan as Record<string, unknown>)
-          : {};
+          : rawPlan;
       const delivery =
         customerOrder.delivery && typeof customerOrder.delivery === "object"
           ? (customerOrder.delivery as Record<string, unknown>)
@@ -3065,7 +3178,7 @@ export const adminService = {
       
       const selectionObj = customerSubscription.selection && typeof customerSubscription.selection === "object"
         ? (customerSubscription.selection as Record<string, unknown>)
-        : {};
+        : getObjectRecord(subscriptionPayload.selection);
       const rowClientName = String(row.client ?? "").trim();
       const customerFirstName = String(customer.firstName ?? "").trim();
       const customerLastName = String(customer.lastName ?? "").trim();
@@ -3084,7 +3197,11 @@ export const adminService = {
         planTitle: String(row.plan ?? plan.title ?? ""),
         planKind: planKindById.get(planId) ?? "normal",
         status: normalizeMonthlyOrderStatus(row.status),
-        paymentStatus: normalizeMonthlyPaymentStatus(row.payment),
+        paymentStatus: normalizeMonthlyPaymentStatus(firstNonEmptyString(customerOrder.paymentStatus, row.payment)),
+        paymentFailureReason: normalizeMonthlyPaymentStatus(firstNonEmptyString(customerOrder.paymentStatus, row.payment)) === "failed"
+          ? firstNonEmptyString(row.paymentFailureReason, getPaymentFailureReason(customerOrder.paymentMeta))
+          : "",
+        isRecoveryOnly: Boolean(row.isRecoveryOnly ?? false),
         amount: parseMoneyValue(row.total),
         orderDate: String(row.date ?? ""),
         deliveryOption,
@@ -3236,16 +3353,19 @@ export const adminService = {
         filteredArchivedOrders: total,
         paidOrders: allArchivedOrders.filter((order) => order.paymentStatus === "paid").length,
         unpaidOrders: allArchivedOrders.filter((order) => order.paymentStatus === "unpaid").length,
+        failedOrders: allArchivedOrders.filter((order) => order.paymentStatus === "failed").length,
         codOrders: allArchivedOrders.filter((order) => order.paymentStatus === "cod").length
       }
     };
   },
 
   async listMonthlyPlanClientsAdmin(filters: Record<string, string | undefined>) {
-    const [orders, subscriptions] = await Promise.all([
-      this.listMonthlyPlanOrdersAdmin(),
+    const [activeOrders, archivedOrders, subscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin("active"),
+      this.listMonthlyPlanOrdersAdmin("archived"),
       this.listMonthlyPlanSubscriptionsAdmin()
     ]);
+    const orders = [...activeOrders, ...archivedOrders];
     const page = Math.max(1, Number(filters.page ?? 1) || 1);
     const limit = Math.min(100, Math.max(1, Number(filters.limit ?? 10) || 10));
     const statusFilter = String(filters.status ?? "all").trim().toLowerCase();
@@ -3315,16 +3435,27 @@ export const adminService = {
         totalClients: allClients.length,
         activeClients: allClients.filter((client) => client.status === "Active").length,
         pausedClients: allClients.filter((client) => client.status === "Paused").length,
-        leadClients: allClients.filter((client) => client.status === "Lead").length
+        leadClients: allClients.filter((client) => client.status === "Lead").length,
+        clientsWithOrders: allClients.filter((client) => client.orderCount > 0).length,
+        activeSubscriptions: allClients.reduce(
+          (sum, client) =>
+            sum +
+            client.subscriptions.filter((subscription) => String(subscription.status ?? "").toLowerCase() === "active")
+              .length,
+          0
+        ),
+        totalRevenue: allClients.reduce((sum, client) => sum + client.totalSpent, 0)
       }
     };
   },
 
   async getMonthlyPlanClientDetailsAdmin(clientKey: string) {
-    const [orders, subscriptions] = await Promise.all([
-      this.listMonthlyPlanOrdersAdmin(),
+    const [activeOrders, archivedOrders, subscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin("active"),
+      this.listMonthlyPlanOrdersAdmin("archived"),
       this.listMonthlyPlanSubscriptionsAdmin()
     ]);
+    const orders = [...activeOrders, ...archivedOrders];
     const decodedKey = decodeURIComponent(clientKey);
     const clients = buildMonthlyClientRecords(
       orders as Array<Record<string, any>>,
@@ -3337,6 +3468,109 @@ export const adminService = {
     }
 
     return client;
+  },
+
+  async updateMonthlyPlanClientAdmin(clientKey: string, patch: Record<string, unknown>) {
+    const decodedKey = decodeURIComponent(clientKey);
+    const [activeOrders, archivedOrders, subscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin("active"),
+      this.listMonthlyPlanOrdersAdmin("archived"),
+      this.listMonthlyPlanSubscriptionsAdmin()
+    ]);
+    const clients = buildMonthlyClientRecords(
+      [...activeOrders, ...archivedOrders] as Array<Record<string, any>>,
+      subscriptions as Array<Record<string, any>>
+    );
+    const client = clients.find((item) => item.key === decodedKey || item.id === decodedKey);
+
+    if (!client) {
+      throw new AppError(404, "Client not found");
+    }
+
+    const nextEmail = firstNonEmptyString(patch.email).trim().toLowerCase();
+    const nextPhone = firstNonEmptyString(patch.phone).trim();
+    const nextAddress = patch.address === undefined ? "" : String(patch.address ?? "").trim();
+    const shouldUpdateEmail = Boolean(nextEmail);
+    const shouldUpdatePhone = Boolean(nextPhone);
+    const shouldUpdateAddress = patch.address !== undefined;
+    const orderIds = Array.from(new Set(client.orders.map((order) => String(order.orderId ?? "")).filter(Boolean)));
+    const adminOrderObjectIds = Array.from(new Set(client.orders.map((order) => String(order.id ?? "")).filter(isValidObjectId)));
+    const subscriptionIds = Array.from(
+      new Set([
+        ...client.subscriptions.map((subscription) => String(subscription.subscriptionId ?? "")),
+        ...client.orders.map((order) => String(order.subscriptionId ?? ""))
+      ].filter(Boolean))
+    );
+
+    const adminOrderSet: Record<string, unknown> = {};
+    if (shouldUpdateEmail) adminOrderSet.customerEmail = nextEmail;
+    if (shouldUpdatePhone) adminOrderSet.phone = nextPhone;
+    if (shouldUpdateAddress) adminOrderSet.deliveryAddress = nextAddress;
+
+    const customerSet: Record<string, unknown> = {};
+    if (shouldUpdateEmail) customerSet["customer.email"] = nextEmail;
+    if (shouldUpdatePhone) customerSet["customer.phone"] = nextPhone;
+    if (shouldUpdateAddress) customerSet["delivery.address"] = nextAddress;
+
+    const updates: Array<Promise<unknown>> = [];
+
+    if (Object.keys(adminOrderSet).length && (adminOrderObjectIds.length || orderIds.length)) {
+      updates.push(
+        OrderModel.updateMany(
+          {
+            $or: [
+              ...(adminOrderObjectIds.length ? [{ _id: { $in: adminOrderObjectIds } }] : []),
+              ...(orderIds.length ? [{ orderId: { $in: orderIds } }] : [])
+            ]
+          },
+          {
+            $set: adminOrderSet,
+            $push: {
+              auditLog: {
+                $each: [
+                  {
+                    at: new Date().toISOString(),
+                    by: "Monthly plan admin",
+                    action: "Client contact info updated"
+                  }
+                ],
+                $position: 0
+              }
+            }
+          }
+        )
+      );
+    }
+
+    if (Object.keys(customerSet).length && orderIds.length) {
+      updates.push(CustomerOrderModel.updateMany({ orderId: { $in: orderIds } }, { $set: customerSet }));
+    }
+
+    if (Object.keys(customerSet).length && subscriptionIds.length) {
+      updates.push(CustomerSubscriptionModel.updateMany({ subscriptionId: { $in: subscriptionIds } }, { $set: customerSet }));
+    }
+
+    await Promise.all(updates);
+
+    const [nextActiveOrders, nextArchivedOrders, nextSubscriptions] = await Promise.all([
+      this.listMonthlyPlanOrdersAdmin("active"),
+      this.listMonthlyPlanOrdersAdmin("archived"),
+      this.listMonthlyPlanSubscriptionsAdmin()
+    ]);
+    const nextClients = buildMonthlyClientRecords(
+      [...nextActiveOrders, ...nextArchivedOrders] as Array<Record<string, any>>,
+      nextSubscriptions as Array<Record<string, any>>
+    );
+    const nextClient =
+      (shouldUpdateEmail ? nextClients.find((item) => item.email.toLowerCase() === nextEmail) : null) ??
+      (shouldUpdatePhone ? nextClients.find((item) => item.phone === nextPhone) : null) ??
+      nextClients.find((item) => item.key === decodedKey || item.id === decodedKey);
+
+    if (!nextClient) {
+      throw new AppError(404, "Updated client not found");
+    }
+
+    return nextClient;
   },
 
   async updateMonthlyPlanOrderAdmin(id: string, patch: Record<string, unknown>) {
@@ -3412,6 +3646,7 @@ export const adminService = {
 
   async upsertMealLibraryAdmin(payload: MealLibraryItemPayload) {
     const existing = await MealLibraryItemModel.findOne({ mealId: payload.id }).lean();
+    const mealTypes = normalizeMealTypes(payload.mealTypes, payload.mealType);
     const hasImage = payload.image !== undefined;
     const normalizedImage = hasImage
       ? await uploadImageIfNeeded(normalizeMealImage(payload.image), { folder: "proteinbar/meals" })
@@ -3419,7 +3654,8 @@ export const adminService = {
     const updatePayload: Record<string, unknown> = {
       mealId: payload.id,
       name: payload.name.trim(),
-      mealType: payload.mealType,
+      mealType: mealTypes[0] ?? "Lunch",
+      mealTypes,
       calories: Number(payload.calories),
       protein: Number(payload.protein),
       carbs: Number(payload.carbs),
@@ -3865,11 +4101,13 @@ export const adminService = {
   },
 
   async listOrdersOfDay() {
-    return OrderModel.find().sort({ createdAt: -1 }).limit(20).lean();
+    const today = new Date().toISOString().slice(0, 10);
+    return OrderModel.find({ date: today, isArchived: { $ne: true } }).sort({ createdAt: -1 }).lean();
   },
 
   async listPrintableOrders() {
-    const rows = await OrderModel.find().sort({ createdAt: -1 }).limit(50).lean();
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await OrderModel.find({ date: today, isArchived: { $ne: true } }).sort({ createdAt: -1 }).lean();
     return rows.flatMap((order) =>
       order.items.map((item: { name: string; macros: string }) => ({
         orderId: order.orderId,

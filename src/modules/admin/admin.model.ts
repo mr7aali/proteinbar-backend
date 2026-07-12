@@ -103,6 +103,7 @@ const MealLibraryItemSchema = new Schema(
     mealId: { type: String, required: true, unique: true, trim: true },
     name: { type: String, required: true, trim: true },
     mealType: { type: String, required: true, trim: true },
+    mealTypes: { type: [String], default: [] },
     calories: { type: Number, default: 0 },
     protein: { type: Number, default: 0 },
     carbs: { type: Number, default: 0 },
