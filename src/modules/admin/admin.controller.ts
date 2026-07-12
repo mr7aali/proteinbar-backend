@@ -172,6 +172,10 @@ export const adminController = {
     const data = await adminService.deleteMealLibraryAdmin(req.params.id);
     res.json({ success: true, data, message: data.message });
   }),
+  forceDeleteMealLibraryAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const data = await adminService.forceDeleteMealLibraryAdmin(req.params.id);
+    res.json({ success: true, data, message: data.message });
+  }),
 
   listCustomPlanCategoriesAdmin: asyncHandler(async (req: Request, res: Response) => {
     const data = await adminService.listCustomPlanCategoriesAdmin(String(req.query.planId ?? ""));

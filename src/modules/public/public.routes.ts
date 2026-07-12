@@ -2,7 +2,7 @@ import { Router } from "express";
 import { validate } from "../../common/middleware/validate";
 import { requireCustomerSession } from "../../common/middleware/requireCustomerSession";
 import { publicController } from "./public.controller";
-import { checkoutSchema, contactSchema, storeOrderSchema, validatePromoCodeSchema } from "./public.validation";
+import { checkoutSchema, cmiPaymentRetrySchema, contactSchema, storeOrderSchema, validatePromoCodeSchema } from "./public.validation";
 
 export const publicRouter = Router();
 
@@ -22,5 +22,6 @@ publicRouter.get("/payments/cmi/return", publicController.handleCmiReturn);
 publicRouter.post("/payments/cmi/return", publicController.handleCmiReturn);
 publicRouter.get("/payments/cmi/callback", publicController.handleCmiCallback);
 publicRouter.post("/payments/cmi/callback", publicController.handleCmiCallback);
+publicRouter.post("/payments/cmi/retry", validate(cmiPaymentRetrySchema), publicController.retryCmiPayment);
 publicRouter.post("/checkout", requireCustomerSession, validate(checkoutSchema), publicController.checkout);
 publicRouter.post("/store-orders", validate(storeOrderSchema), publicController.createStoreOrder);

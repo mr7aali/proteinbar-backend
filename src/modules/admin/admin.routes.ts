@@ -93,6 +93,11 @@ adminRouter.put(
   validate(mealLibraryItemSchema),
   adminController.upsertMealLibraryAdmin
 );
+adminRouter.delete(
+  "/admin/monthly-plan/meals/:id/force",
+  validate(monthlyPlanDetailsParamSchema, "params"),
+  adminController.forceDeleteMealLibraryAdmin
+);
 adminRouter.delete("/admin/monthly-plan/meals/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.deleteMealLibraryAdmin);
 adminRouter.get(
   "/admin/monthly-plan/custom-categories",

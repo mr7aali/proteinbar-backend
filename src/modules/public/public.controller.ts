@@ -71,6 +71,10 @@ export const publicController = {
     const data = await publicService.handleCmiCallback(source);
     res.status(200).send(data.responseText);
   }),
+  retryCmiPayment: asyncHandler(async (req: Request, res: Response) => {
+    const data = await publicService.retryCmiPayment(req.body, req);
+    res.json({ success: true, data });
+  }),
   createStoreOrder: asyncHandler(async (req: Request, res: Response) => {
     const data = await publicService.createStoreOrder(req.body);
     res.status(201).json({ success: true, data });

@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import crypto from "crypto";
 import { AppError } from "../../common/utils/AppError";
 import {
   buildCmiPaymentFields,
@@ -202,6 +203,8 @@ type PreparedCheckout = {
   vat: number;
 };
 
+const CMI_RETRY_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+
 function getObjectRecord(value: unknown) {
   return value && typeof value === "object"
     ? (value as Record<string, any>)
@@ -329,6 +332,53 @@ function mergePaymentMeta(
     ...current,
     ...patch,
   };
+}
+
+function getCmiRetrySigningKey() {
+  return env.CMI_STORE_KEY || env.JWT_SECRET;
+}
+
+function signCmiRetryToken(orderId: string, subscriptionId: string, issuedAt: number) {
+  return crypto
+    .createHmac("sha256", getCmiRetrySigningKey())
+    .update(`${orderId}|${subscriptionId}|${issuedAt}`)
+    .digest("hex");
+}
+
+function createCmiRetryToken(orderId: string, subscriptionId: string) {
+  const issuedAt = Date.now();
+  const signature = signCmiRetryToken(orderId, subscriptionId, issuedAt);
+  return `${issuedAt}.${signature}`;
+}
+
+function verifyCmiRetryToken(token: unknown, orderId: string, subscriptionId: string) {
+  const [issuedAtRaw, receivedSignature] = String(token ?? "").split(".");
+  const issuedAt = Number(issuedAtRaw);
+  if (!Number.isFinite(issuedAt) || !receivedSignature) return false;
+  if (Date.now() - issuedAt > CMI_RETRY_TOKEN_TTL_MS) return false;
+
+  const expectedSignature = signCmiRetryToken(orderId, subscriptionId, issuedAt);
+  const received = Buffer.from(receivedSignature, "hex");
+  const expected = Buffer.from(expectedSignature, "hex");
+  return received.length === expected.length && crypto.timingSafeEqual(received, expected);
+}
+
+function getFriendlyCmiFailureMessage(rawMessage: string, hashVerified: boolean) {
+  if (!hashVerified) {
+    return "We could not verify the payment response. You were not charged. Please try again or contact support if the issue continues.";
+  }
+
+  const normalized = rawMessage.toLowerCase();
+  if (
+    normalized.includes("transient") ||
+    normalized.includes("system failure") ||
+    normalized.includes("acs") ||
+    normalized.includes("3d")
+  ) {
+    return "The bank authentication service was temporarily unavailable. You were not charged. Please try the payment again.";
+  }
+
+  return "The payment was not approved. You were not charged. Please try again or use another card.";
 }
 
 function toEmailErrorMessage(error: unknown) {
@@ -606,6 +656,84 @@ async function prepareCheckoutPayload(
     totalWeeks,
     validatedPromoCode,
     vat,
+  };
+}
+
+function buildCmiPaymentForOrder(orderRow: Record<string, unknown>, req: Request) {
+  if (!env.CMI_CLIENT_ID || !env.CMI_STORE_KEY) {
+    throw new AppError(
+      500,
+      "CMI is not configured. Please set CMI_CLIENT_ID and CMI_STORE_KEY.",
+    );
+  }
+
+  const orderId = String(orderRow.orderId ?? "").trim();
+  const subscriptionId = String(orderRow.subscriptionId ?? "").trim();
+  const customer = normalizeCustomer(getObjectRecord(orderRow.customer));
+  const delivery = normalizeDelivery(getObjectRecord(orderRow.delivery));
+  const totals = getObjectRecord(orderRow.totals);
+  const grandTotal = Number(toSafeNumber(totals.grandTotal, 0).toFixed(2));
+  const customerName = `${customer.firstName} ${customer.lastName}`.trim();
+  const backendBaseUrl = getCmiBackendBaseUrl(req);
+  const returnUrl = new URL("/api/v1/payments/cmi/return", backendBaseUrl);
+  returnUrl.searchParams.set("oid", orderId);
+  const callbackUrl = `${backendBaseUrl}/api/v1/payments/cmi/callback`;
+  const paymentFields = buildCmiPaymentFields({
+    amount: grandTotal,
+    callbackUrl,
+    clientId: env.CMI_CLIENT_ID,
+    currency: env.CMI_CURRENCY,
+    failUrl: returnUrl.toString(),
+    lang: env.CMI_LANG,
+    okUrl: returnUrl.toString(),
+    orderId,
+    refreshTime: env.CMI_REFRESH_TIME,
+    storeKey: env.CMI_STORE_KEY,
+    storeType: env.CMI_STORE_TYPE,
+    tranType: env.CMI_TRAN_TYPE,
+    billingName: customerName,
+    billingStreet1:
+      delivery.address ||
+      delivery.pickupLocation.address ||
+      customer.area,
+    billingCity: customer.area,
+    billingStateProv: customer.emirate,
+    billingCountry: "Morocco",
+    email: customer.email,
+    phone: customer.phone,
+  });
+
+  return {
+    orderId,
+    subscriptionId,
+    amount: grandTotal,
+    request: {
+      amount: paymentFields.amount,
+      callbackUrl,
+      clientid: paymentFields.clientid,
+      currency: paymentFields.currency,
+      failUrl: paymentFields.failUrl,
+      hashAlgorithm: paymentFields.hashAlgorithm,
+      lang: paymentFields.lang,
+      oid: paymentFields.oid,
+      okUrl: paymentFields.okUrl,
+      rnd: paymentFields.rnd,
+      storetype: paymentFields.storetype,
+      TranType: paymentFields.TranType,
+      BillToName: paymentFields.BillToName,
+      BillToStreet1: paymentFields.BillToStreet1,
+      BillToCity: paymentFields.BillToCity,
+      BillToStateProv: paymentFields.BillToStateProv,
+      BillToCountry: paymentFields.BillToCountry,
+      email: paymentFields.email,
+      tel: paymentFields.tel,
+    },
+    payment: {
+      provider: "CMI" as const,
+      gatewayUrl: env.CMI_GATEWAY_URL,
+      method: "POST" as const,
+      fields: paymentFields,
+    },
   };
 }
 
@@ -1080,6 +1208,9 @@ export const publicService = {
     if (result.message) {
       frontendUrl.searchParams.set("message", result.message);
     }
+    if (result.status !== "success" && result.retryToken) {
+      frontendUrl.searchParams.set("retryToken", result.retryToken);
+    }
     if (amount) {
       frontendUrl.searchParams.set("amount", amount);
     }
@@ -1095,6 +1226,76 @@ export const publicService = {
     return {
       responseText: result.callbackResponse,
       ...result,
+    };
+  },
+
+  async retryCmiPayment(payload: Record<string, unknown>, req: Request) {
+    const orderId = String(payload.orderId ?? "").trim();
+    const order =
+      (await CustomerOrderModel.findOne({ orderId }).lean()) as
+        | Record<string, unknown>
+        | null;
+
+    if (!order) {
+      throw new AppError(404, "Order not found for payment retry.");
+    }
+
+    const subscriptionId = String(order.subscriptionId ?? "").trim();
+    if (!verifyCmiRetryToken(payload.retryToken, orderId, subscriptionId)) {
+      throw new AppError(403, "Payment retry link has expired. Please restart checkout.");
+    }
+
+    const paymentStatus = String(order.paymentStatus ?? "pending").trim().toLowerCase();
+    if (paymentStatus === "paid") {
+      throw new AppError(409, "This order has already been paid.");
+    }
+
+    const paymentBundle = buildCmiPaymentForOrder(order, req);
+    const currentMeta = getObjectRecord(order.paymentMeta);
+    const retryMeta = getObjectRecord(currentMeta.retry);
+    const retryAttempts = Math.max(0, toSafeNumber(retryMeta.attempts, 0)) + 1;
+    const nextPaymentMeta = mergePaymentMeta(order.paymentMeta, {
+      approved: false,
+      retry: {
+        ...retryMeta,
+        attempts: retryAttempts,
+        lastRetriedAt: new Date().toISOString(),
+      },
+      request: paymentBundle.request,
+    });
+
+    await CustomerOrderModel.updateOne(
+      { orderId, paymentStatus: { $ne: "paid" } },
+      {
+        $set: {
+          paymentStatus: "pending",
+          paymentMeta: nextPaymentMeta,
+        },
+      },
+    );
+
+    await OrderModel.updateOne(
+      { orderId, payment: { $ne: "paid" } },
+      {
+        $set: {
+          payment: "unpaid",
+        },
+        $push: {
+          auditLog: {
+            $each: [buildAuditEntry("Customer retried CMI payment")],
+            $position: 0,
+          },
+        },
+      },
+    );
+
+    return {
+      order: {
+        orderId,
+        subscriptionId,
+      },
+      payment: paymentBundle.payment,
+      message: "Redirecting to CMI for another secure payment attempt.",
     };
   },
 
@@ -1130,6 +1331,7 @@ export const publicService = {
     }
 
     const subscriptionId = String(existingOrder.subscriptionId ?? "").trim();
+    const retryToken = createCmiRetryToken(orderId, subscriptionId);
     const paymentStatus = String(existingOrder.paymentStatus ?? "pending").trim();
     const storedTotals = getObjectRecord(existingOrder.totals);
     const displayAmount = Number(toSafeNumber(storedTotals.grandTotal, 0).toFixed(2));
@@ -1198,10 +1400,11 @@ export const publicService = {
 
       return {
         status: "failed" as const,
-        message: "Payment amount did not match the order total.",
+        message: "Payment amount did not match the order total. You were not charged. Please try the payment again.",
         orderId,
         subscriptionId,
         amount: displayAmount,
+        retryToken,
         callbackResponse,
       };
     }
@@ -1295,12 +1498,11 @@ export const publicService = {
 
     return {
       status: "failed" as const,
-      message: hashVerified
-        ? failureMessage || "Payment was not approved."
-        : "Payment verification failed.",
+      message: getFriendlyCmiFailureMessage(failureMessage, hashVerified),
       orderId,
       subscriptionId,
       amount: displayAmount,
+      retryToken,
       callbackResponse,
     };
   },

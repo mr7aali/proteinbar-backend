@@ -114,3 +114,8 @@ export const validatePromoCodeSchema = z.object({
   subtotal: z.number().positive(),
   scope: z.enum(["monthly-plan", "direct-order"]).optional().default("monthly-plan")
 });
+
+export const cmiPaymentRetrySchema = z.object({
+  orderId: z.string().min(1),
+  retryToken: z.string().min(1)
+});
