@@ -446,7 +446,7 @@ function normalizeMonthlyPaymentStatus(value: unknown) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (normalized === "cod") return "cod";
   if (normalized === "failed" || normalized === "declined") return "failed";
-  if (normalized === "unpaid") return "unpaid";
+  if (normalized === "unpaid" || normalized === "pending") return "unpaid";
   return "paid";
 }
 
@@ -3179,6 +3179,8 @@ export const adminService = {
       return {
         id: String(row._id ?? row.id ?? subscriptionId),
         subscriptionId,
+        createdAt: row.createdAt ? new Date(String(row.createdAt)).toISOString() : "",
+        updatedAt: row.updatedAt ? new Date(String(row.updatedAt)).toISOString() : "",
         customerName: String(row.client ?? ""),
         customerEmail: firstNonEmptyString(customer.email, (customerOrder.customer as Record<string, unknown> | undefined)?.email),
         customerPhone: firstNonEmptyString(customer.phone, (customerOrder.customer as Record<string, unknown> | undefined)?.phone),
@@ -3283,12 +3285,12 @@ export const adminService = {
         item as unknown as Record<string, unknown>
       ])
     );
-    const failedPaymentOnlyOrders = archiveMode === "active"
+    const customerOrderOnlyRows = archiveMode === "active"
       ? customerOrders
           .map((item) => item as unknown as Record<string, unknown>)
           .filter((item) => {
             const orderId = String(item.orderId ?? "");
-            return orderId && !adminOrderByOrderId.has(orderId) && normalizeMonthlyPaymentStatus(item.paymentStatus) === "failed";
+            return orderId && !adminOrderByOrderId.has(orderId);
           })
           .map((item) => {
             const customer = getObjectRecord(item.customer);
@@ -3299,7 +3301,9 @@ export const adminService = {
             const subscriptionPayload = getObjectRecord(rawPayload.subscription);
             const plan = getObjectRecord(subscriptionPayload.plan);
             const customerName = `${String(customer.firstName ?? "").trim()} ${String(customer.lastName ?? "").trim()}`.trim();
-            const createdAt = item.createdAt ? new Date(String(item.createdAt)).toISOString().split("T")[0] : "";
+            const createdAt = item.createdAt ? new Date(String(item.createdAt)).toISOString() : "";
+            const paymentStatus = normalizeMonthlyPaymentStatus(item.paymentStatus);
+            const isFailedPayment = paymentStatus === "failed";
 
             return {
               _id: item._id,
@@ -3310,30 +3314,33 @@ export const adminService = {
               customerEmail: customer.email,
               customerEmirate: customer.emirate,
               customerArea: customer.area,
-              status: "pending",
-              confirmationStatus: "pending",
+              status: paymentStatus === "paid" ? "confirmed" : "pending",
+              confirmationStatus: paymentStatus === "paid" ? "confirmed" : "pending",
               plan: firstNonEmptyString(plan.title, "Monthly Plan"),
               orderType: String(delivery.optionId ?? ""),
               location: firstNonEmptyString(pickupLocation.name, customer.area, customer.emirate),
               deliveryAddress: delivery.address,
               pickupLocation: pickupLocation.name,
-              payment: "failed",
+              payment: paymentStatus,
               schedule: delivery.optionId,
-              date: createdAt,
+              date: createdAt ? createdAt.split("T")[0] : "",
               total: `MAD ${Number(totals.grandTotal ?? 0).toFixed(2)}`,
               currency: normalizeCurrency(item.currency),
               items: [],
-              notes: `Recoverable failed CMI payment attempt. ${getPaymentFailureReason(item.paymentMeta)}`,
+              notes: isFailedPayment
+                ? `Recoverable failed CMI payment attempt. ${getPaymentFailureReason(item.paymentMeta)}`
+                : `Customer order restored into admin view from checkout payment record. Payment: ${paymentStatus}`,
               subscriptionInfo: `${String(plan.id ?? "")} / ${String(delivery.optionId ?? "")}`,
               subscriptionDetails: { daysPerWeek: 0, durationWeeks: 0, meals: 0 },
-              paymentFailureReason: getPaymentFailureReason(item.paymentMeta),
+              paymentFailureReason: isFailedPayment ? getPaymentFailureReason(item.paymentMeta) : "",
               paymentSource: "customer-order",
-              isRecoveryOnly: true,
+              isRecoveryOnly: isFailedPayment,
               createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
             };
           })
       : [];
-    const orderRows = [...adminOrders, ...failedPaymentOnlyOrders].sort((a, b) =>
+    const orderRows = [...adminOrders, ...customerOrderOnlyRows].sort((a, b) =>
       String((b as unknown as Record<string, unknown>).createdAt ?? "").localeCompare(
         String((a as unknown as Record<string, unknown>).createdAt ?? "")
       )
@@ -3408,6 +3415,8 @@ export const adminService = {
         id: String(row._id ?? row.id ?? orderId),
         orderId,
         subscriptionId,
+        createdAt: row.createdAt ? new Date(String(row.createdAt)).toISOString() : "",
+        updatedAt: row.updatedAt ? new Date(String(row.updatedAt)).toISOString() : "",
         customerName,
         customerEmail: firstNonEmptyString(customer.email, row.customerEmail, extractEmailFromText(row.notes)),
         customerPhone: firstNonEmptyString(customer.phone, row.phone),
