@@ -12,7 +12,7 @@ import {
   sendCustomerOrderConfirmationEmail,
 } from "../../common/utils/mailer";
 import { env } from "../../config/env";
-import { OrderModel, SubscriptionModel } from "../admin/admin.model";
+import { MonthlyPlanDetailsModel, OrderModel, SubscriptionModel } from "../admin/admin.model";
 import { adminService } from "../admin/admin.service";
 import {
   ContactMessageModel,
@@ -357,6 +357,36 @@ function mergePaymentMeta(
     ...current,
     ...patch,
   };
+}
+
+async function resolveCheckoutMealCount(planId: string, submittedMeals: unknown) {
+  const submittedMealCount = Math.max(1, toSafeNumber(submittedMeals, 1));
+  const planDetails = planId
+    ? await MonthlyPlanDetailsModel.findOne(
+        { planId },
+        { planKind: 1, rules: 1 },
+      ).lean()
+    : null;
+  const planKind = String(planDetails?.planKind ?? "normal").trim().toLowerCase();
+
+  if (planKind === "custom") {
+    return submittedMealCount;
+  }
+
+  const rules = getObjectRecord(planDetails?.rules);
+  const defaults = getObjectRecord(rules.defaults);
+  const defaultMeals = toSafeNumber(defaults.meals, 0);
+  if (defaultMeals > 0) {
+    return defaultMeals;
+  }
+
+  const allowedMeals = Array.isArray(rules.allowedMealsPerDay)
+    ? rules.allowedMealsPerDay
+        .map((value) => toSafeNumber(value, 0))
+        .filter((value) => value > 0)
+    : [];
+
+  return allowedMeals[0] ?? 3;
 }
 
 function getCmiRetrySigningKey() {
@@ -758,7 +788,11 @@ async function prepareCheckoutPayload(
     .map(normalizeSelectedMeal)
     .filter((item) => item.id && item.title);
   const submittedPromoCode = String(orderPayload.promoCode?.code ?? "").trim();
-  const mealsPerDay = Math.max(1, toSafeNumber(selection.meals, 1));
+  const plan = getObjectRecord(subscriptionPayload.plan);
+  const planId = String(plan.id ?? "").trim();
+  const planTitle = String(plan.title ?? "").trim() || "Monthly Plan";
+  const mealsPerDay = await resolveCheckoutMealCount(planId, selection.meals);
+  selection.meals = String(mealsPerDay);
   const daysPerWeek = Math.max(1, toSafeNumber(selection.days, 1));
   const totalWeeks = Math.max(1, toSafeNumber(selection.weeks, 4));
   const totalPlannedMeals = mealsPerDay * daysPerWeek * totalWeeks;
@@ -782,7 +816,6 @@ async function prepareCheckoutPayload(
   const grandTotal = Number(
     (subtotal - giftDiscount + vat + safetyBag).toFixed(2),
   );
-  const plan = getObjectRecord(subscriptionPayload.plan);
 
   return {
     customer,
@@ -796,8 +829,8 @@ async function prepareCheckoutPayload(
     orderId,
     orderPayload,
     payload,
-    planId: String(plan.id ?? "").trim(),
-    planTitle: String(plan.title ?? "").trim() || "Monthly Plan",
+    planId,
+    planTitle,
     safetyBag,
     selectedMeals,
     selection,

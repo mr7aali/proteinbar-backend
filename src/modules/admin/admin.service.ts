@@ -890,6 +890,81 @@ async function uploadImageField(
   };
 }
 
+function toPositiveNumberList(value: unknown, fallback: number[]) {
+  const source = Array.isArray(value) ? value : fallback;
+  const seen = new Set<number>();
+  const result: number[] = [];
+
+  for (const item of source) {
+    const numberValue = Number(item);
+    if (!Number.isFinite(numberValue) || numberValue < 0) continue;
+    if (seen.has(numberValue)) continue;
+    seen.add(numberValue);
+    result.push(numberValue);
+  }
+
+  return result.length ? result : fallback;
+}
+
+function normalizePlanRulesForPersistence(rawRules: unknown) {
+  const rules = rawRules && typeof rawRules === "object" ? (rawRules as Record<string, unknown>) : {};
+  const defaults = rules.defaults && typeof rules.defaults === "object" ? (rules.defaults as Record<string, unknown>) : {};
+  const deliveryDaysRule =
+    rules.deliveryDaysRule && typeof rules.deliveryDaysRule === "object"
+      ? (rules.deliveryDaysRule as Record<string, unknown>)
+      : {};
+  const allowedMealsPerDay = toPositiveNumberList(rules.allowedMealsPerDay, [1]);
+  const allowedDays = toPositiveNumberList(rules.allowedDays, [1]);
+  const allowedSnacks = toPositiveNumberList(rules.allowedSnacks, [0]);
+  const allowedWeekDays = toPositiveNumberList(deliveryDaysRule.allowedWeekDays, [0, 1, 2, 3, 4, 5, 6])
+    .filter((day) => day >= 0 && day <= 6);
+  const normalizedAllowedWeekDays = allowedWeekDays.length ? allowedWeekDays : [0, 1, 2, 3, 4, 5, 6];
+  const defaultDeliveryDays = toPositiveNumberList(defaults.deliveryDays, [])
+    .filter((day) => normalizedAllowedWeekDays.includes(day));
+  const planTypeOptions = Array.isArray(rules.planTypeOptions)
+    ? rules.planTypeOptions.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+  const defaultPlanType = String(defaults.planType ?? "").trim();
+  const deliveryOptionConfigs = Array.isArray(rules.deliveryOptionConfigs) ? rules.deliveryOptionConfigs : [];
+  const deliveryOptionConfigByOption = new Map<string, unknown>();
+
+  deliveryOptionConfigs.forEach((config) => {
+    if (!config || typeof config !== "object") return;
+    const row = config as Record<string, unknown>;
+    const option = String(row.option ?? "").trim();
+    if (!option) return;
+    deliveryOptionConfigByOption.set(option, row);
+  });
+
+  const min = Math.max(0, Number(deliveryDaysRule.min ?? 0));
+  const max = Math.max(min, Number(deliveryDaysRule.max ?? normalizedAllowedWeekDays.length));
+
+  return {
+    ...rules,
+    allowedMealsPerDay,
+    allowedDays,
+    allowedSnacks,
+    planTypeOptions,
+    deliveryDaysRule: {
+      ...deliveryDaysRule,
+      allowedWeekDays: normalizedAllowedWeekDays,
+      min,
+      max
+    },
+    defaults: {
+      ...defaults,
+      meals: allowedMealsPerDay.includes(Number(defaults.meals)) ? Number(defaults.meals) : allowedMealsPerDay[0],
+      days: allowedDays.includes(Number(defaults.days)) ? Number(defaults.days) : allowedDays[0],
+      snacks: allowedSnacks.includes(Number(defaults.snacks)) ? Number(defaults.snacks) : allowedSnacks[0],
+      planType: defaultPlanType && planTypeOptions.includes(defaultPlanType) ? defaultPlanType : planTypeOptions[0],
+      deliveryDays: defaultDeliveryDays.length
+        ? defaultDeliveryDays
+        : normalizedAllowedWeekDays.slice(0, Math.max(1, Math.min(max, normalizedAllowedWeekDays.length)))
+    },
+    deliveryOptionConfigs: Array.from(deliveryOptionConfigByOption.values())
+  };
+}
+
 function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): MonthlyPlanDetailsPayload {
   const now = new Date().toISOString();
   const weekAssignments = Array.isArray(payload.weekAssignments) ? payload.weekAssignments : [];
@@ -914,7 +989,7 @@ function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): Monthl
 
   return {
     plan: normalizedPlan,
-    rules: payload.rules,
+    rules: normalizePlanRulesForPersistence(payload.rules),
     pricing: payload.pricing,
     weekAssignments
   };
