@@ -54,7 +54,7 @@ export const locationSchema = z.object({
   ratingText: optionalString.default(""),
   isActive: z.boolean().optional().default(true),
   deliveryZone: optionalString.default("N/A"),
-  deliveryFee: optionalString.default("$0.00"),
+  deliveryFee: optionalString.default("MAD 0.00"),
   workingDays: z.array(z.string()).optional().default([]),
   cutoffTime: optionalString.default("-"),
   timeSlots: z.array(z.string()).optional().default([]),

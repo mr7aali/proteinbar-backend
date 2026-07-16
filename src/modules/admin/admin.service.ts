@@ -212,7 +212,7 @@ function toLocation(row: Record<string, unknown>) {
   const normalizedDeliveryFee =
     typeof rawDeliveryFee === "number"
       ? String(rawDeliveryFee)
-      : String(rawDeliveryFee ?? "").trim() || "$0.00";
+      : String(rawDeliveryFee ?? "").trim() || "MAD 0.00";
 
   return {
     id: String(row.locationId ?? row.id ?? ""),
@@ -378,6 +378,11 @@ function parseMoneyValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function normalizeCurrency(value: unknown) {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized || "MAD";
+}
+
 function firstNonEmptyString(...values: unknown[]) {
   for (const value of values) {
     const text = String(value ?? "").trim();
@@ -441,7 +446,7 @@ function normalizeMonthlyPaymentStatus(value: unknown) {
   const normalized = String(value ?? "").trim().toLowerCase();
   if (normalized === "cod") return "cod";
   if (normalized === "failed" || normalized === "declined") return "failed";
-  if (normalized === "unpaid") return "unpaid";
+  if (normalized === "unpaid" || normalized === "pending") return "unpaid";
   return "paid";
 }
 
@@ -885,10 +890,107 @@ async function uploadImageField(
   };
 }
 
+function toPositiveNumberList(value: unknown, fallback: number[]) {
+  const source = Array.isArray(value) ? value : fallback;
+  const seen = new Set<number>();
+  const result: number[] = [];
+
+  for (const item of source) {
+    const numberValue = Number(item);
+    if (!Number.isFinite(numberValue) || numberValue < 0) continue;
+    if (seen.has(numberValue)) continue;
+    seen.add(numberValue);
+    result.push(numberValue);
+  }
+
+  return result.length ? result : fallback;
+}
+
+function normalizePlanRulesForPersistence(rawRules: unknown) {
+  const rules = rawRules && typeof rawRules === "object" ? (rawRules as Record<string, unknown>) : {};
+  const defaults = rules.defaults && typeof rules.defaults === "object" ? (rules.defaults as Record<string, unknown>) : {};
+  const deliveryDaysRule =
+    rules.deliveryDaysRule && typeof rules.deliveryDaysRule === "object"
+      ? (rules.deliveryDaysRule as Record<string, unknown>)
+      : {};
+  const allowedMealsPerDay = toPositiveNumberList(rules.allowedMealsPerDay, [1]);
+  const allowedDays = toPositiveNumberList(rules.allowedDays, [1]);
+  const allowedSnacks = toPositiveNumberList(rules.allowedSnacks, [0]);
+  const allowedWeekDays = toPositiveNumberList(deliveryDaysRule.allowedWeekDays, [0, 1, 2, 3, 4, 5, 6])
+    .filter((day) => day >= 0 && day <= 6);
+  const normalizedAllowedWeekDays = allowedWeekDays.length ? allowedWeekDays : [0, 1, 2, 3, 4, 5, 6];
+  const defaultDeliveryDays = toPositiveNumberList(defaults.deliveryDays, [])
+    .filter((day) => normalizedAllowedWeekDays.includes(day));
+  const planTypeOptions = Array.isArray(rules.planTypeOptions)
+    ? rules.planTypeOptions.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+  const defaultPlanType = String(defaults.planType ?? "").trim();
+  const deliveryOptionConfigs = Array.isArray(rules.deliveryOptionConfigs) ? rules.deliveryOptionConfigs : [];
+  const deliveryOptionConfigByOption = new Map<string, unknown>();
+
+  deliveryOptionConfigs.forEach((config) => {
+    if (!config || typeof config !== "object") return;
+    const row = config as Record<string, unknown>;
+    const option = String(row.option ?? "").trim();
+    if (!option) return;
+    deliveryOptionConfigByOption.set(option, row);
+  });
+
+  const min = Math.max(0, Number(deliveryDaysRule.min ?? 0));
+  const max = Math.max(min, Number(deliveryDaysRule.max ?? normalizedAllowedWeekDays.length));
+
+  return {
+    ...rules,
+    allowedMealsPerDay,
+    allowedDays,
+    allowedSnacks,
+    planTypeOptions,
+    deliveryDaysRule: {
+      ...deliveryDaysRule,
+      allowedWeekDays: normalizedAllowedWeekDays,
+      min,
+      max
+    },
+    defaults: {
+      ...defaults,
+      meals: allowedMealsPerDay.includes(Number(defaults.meals)) ? Number(defaults.meals) : allowedMealsPerDay[0],
+      days: allowedDays.includes(Number(defaults.days)) ? Number(defaults.days) : allowedDays[0],
+      snacks: allowedSnacks.includes(Number(defaults.snacks)) ? Number(defaults.snacks) : allowedSnacks[0],
+      planType: defaultPlanType && planTypeOptions.includes(defaultPlanType) ? defaultPlanType : planTypeOptions[0],
+      deliveryDays: defaultDeliveryDays.length
+        ? defaultDeliveryDays
+        : normalizedAllowedWeekDays.slice(0, Math.max(1, Math.min(max, normalizedAllowedWeekDays.length)))
+    },
+    deliveryOptionConfigs: Array.from(deliveryOptionConfigByOption.values())
+  };
+}
+
 function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): MonthlyPlanDetailsPayload {
   const now = new Date().toISOString();
   const weekAssignments = Array.isArray(payload.weekAssignments) ? payload.weekAssignments : [];
   const planKind: PlanKind = payload.plan.planKind === "custom" ? "custom" : "normal";
+  const normalizedRules = normalizePlanRulesForPersistence(payload.rules);
+
+  if (planKind === "normal") {
+    const fixedMealsPerDay = Math.max(1, Number((normalizedRules.defaults as Record<string, unknown>)?.meals ?? 1) || 1);
+    for (const week of weekAssignments) {
+      const weekIndex = Number(week.weekIndex ?? 0);
+      const mealsByDate =
+        week.mealsByDate && typeof week.mealsByDate === "object"
+          ? (week.mealsByDate as Record<string, unknown>)
+          : {};
+
+      for (const [dateIso, assignedMeals] of Object.entries(mealsByDate)) {
+        const mealCount = Array.isArray(assignedMeals) ? assignedMeals.length : 0;
+        if (mealCount > fixedMealsPerDay) {
+          throw new AppError(
+            400,
+            `Week ${weekIndex || ""}, ${dateIso} has ${mealCount} assigned meals, but this pre-made plan is fixed at ${fixedMealsPerDay} meals per day. Remove ${mealCount - fixedMealsPerDay} extra meal${mealCount - fixedMealsPerDay === 1 ? "" : "s"} or increase the fixed meals value.`
+          );
+        }
+      }
+    }
+  }
 
   const normalizedPlan = {
     ...payload.plan,
@@ -909,7 +1011,7 @@ function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): Monthl
 
   return {
     plan: normalizedPlan,
-    rules: payload.rules,
+    rules: normalizedRules,
     pricing: payload.pricing,
     weekAssignments
   };
@@ -2721,7 +2823,7 @@ export const adminService = {
       ratingText: String(payload.ratingText ?? "").trim(),
       isActive: Boolean(payload.isActive ?? true),
       deliveryZone: String(payload.deliveryZone ?? "N/A").trim() || "N/A",
-      deliveryFee: String(payload.deliveryFee ?? "$0.00").trim() || "$0.00",
+      deliveryFee: String(payload.deliveryFee ?? "MAD 0.00").trim() || "MAD 0.00",
       workingDays: normalizeStringList(payload.workingDays),
       cutoffTime: String(payload.cutoffTime ?? "-").trim() || "-",
       timeSlots: normalizeStringList(payload.timeSlots),
@@ -2767,7 +2869,7 @@ export const adminService = {
       updatePayload.deliveryZone = String(payload.deliveryZone ?? "N/A").trim() || "N/A";
     }
     if (Object.prototype.hasOwnProperty.call(payload, "deliveryFee")) {
-      updatePayload.deliveryFee = String(payload.deliveryFee ?? "$0.00").trim() || "$0.00";
+      updatePayload.deliveryFee = String(payload.deliveryFee ?? "MAD 0.00").trim() || "MAD 0.00";
     }
     if (Object.prototype.hasOwnProperty.call(payload, "workingDays")) {
       updatePayload.workingDays = normalizeStringList(payload.workingDays);
@@ -3099,6 +3201,8 @@ export const adminService = {
       return {
         id: String(row._id ?? row.id ?? subscriptionId),
         subscriptionId,
+        createdAt: row.createdAt ? new Date(String(row.createdAt)).toISOString() : "",
+        updatedAt: row.updatedAt ? new Date(String(row.updatedAt)).toISOString() : "",
         customerName: String(row.client ?? ""),
         customerEmail: firstNonEmptyString(customer.email, (customerOrder.customer as Record<string, unknown> | undefined)?.email),
         customerPhone: firstNonEmptyString(customer.phone, (customerOrder.customer as Record<string, unknown> | undefined)?.phone),
@@ -3203,12 +3307,12 @@ export const adminService = {
         item as unknown as Record<string, unknown>
       ])
     );
-    const failedPaymentOnlyOrders = archiveMode === "active"
+    const customerOrderOnlyRows = archiveMode === "active"
       ? customerOrders
           .map((item) => item as unknown as Record<string, unknown>)
           .filter((item) => {
             const orderId = String(item.orderId ?? "");
-            return orderId && !adminOrderByOrderId.has(orderId) && normalizeMonthlyPaymentStatus(item.paymentStatus) === "failed";
+            return orderId && !adminOrderByOrderId.has(orderId);
           })
           .map((item) => {
             const customer = getObjectRecord(item.customer);
@@ -3219,7 +3323,9 @@ export const adminService = {
             const subscriptionPayload = getObjectRecord(rawPayload.subscription);
             const plan = getObjectRecord(subscriptionPayload.plan);
             const customerName = `${String(customer.firstName ?? "").trim()} ${String(customer.lastName ?? "").trim()}`.trim();
-            const createdAt = item.createdAt ? new Date(String(item.createdAt)).toISOString().split("T")[0] : "";
+            const createdAt = item.createdAt ? new Date(String(item.createdAt)).toISOString() : "";
+            const paymentStatus = normalizeMonthlyPaymentStatus(item.paymentStatus);
+            const isFailedPayment = paymentStatus === "failed";
 
             return {
               _id: item._id,
@@ -3230,29 +3336,33 @@ export const adminService = {
               customerEmail: customer.email,
               customerEmirate: customer.emirate,
               customerArea: customer.area,
-              status: "pending",
-              confirmationStatus: "pending",
+              status: paymentStatus === "paid" ? "confirmed" : "pending",
+              confirmationStatus: paymentStatus === "paid" ? "confirmed" : "pending",
               plan: firstNonEmptyString(plan.title, "Monthly Plan"),
               orderType: String(delivery.optionId ?? ""),
               location: firstNonEmptyString(pickupLocation.name, customer.area, customer.emirate),
               deliveryAddress: delivery.address,
               pickupLocation: pickupLocation.name,
-              payment: "failed",
+              payment: paymentStatus,
               schedule: delivery.optionId,
-              date: createdAt,
-              total: `$${Number(totals.grandTotal ?? 0).toFixed(2)}`,
+              date: createdAt ? createdAt.split("T")[0] : "",
+              total: `MAD ${Number(totals.grandTotal ?? 0).toFixed(2)}`,
+              currency: normalizeCurrency(item.currency),
               items: [],
-              notes: `Recoverable failed CMI payment attempt. ${getPaymentFailureReason(item.paymentMeta)}`,
+              notes: isFailedPayment
+                ? `Recoverable failed CMI payment attempt. ${getPaymentFailureReason(item.paymentMeta)}`
+                : `Customer order restored into admin view from checkout payment record. Payment: ${paymentStatus}`,
               subscriptionInfo: `${String(plan.id ?? "")} / ${String(delivery.optionId ?? "")}`,
               subscriptionDetails: { daysPerWeek: 0, durationWeeks: 0, meals: 0 },
-              paymentFailureReason: getPaymentFailureReason(item.paymentMeta),
+              paymentFailureReason: isFailedPayment ? getPaymentFailureReason(item.paymentMeta) : "",
               paymentSource: "customer-order",
-              isRecoveryOnly: true,
+              isRecoveryOnly: isFailedPayment,
               createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
             };
           })
       : [];
-    const orderRows = [...adminOrders, ...failedPaymentOnlyOrders].sort((a, b) =>
+    const orderRows = [...adminOrders, ...customerOrderOnlyRows].sort((a, b) =>
       String((b as unknown as Record<string, unknown>).createdAt ?? "").localeCompare(
         String((a as unknown as Record<string, unknown>).createdAt ?? "")
       )
@@ -3327,6 +3437,8 @@ export const adminService = {
         id: String(row._id ?? row.id ?? orderId),
         orderId,
         subscriptionId,
+        createdAt: row.createdAt ? new Date(String(row.createdAt)).toISOString() : "",
+        updatedAt: row.updatedAt ? new Date(String(row.updatedAt)).toISOString() : "",
         customerName,
         customerEmail: firstNonEmptyString(customer.email, row.customerEmail, extractEmailFromText(row.notes)),
         customerPhone: firstNonEmptyString(customer.phone, row.phone),
@@ -3341,7 +3453,8 @@ export const adminService = {
           ? firstNonEmptyString(row.paymentFailureReason, getPaymentFailureReason(customerOrder.paymentMeta))
           : "",
         isRecoveryOnly: Boolean(row.isRecoveryOnly ?? false),
-        amount: parseMoneyValue(row.total),
+        amount: Number(totals.grandTotal ?? 0) || parseMoneyValue(row.total),
+        currency: normalizeCurrency(firstNonEmptyString(customerOrder.currency, row.currency, "MAD")),
         orderDate: String(row.date ?? ""),
         deliveryOption,
         deliveryAddress: String(delivery.address ?? ""),

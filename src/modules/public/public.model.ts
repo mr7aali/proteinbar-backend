@@ -117,6 +117,7 @@ const CustomerOrderSchema = new Schema(
     subscriptionId: { type: String, required: true },
     paymentStatus: { type: String, default: "pending", index: true },
     paymentMethod: { type: String, default: "CMI" },
+    currency: { type: String, default: "MAD", trim: true },
     paymentMeta: { type: Schema.Types.Mixed, default: null },
     promoUsageApplied: { type: Boolean, default: false },
     rawPayload: { type: Schema.Types.Mixed, default: null },
@@ -181,6 +182,7 @@ const CustomerOrderSchema = new Schema(
 const StoreOrderSchema = new Schema(
   {
     orderId: { type: String, required: true, unique: true },
+    currency: { type: String, default: "MAD", trim: true },
     customer: {
       firstName: { type: String, required: true },
       lastName: { type: String, required: true },

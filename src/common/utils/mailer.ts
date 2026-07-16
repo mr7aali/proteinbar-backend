@@ -25,6 +25,11 @@ type OrderEmailItem = {
   note?: string;
 };
 
+type OrderEmailDetail = {
+  label: string;
+  value: string;
+};
+
 type OrderEmailPayload = {
   orderId: string;
   orderType: "monthly-plan" | "store-order";
@@ -34,6 +39,7 @@ type OrderEmailPayload = {
   planTitle?: string;
   deliverySummary?: string;
   paymentStatus?: string;
+  orderDetails?: OrderEmailDetail[];
   items: OrderEmailItem[];
   totals: {
     subtotal?: number;
@@ -51,7 +57,33 @@ function getFromAddress() {
 }
 
 function getAdminOrderRecipient() {
-  return env.ORDER_NOTIFICATION_EMAIL || env.SMTP_USER || env.SMTP_FROM_EMAIL;
+  return env.ORDER_NOTIFICATION_EMAIL.trim();
+}
+
+function parseEmailList(value: string) {
+  return value
+    .split(/[;,]/)
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function assertTransactionalSmtpConfigured() {
+  if (!hasSmtpConfig) {
+    throw new Error("SMTP is not configured for transactional order emails.");
+  }
+}
+
+function assertAdminOrderRecipientConfigured() {
+  const recipient = getAdminOrderRecipient();
+  if (!recipient) {
+    throw new Error("ORDER_NOTIFICATION_EMAIL is not configured for admin order notifications.");
+  }
+
+  const recipients = parseEmailList(recipient);
+  const sender = env.SMTP_FROM_EMAIL.trim().toLowerCase();
+  if (sender && recipients.length > 0 && recipients.every((email) => email === sender)) {
+    throw new Error("ORDER_NOTIFICATION_EMAIL must be a real admin inbox, not the SMTP_FROM_EMAIL sender address.");
+  }
 }
 
 function escapeHtml(value: unknown) {
@@ -97,6 +129,34 @@ function renderItemsHtml(items: OrderEmailItem[]) {
       `;
     })
     .join("");
+}
+
+function renderDetailsText(details: OrderEmailDetail[] = []) {
+  return details
+    .filter((detail) => detail.label && detail.value)
+    .map((detail) => `${detail.label}: ${detail.value}`)
+    .join("\n");
+}
+
+function renderDetailsHtml(details: OrderEmailDetail[] = []) {
+  const rows = details.filter((detail) => detail.label && detail.value);
+  if (!rows.length) return "";
+
+  return `
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;margin:18px 0;">
+      <div style="font-weight:700;margin-bottom:8px;">Order details</div>
+      ${rows
+        .map(
+          (detail) => `
+            <div style="display:flex;gap:10px;justify-content:space-between;border-top:1px solid #ffedd5;padding:7px 0;">
+              <span style="color:#6b7280;">${escapeHtml(detail.label)}</span>
+              <strong style="text-align:right;">${escapeHtml(detail.value)}</strong>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function renderTotalsText(totals: OrderEmailPayload["totals"]) {
@@ -158,6 +218,8 @@ export async function sendLoginCodeEmail({
 }
 
 export async function sendCustomerOrderConfirmationEmail(order: OrderEmailPayload) {
+  assertTransactionalSmtpConfigured();
+
   const subject = `Proteinbar order confirmation ${order.orderId}`;
   const intro =
     order.orderType === "monthly-plan"
@@ -179,6 +241,7 @@ export async function sendCustomerOrderConfirmationEmail(order: OrderEmailPayloa
       planLine.trim(),
       deliveryLine.trim(),
       order.paymentStatus ? `Payment: ${order.paymentStatus}` : "",
+      renderDetailsText(order.orderDetails),
       "",
       "Items:",
       renderItemsText(order.items),
@@ -198,6 +261,7 @@ export async function sendCustomerOrderConfirmationEmail(order: OrderEmailPayloa
           ${order.deliverySummary ? `<div><strong>Delivery/Pickup:</strong> ${escapeHtml(order.deliverySummary)}</div>` : ""}
           ${order.paymentStatus ? `<div><strong>Payment:</strong> ${escapeHtml(order.paymentStatus)}</div>` : ""}
         </div>
+        ${renderDetailsHtml(order.orderDetails)}
         <table style="width:100%;border-collapse:collapse;">
           <thead>
             <tr>
@@ -222,12 +286,10 @@ export async function sendCustomerOrderConfirmationEmail(order: OrderEmailPayloa
 }
 
 export async function sendAdminNewOrderNotificationEmail(order: OrderEmailPayload) {
-  const to = getAdminOrderRecipient();
-  if (!to) {
-    console.warn("Order notification email skipped: ORDER_NOTIFICATION_EMAIL is not configured.");
-    return null;
-  }
+  assertTransactionalSmtpConfigured();
+  assertAdminOrderRecipientConfigured();
 
+  const to = getAdminOrderRecipient();
   const subject = `New Proteinbar order ${order.orderId}`;
   const result = await transporter.sendMail({
     from: getFromAddress(),
@@ -244,6 +306,7 @@ export async function sendAdminNewOrderNotificationEmail(order: OrderEmailPayloa
       order.planTitle ? `Plan: ${order.planTitle}` : "",
       order.deliverySummary ? `Delivery/Pickup: ${order.deliverySummary}` : "",
       order.paymentStatus ? `Payment: ${order.paymentStatus}` : "",
+      renderDetailsText(order.orderDetails),
       "",
       "Items:",
       renderItemsText(order.items),
@@ -263,6 +326,7 @@ export async function sendAdminNewOrderNotificationEmail(order: OrderEmailPayloa
           ${order.deliverySummary ? `<div><strong>Delivery/Pickup:</strong> ${escapeHtml(order.deliverySummary)}</div>` : ""}
           ${order.paymentStatus ? `<div><strong>Payment:</strong> ${escapeHtml(order.paymentStatus)}</div>` : ""}
         </div>
+        ${renderDetailsHtml(order.orderDetails)}
         <table style="width:100%;border-collapse:collapse;">
           <thead>
             <tr>
