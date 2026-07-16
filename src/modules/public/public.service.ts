@@ -72,7 +72,30 @@ function toOrderType(optionId: unknown) {
 }
 
 function formatMoney(value: unknown) {
-  return `$${toSafeNumber(value, 0).toFixed(2)}`;
+  return `MAD ${toSafeNumber(value, 0).toFixed(2)}`;
+}
+
+function formatCount(value: unknown, singular: string, plural = `${singular}s`) {
+  const count = toSafeNumber(value, 0);
+  if (!count) return "";
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function humanizeToken(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function buildOrderDetail(label: string, value: unknown) {
+  const normalized = String(value ?? "").trim();
+  return normalized ? { label, value: normalized } : null;
+}
+
+function hasTimestamp(value: unknown) {
+  return Boolean(value);
 }
 
 function normalizeCustomer(customer: Record<string, unknown>) {
@@ -171,6 +194,8 @@ const websiteNavigationOrder: Record<string, number> = {
   "terms-and-conditions": 6,
   "privacy-policy": 7,
 };
+
+const TRANSACTIONAL_EMAIL_LOCK_MS = 10 * 60 * 1000;
 
 type SelectedMealRecord = ReturnType<typeof normalizeSelectedMeal>;
 type CustomerRecord = ReturnType<typeof normalizeCustomer>;
@@ -391,10 +416,13 @@ function buildMonthlyOrderEmailPayload(orderRow: Record<string, unknown>) {
   const totals = getObjectRecord(orderRow.totals);
   const payload = getObjectRecord(orderRow.rawPayload);
   const subscriptionPayload = getObjectRecord(payload.subscription);
+  const selection = getObjectRecord(subscriptionPayload.selection);
   const plan = getObjectRecord(subscriptionPayload.plan);
   const selectedMealsSource = Array.isArray(orderRow.selectedMeals)
     ? orderRow.selectedMeals
-    : [];
+    : Array.isArray(selection.selectedMeals)
+      ? selection.selectedMeals
+      : [];
   const customerName = `${customer.firstName} ${customer.lastName}`.trim() || "Customer";
   const deliverySummary =
     delivery.pickupLocation.name ||
@@ -402,6 +430,23 @@ function buildMonthlyOrderEmailPayload(orderRow: Record<string, unknown>) {
     customer.area ||
     customer.emirate ||
     "N/A";
+  const mealsPerDay = Math.max(1, toSafeNumber(selection.meals, 1));
+  const daysPerWeek = Math.max(1, toSafeNumber(selection.days, 1));
+  const totalWeeks = Math.max(1, toSafeNumber(selection.weeks, 4));
+  const totalPlannedMeals = mealsPerDay * daysPerWeek * totalWeeks;
+  const deliveryDays = String(selection.deliveryDays ?? "").trim();
+  const startDate = String(selection.startDate ?? "").trim();
+  const planType = humanizeToken(selection.planType);
+  const orderDetails = [
+    buildOrderDetail("Meals per day", formatCount(mealsPerDay, "meal")),
+    buildOrderDetail("Days per week", formatCount(daysPerWeek, "day")),
+    buildOrderDetail("Duration", formatCount(totalWeeks, "week")),
+    buildOrderDetail("Total planned meals", formatCount(totalPlannedMeals, "meal")),
+    buildOrderDetail("Start date", startDate),
+    buildOrderDetail("Delivery days", deliveryDays),
+    buildOrderDetail("Delivery method", toOrderType(delivery.optionId)),
+    buildOrderDetail("Plan type", planType),
+  ].filter((detail): detail is { label: string; value: string } => Boolean(detail));
 
   return {
     orderId: String(orderRow.orderId ?? ""),
@@ -412,6 +457,7 @@ function buildMonthlyOrderEmailPayload(orderRow: Record<string, unknown>) {
     planTitle: String(plan.title ?? "").trim() || "Monthly Plan",
     deliverySummary,
     paymentStatus: "Paid by CMI",
+    orderDetails,
     items: selectedMealsSource
       .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
       .map((item) => {
@@ -471,13 +517,33 @@ function buildStoreOrderEmailPayload(orderRow: Record<string, unknown>) {
 
 async function sendCustomerOrderTransactionalEmailsOnce(orderId: string) {
   const now = new Date();
+  const staleStartedBefore = new Date(now.getTime() - TRANSACTIONAL_EMAIL_LOCK_MS);
   const claimedOrder = await CustomerOrderModel.findOneAndUpdate(
     {
       orderId,
       paymentStatus: "paid",
-      $or: [
-        { "transactionalEmails.startedAt": null },
-        { "transactionalEmails.startedAt": { $exists: false } },
+      $and: [
+        {
+          $or: [
+            { "transactionalEmails.customerConfirmationSentAt": null },
+            { "transactionalEmails.customerConfirmationSentAt": { $exists: false } },
+            { "transactionalEmails.adminNotificationSentAt": null },
+            { "transactionalEmails.adminNotificationSentAt": { $exists: false } },
+          ],
+        },
+        {
+          $or: [
+            { "transactionalEmails.startedAt": null },
+            { "transactionalEmails.startedAt": { $exists: false } },
+            { "transactionalEmails.startedAt": { $lte: staleStartedBefore } },
+            {
+              $and: [
+                { "transactionalEmails.failedAt": { $exists: true } },
+                { "transactionalEmails.failedAt": { $ne: null } },
+              ],
+            },
+          ],
+        },
       ],
     },
     {
@@ -493,44 +559,97 @@ async function sendCustomerOrderTransactionalEmailsOnce(orderId: string) {
   if (!claimedOrder) return;
 
   const emailPayload = buildMonthlyOrderEmailPayload(claimedOrder as unknown as Record<string, unknown>);
+  const transactionalEmails = getObjectRecord(
+    (claimedOrder as unknown as Record<string, unknown>).transactionalEmails,
+  );
+  const customerConfirmationAlreadySent = hasTimestamp(
+    transactionalEmails.customerConfirmationSentAt,
+  );
+  const adminNotificationAlreadySent = hasTimestamp(
+    transactionalEmails.adminNotificationSentAt,
+  );
+  const emailFailures: string[] = [];
 
-  try {
-    if (emailPayload.customerEmail) {
+  if (!customerConfirmationAlreadySent && emailPayload.customerEmail) {
+    try {
       await sendCustomerOrderConfirmationEmail(emailPayload);
       await CustomerOrderModel.updateOne(
         { orderId },
         { $set: { "transactionalEmails.customerConfirmationSentAt": new Date() } },
       );
+    } catch (error) {
+      const message = toEmailErrorMessage(error);
+      emailFailures.push(`Customer confirmation: ${message}`);
+      console.error(`Customer order confirmation email failed for ${orderId}:`, error);
     }
+  }
 
-    await sendAdminNewOrderNotificationEmail(emailPayload);
-    await CustomerOrderModel.updateOne(
-      { orderId },
-      { $set: { "transactionalEmails.adminNotificationSentAt": new Date() } },
-    );
-  } catch (error) {
-    const message = toEmailErrorMessage(error);
-    console.error(`Order email failed for ${orderId}:`, error);
+  if (!adminNotificationAlreadySent) {
+    try {
+      await sendAdminNewOrderNotificationEmail(emailPayload);
+      await CustomerOrderModel.updateOne(
+        { orderId },
+        { $set: { "transactionalEmails.adminNotificationSentAt": new Date() } },
+      );
+    } catch (error) {
+      const message = toEmailErrorMessage(error);
+      emailFailures.push(`Admin notification: ${message}`);
+      console.error(`Admin order notification email failed for ${orderId}:`, error);
+    }
+  }
+
+  if (emailFailures.length) {
     await CustomerOrderModel.updateOne(
       { orderId },
       {
         $set: {
           "transactionalEmails.failedAt": new Date(),
-          "transactionalEmails.error": message,
+          "transactionalEmails.error": emailFailures.join(" | "),
         },
       },
     );
+    return;
   }
+
+  await CustomerOrderModel.updateOne(
+    { orderId },
+    {
+      $set: {
+        "transactionalEmails.failedAt": null,
+        "transactionalEmails.error": "",
+      },
+    },
+  );
 }
 
 async function sendStoreOrderTransactionalEmailsOnce(orderId: string) {
   const now = new Date();
+  const staleStartedBefore = new Date(now.getTime() - TRANSACTIONAL_EMAIL_LOCK_MS);
   const claimedOrder = await StoreOrderModel.findOneAndUpdate(
     {
       orderId,
-      $or: [
-        { "transactionalEmails.startedAt": null },
-        { "transactionalEmails.startedAt": { $exists: false } },
+      $and: [
+        {
+          $or: [
+            { "transactionalEmails.customerConfirmationSentAt": null },
+            { "transactionalEmails.customerConfirmationSentAt": { $exists: false } },
+            { "transactionalEmails.adminNotificationSentAt": null },
+            { "transactionalEmails.adminNotificationSentAt": { $exists: false } },
+          ],
+        },
+        {
+          $or: [
+            { "transactionalEmails.startedAt": null },
+            { "transactionalEmails.startedAt": { $exists: false } },
+            { "transactionalEmails.startedAt": { $lte: staleStartedBefore } },
+            {
+              $and: [
+                { "transactionalEmails.failedAt": { $exists: true } },
+                { "transactionalEmails.failedAt": { $ne: null } },
+              ],
+            },
+          ],
+        },
       ],
     },
     {
@@ -546,34 +665,67 @@ async function sendStoreOrderTransactionalEmailsOnce(orderId: string) {
   if (!claimedOrder) return;
 
   const emailPayload = buildStoreOrderEmailPayload(claimedOrder as unknown as Record<string, unknown>);
+  const transactionalEmails = getObjectRecord(
+    (claimedOrder as unknown as Record<string, unknown>).transactionalEmails,
+  );
+  const customerConfirmationAlreadySent = hasTimestamp(
+    transactionalEmails.customerConfirmationSentAt,
+  );
+  const adminNotificationAlreadySent = hasTimestamp(
+    transactionalEmails.adminNotificationSentAt,
+  );
+  const emailFailures: string[] = [];
 
-  try {
-    if (emailPayload.customerEmail) {
+  if (!customerConfirmationAlreadySent && emailPayload.customerEmail) {
+    try {
       await sendCustomerOrderConfirmationEmail(emailPayload);
       await StoreOrderModel.updateOne(
         { orderId },
         { $set: { "transactionalEmails.customerConfirmationSentAt": new Date() } },
       );
+    } catch (error) {
+      const message = toEmailErrorMessage(error);
+      emailFailures.push(`Customer confirmation: ${message}`);
+      console.error(`Store order customer confirmation email failed for ${orderId}:`, error);
     }
+  }
 
-    await sendAdminNewOrderNotificationEmail(emailPayload);
-    await StoreOrderModel.updateOne(
-      { orderId },
-      { $set: { "transactionalEmails.adminNotificationSentAt": new Date() } },
-    );
-  } catch (error) {
-    const message = toEmailErrorMessage(error);
-    console.error(`Store order email failed for ${orderId}:`, error);
+  if (!adminNotificationAlreadySent) {
+    try {
+      await sendAdminNewOrderNotificationEmail(emailPayload);
+      await StoreOrderModel.updateOne(
+        { orderId },
+        { $set: { "transactionalEmails.adminNotificationSentAt": new Date() } },
+      );
+    } catch (error) {
+      const message = toEmailErrorMessage(error);
+      emailFailures.push(`Admin notification: ${message}`);
+      console.error(`Store order admin notification email failed for ${orderId}:`, error);
+    }
+  }
+
+  if (emailFailures.length) {
     await StoreOrderModel.updateOne(
       { orderId },
       {
         $set: {
           "transactionalEmails.failedAt": new Date(),
-          "transactionalEmails.error": message,
+          "transactionalEmails.error": emailFailures.join(" | "),
         },
       },
     );
+    return;
   }
+
+  await StoreOrderModel.updateOne(
+    { orderId },
+    {
+      $set: {
+        "transactionalEmails.failedAt": null,
+        "transactionalEmails.error": "",
+      },
+    },
+  );
 }
 
 async function prepareCheckoutPayload(
@@ -1110,6 +1262,7 @@ export const publicService = {
       subscriptionId: prepared.subscriptionId,
       paymentStatus: "pending",
       paymentMethod: "CMI",
+      currency: "MAD",
       paymentMeta,
       rawPayload: payload,
       customer: prepared.customer,
@@ -1146,6 +1299,7 @@ export const publicService = {
       deliveryAddress: String(prepared.delivery.address ?? ""),
       pickupLocation: String(prepared.delivery.pickupLocation?.name ?? ""),
       payment: "unpaid",
+      currency: "MAD",
       schedule: String(prepared.delivery.optionId ?? ""),
       date: new Date().toISOString().split("T")[0],
       total: formatMoney(prepared.grandTotal),
@@ -1511,6 +1665,7 @@ export const publicService = {
     const order = await StoreOrderModel.create({
       orderId: buildId("STORE-ORD"),
       ...payload,
+      currency: "MAD",
     });
 
     await sendStoreOrderTransactionalEmailsOnce(order.orderId);

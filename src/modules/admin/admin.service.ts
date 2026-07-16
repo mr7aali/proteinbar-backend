@@ -212,7 +212,7 @@ function toLocation(row: Record<string, unknown>) {
   const normalizedDeliveryFee =
     typeof rawDeliveryFee === "number"
       ? String(rawDeliveryFee)
-      : String(rawDeliveryFee ?? "").trim() || "$0.00";
+      : String(rawDeliveryFee ?? "").trim() || "MAD 0.00";
 
   return {
     id: String(row.locationId ?? row.id ?? ""),
@@ -376,6 +376,11 @@ function parseMoneyValue(value: unknown) {
   const normalized = String(value ?? "").replace(/[^0-9.-]+/g, "");
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeCurrency(value: unknown) {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized || "MAD";
 }
 
 function firstNonEmptyString(...values: unknown[]) {
@@ -2721,7 +2726,7 @@ export const adminService = {
       ratingText: String(payload.ratingText ?? "").trim(),
       isActive: Boolean(payload.isActive ?? true),
       deliveryZone: String(payload.deliveryZone ?? "N/A").trim() || "N/A",
-      deliveryFee: String(payload.deliveryFee ?? "$0.00").trim() || "$0.00",
+      deliveryFee: String(payload.deliveryFee ?? "MAD 0.00").trim() || "MAD 0.00",
       workingDays: normalizeStringList(payload.workingDays),
       cutoffTime: String(payload.cutoffTime ?? "-").trim() || "-",
       timeSlots: normalizeStringList(payload.timeSlots),
@@ -2767,7 +2772,7 @@ export const adminService = {
       updatePayload.deliveryZone = String(payload.deliveryZone ?? "N/A").trim() || "N/A";
     }
     if (Object.prototype.hasOwnProperty.call(payload, "deliveryFee")) {
-      updatePayload.deliveryFee = String(payload.deliveryFee ?? "$0.00").trim() || "$0.00";
+      updatePayload.deliveryFee = String(payload.deliveryFee ?? "MAD 0.00").trim() || "MAD 0.00";
     }
     if (Object.prototype.hasOwnProperty.call(payload, "workingDays")) {
       updatePayload.workingDays = normalizeStringList(payload.workingDays);
@@ -3240,7 +3245,8 @@ export const adminService = {
               payment: "failed",
               schedule: delivery.optionId,
               date: createdAt,
-              total: `$${Number(totals.grandTotal ?? 0).toFixed(2)}`,
+              total: `MAD ${Number(totals.grandTotal ?? 0).toFixed(2)}`,
+              currency: normalizeCurrency(item.currency),
               items: [],
               notes: `Recoverable failed CMI payment attempt. ${getPaymentFailureReason(item.paymentMeta)}`,
               subscriptionInfo: `${String(plan.id ?? "")} / ${String(delivery.optionId ?? "")}`,
@@ -3341,7 +3347,8 @@ export const adminService = {
           ? firstNonEmptyString(row.paymentFailureReason, getPaymentFailureReason(customerOrder.paymentMeta))
           : "",
         isRecoveryOnly: Boolean(row.isRecoveryOnly ?? false),
-        amount: parseMoneyValue(row.total),
+        amount: Number(totals.grandTotal ?? 0) || parseMoneyValue(row.total),
+        currency: normalizeCurrency(firstNonEmptyString(customerOrder.currency, row.currency, "MAD")),
         orderDate: String(row.date ?? ""),
         deliveryOption,
         deliveryAddress: String(delivery.address ?? ""),
