@@ -969,6 +969,28 @@ function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): Monthl
   const now = new Date().toISOString();
   const weekAssignments = Array.isArray(payload.weekAssignments) ? payload.weekAssignments : [];
   const planKind: PlanKind = payload.plan.planKind === "custom" ? "custom" : "normal";
+  const normalizedRules = normalizePlanRulesForPersistence(payload.rules);
+
+  if (planKind === "normal") {
+    const fixedMealsPerDay = Math.max(1, Number((normalizedRules.defaults as Record<string, unknown>)?.meals ?? 1) || 1);
+    for (const week of weekAssignments) {
+      const weekIndex = Number(week.weekIndex ?? 0);
+      const mealsByDate =
+        week.mealsByDate && typeof week.mealsByDate === "object"
+          ? (week.mealsByDate as Record<string, unknown>)
+          : {};
+
+      for (const [dateIso, assignedMeals] of Object.entries(mealsByDate)) {
+        const mealCount = Array.isArray(assignedMeals) ? assignedMeals.length : 0;
+        if (mealCount > fixedMealsPerDay) {
+          throw new AppError(
+            400,
+            `Week ${weekIndex || ""}, ${dateIso} has ${mealCount} assigned meals, but this pre-made plan is fixed at ${fixedMealsPerDay} meals per day. Remove ${mealCount - fixedMealsPerDay} extra meal${mealCount - fixedMealsPerDay === 1 ? "" : "s"} or increase the fixed meals value.`
+          );
+        }
+      }
+    }
+  }
 
   const normalizedPlan = {
     ...payload.plan,
@@ -989,7 +1011,7 @@ function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): Monthl
 
   return {
     plan: normalizedPlan,
-    rules: normalizePlanRulesForPersistence(payload.rules),
+    rules: normalizedRules,
     pricing: payload.pricing,
     weekAssignments
   };
