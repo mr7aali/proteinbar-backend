@@ -1054,6 +1054,13 @@ function toMealLibraryItem(row: Record<string, unknown>): MealLibraryItemPayload
   };
 }
 
+function isValidMonthlyPlanSummary(plan: Record<string, unknown>) {
+  const id = String(plan.id ?? "").trim();
+  const title = String(plan.title ?? "").trim();
+  const planKind = String(plan.planKind ?? "").trim().toLowerCase();
+  return Boolean(id && title && (planKind === "custom" || planKind === "normal"));
+}
+
 function normalizeMealLookupValue(value: unknown) {
   return String(value ?? "")
     .trim()
@@ -2972,8 +2979,11 @@ export const adminService = {
     }
 
     const rows = await MonthlyPlanDetailsModel.find(query).sort({ updatedAt: -1 }).lean();
-    if (rows.length > 0) {
-      return rows.map((row) => toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>).plan);
+    const validDetailPlans = rows
+      .map((row) => toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>).plan as unknown as Record<string, unknown>)
+      .filter(isValidMonthlyPlanSummary);
+    if (validDetailPlans.length > 0) {
+      return validDetailPlans;
     }
 
     const legacyRows = await MonthlyPlanModel.find().sort({ createdAt: -1 }).lean();
@@ -2985,7 +2995,10 @@ export const adminService = {
       if (!legacyPlanId) continue;
       const detailsRow = await ensureMonthlyPlanDetails(legacyPlanId);
       if (detailsRow) {
-        migrated.push(toMonthlyPlanDetailsPayload(detailsRow).plan);
+        const migratedPlan = toMonthlyPlanDetailsPayload(detailsRow).plan as unknown as Record<string, unknown>;
+        if (isValidMonthlyPlanSummary(migratedPlan)) {
+          migrated.push(migratedPlan);
+        }
       }
     }
 
