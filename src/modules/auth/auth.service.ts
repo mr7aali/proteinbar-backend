@@ -38,6 +38,18 @@ function buildAdminAuthResponse(user: Awaited<ReturnType<typeof buildAdminUserPa
   };
 }
 
+async function deleteExpiredAdminSessions(email?: string) {
+  const now = new Date();
+  await AdminSessionModel.deleteMany({
+    ...(email ? { email } : {}),
+    $or: [
+      { refreshExpiresAt: { $lte: now } },
+      { refreshExpiresAt: { $exists: false }, expiresAt: { $lte: now } },
+      { refreshToken: "", expiresAt: { $lte: now } }
+    ]
+  });
+}
+
 type AdminLikeUser = {
   _id: unknown;
   email: string;
@@ -201,9 +213,7 @@ export const authService = {
       throw new AppError(401, "Invalid admin credentials");
     }
 
-    await AdminSessionModel.deleteMany({
-      email: normalizedEmail
-    });
+    await deleteExpiredAdminSessions(normalizedEmail);
 
     const expiresAt = new Date(Date.now() + ADMIN_ACCESS_TOKEN_MINUTES * 60 * 1000);
     const refreshExpiresAt = new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
@@ -288,11 +298,9 @@ export const authService = {
       throw new AppError(401, "Authentication required");
     }
 
-    const nextAccessToken = generateSessionToken();
     const expiresAt = new Date(Date.now() + ADMIN_ACCESS_TOKEN_MINUTES * 60 * 1000);
     const refreshExpiresAt = session.refreshExpiresAt ?? new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
 
-    session.token = nextAccessToken;
     session.expiresAt = expiresAt;
     if (!session.refreshExpiresAt) {
       session.refreshExpiresAt = refreshExpiresAt;
@@ -300,7 +308,7 @@ export const authService = {
     await session.save();
 
     const adminUser = await buildAdminUserPayload(user);
-    return buildAdminAuthResponse(adminUser, nextAccessToken, normalizedToken, expiresAt, refreshExpiresAt);
+    return buildAdminAuthResponse(adminUser, session.token, normalizedToken, expiresAt, refreshExpiresAt);
   },
 
   async resetPassword(email: string, newPassword: string) {
