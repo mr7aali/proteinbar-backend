@@ -189,6 +189,7 @@ export const monthlyPlanDetailsUpsertSchema = z.object({
       title: z.string().min(1),
       description: z.string().optional().default(""),
       planKind: z.enum(["custom", "normal"]).optional(),
+      frequency: z.enum(["daily", "weekly", "monthly"]).optional(),
       status: z.string().optional()
     })
     .passthrough(),

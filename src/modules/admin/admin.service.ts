@@ -25,6 +25,7 @@ import { CustomerOrderModel, CustomerSubscriptionModel } from "../public/public.
 
 type PlanKind = "custom" | "normal";
 type PlanStatus = "draft" | "active" | "inactive" | "archived";
+type PlanFrequency = "daily" | "weekly" | "monthly";
 
 type MonthlyPlanDetailsPayload = {
   plan: Record<string, unknown> & { id: string; planKind?: PlanKind; status?: PlanStatus; title?: string; description?: string };
@@ -974,18 +975,51 @@ function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): Monthl
   const now = new Date().toISOString();
   const weekAssignments = Array.isArray(payload.weekAssignments) ? payload.weekAssignments : [];
   const planKind: PlanKind = payload.plan.planKind === "custom" ? "custom" : "normal";
+  const frequency: PlanFrequency =
+    payload.plan.frequency === "daily" || payload.plan.frequency === "weekly"
+      ? payload.plan.frequency
+      : "monthly";
   const normalizedRules = normalizePlanRulesForPersistence(payload.rules);
 
   if (planKind === "normal") {
+    if (frequency !== "monthly" && weekAssignments.length > 1) {
+      throw new AppError(
+        400,
+        `${frequency === "daily" ? "Daily" : "Weekly"} pre-made plans can contain only one assignment ${frequency === "daily" ? "day" : "week"}.`
+      );
+    }
     const fixedMealsPerDay = Math.max(1, Number((normalizedRules.defaults as Record<string, unknown>)?.meals ?? 1) || 1);
     for (const week of weekAssignments) {
       const weekIndex = Number(week.weekIndex ?? 0);
+      const startDate = String(week.startDate ?? "");
+      const endDate = String(week.endDate ?? "");
+      if (frequency !== "monthly") {
+        const expectedEndDate = addDaysToIsoDate(
+          startDate,
+          frequency === "daily" ? 0 : 6
+        );
+        if (!startDate || endDate !== expectedEndDate) {
+          throw new AppError(
+            400,
+            `${frequency === "daily" ? "Daily" : "Weekly"} pre-made plans must use a ${frequency === "daily" ? "one-day" : "seven-day"} assignment range.`
+          );
+        }
+      }
       const mealsByDate =
         week.mealsByDate && typeof week.mealsByDate === "object"
           ? (week.mealsByDate as Record<string, unknown>)
           : {};
 
       for (const [dateIso, assignedMeals] of Object.entries(mealsByDate)) {
+        if (
+          frequency !== "monthly" &&
+          (dateIso < startDate || dateIso > endDate)
+        ) {
+          throw new AppError(
+            400,
+            `${frequency === "daily" ? "Daily" : "Weekly"} pre-made plans cannot contain meal assignments outside their ${frequency === "daily" ? "assignment day" : "assignment week"}.`
+          );
+        }
         const mealCount = Array.isArray(assignedMeals) ? assignedMeals.length : 0;
         if (mealCount > fixedMealsPerDay) {
           throw new AppError(
@@ -1001,6 +1035,7 @@ function normalizePlanDetailsPayload(payload: MonthlyPlanDetailsPayload): Monthl
     ...payload.plan,
     id: payload.plan.id,
     planKind,
+    frequency,
     status: (payload.plan.status as PlanStatus | undefined) ?? "draft",
     title: String(payload.plan.title ?? ""),
     description: String(payload.plan.description ?? ""),
@@ -4359,7 +4394,9 @@ export const adminService = {
   async listPublicMonthlyPlans() {
     const rows = await MonthlyPlanDetailsModel.find({ status: { $ne: "archived" } }).sort({ updatedAt: -1 }).lean();
     if (rows.length > 0) {
-      return rows.map((row) => toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>).plan);
+      return rows
+        .map((row) => toMonthlyPlanDetailsPayload(row as unknown as Record<string, unknown>).plan)
+        .filter((plan) => String(plan.status ?? "").trim().toLowerCase() !== "draft");
     }
 
     const legacyRows = await MonthlyPlanModel.find().sort({ createdAt: -1 }).lean();
@@ -4373,7 +4410,8 @@ export const adminService = {
       if (!migrated) continue;
 
       const plan = toMonthlyPlanDetailsPayload(migrated).plan;
-      if (String(plan.status ?? "") !== "archived") {
+      const status = String(plan.status ?? "").trim().toLowerCase();
+      if (status !== "archived" && status !== "draft") {
         plans.push(plan);
       }
     }
