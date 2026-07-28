@@ -4,7 +4,6 @@ import { z } from "zod";
 dotenv.config();
 
 const normalizedOptionalString = z.string().optional().default("").transform((value) => value.trim());
-const localAdminSessionCookieSecret = "proteinbar-local-admin-session-cookie-secret";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -18,9 +17,6 @@ const envSchema = z.object({
   CMI_PUBLIC_BASE_URL: z.string().optional().default(""),
   CUSTOMER_SESSION_COOKIE_NAME: z.string().default("proteinbar_customer_session"),
   CUSTOMER_SESSION_DAYS: z.coerce.number().default(7),
-  ADMIN_REFRESH_COOKIE_NAME: z.string().default("proteinbar_admin_refresh"),
-  ADMIN_SESSION_COOKIE_NAME: z.string().default("proteinbar_admin_session"),
-  ADMIN_SESSION_COOKIE_SECRET: z.string().min(32).default(localAdminSessionCookieSecret),
   ADMIN_COOKIE_DOMAIN: normalizedOptionalString,
   SMTP_HOST: normalizedOptionalString,
   SMTP_PORT: z.coerce.number().default(587),
@@ -51,13 +47,6 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
   console.error("Invalid environment variables", parsed.error.flatten().fieldErrors);
-  process.exit(1);
-}
-if (
-  parsed.data.NODE_ENV === "production" &&
-  parsed.data.ADMIN_SESSION_COOKIE_SECRET === localAdminSessionCookieSecret
-) {
-  console.error("ADMIN_SESSION_COOKIE_SECRET must be configured in production");
   process.exit(1);
 }
 
