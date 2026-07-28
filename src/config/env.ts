@@ -4,6 +4,7 @@ import { z } from "zod";
 dotenv.config();
 
 const normalizedOptionalString = z.string().optional().default("").transform((value) => value.trim());
+const localAdminSessionCookieSecret = "proteinbar-local-admin-session-cookie-secret";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -18,6 +19,9 @@ const envSchema = z.object({
   CUSTOMER_SESSION_COOKIE_NAME: z.string().default("proteinbar_customer_session"),
   CUSTOMER_SESSION_DAYS: z.coerce.number().default(7),
   ADMIN_REFRESH_COOKIE_NAME: z.string().default("proteinbar_admin_refresh"),
+  ADMIN_SESSION_COOKIE_NAME: z.string().default("proteinbar_admin_session"),
+  ADMIN_SESSION_COOKIE_SECRET: z.string().min(32).default(localAdminSessionCookieSecret),
+  ADMIN_COOKIE_DOMAIN: normalizedOptionalString,
   SMTP_HOST: normalizedOptionalString,
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_SECURE: z
@@ -49,8 +53,29 @@ if (!parsed.success) {
   console.error("Invalid environment variables", parsed.error.flatten().fieldErrors);
   process.exit(1);
 }
+if (
+  parsed.data.NODE_ENV === "production" &&
+  parsed.data.ADMIN_SESSION_COOKIE_SECRET === localAdminSessionCookieSecret
+) {
+  console.error("ADMIN_SESSION_COOKIE_SECRET must be configured in production");
+  process.exit(1);
+}
 
 export const env = {
   ...parsed.data,
-  allowedOrigins: parsed.data.FRONTEND_ORIGINS.split(",").map((x) => x.trim()).filter(Boolean)
+  allowedOrigins: Array.from(
+    new Set([
+      ...parsed.data.FRONTEND_ORIGINS.split(",")
+        .map((origin) => origin.trim().replace(/\/+$/, ""))
+        .filter(Boolean),
+      ...(parsed.data.NODE_ENV === "development"
+        ? [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001"
+          ]
+        : [])
+    ])
+  )
 };
