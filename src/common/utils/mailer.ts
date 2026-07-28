@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { env } from "../../config/env";
 
-const hasSmtpConfig = Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
+const hasSmtpConfig = Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS.trim());
 
 const transporter = hasSmtpConfig
   ? nodemailer.createTransport({
@@ -11,7 +11,10 @@ const transporter = hasSmtpConfig
       auth: {
         user: env.SMTP_USER,
         pass: env.SMTP_PASS
-      }
+      },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 30_000
     })
   : nodemailer.createTransport({
       jsonTransport: true
@@ -68,7 +71,7 @@ function parseEmailList(value: string) {
 }
 
 function assertTransactionalSmtpConfigured() {
-  if (!hasSmtpConfig) {
+  if (!hasSmtpConfig || !env.SMTP_FROM_EMAIL) {
     throw new Error("SMTP is not configured for transactional order emails.");
   }
 }
@@ -80,7 +83,7 @@ function assertAdminOrderRecipientConfigured() {
   }
 
   const recipients = parseEmailList(recipient);
-  const sender = env.SMTP_FROM_EMAIL.trim().toLowerCase();
+  const sender = env.SMTP_FROM_EMAIL.toLowerCase();
   if (sender && recipients.length > 0 && recipients.every((email) => email === sender)) {
     throw new Error("ORDER_NOTIFICATION_EMAIL must be a real admin inbox, not the SMTP_FROM_EMAIL sender address.");
   }

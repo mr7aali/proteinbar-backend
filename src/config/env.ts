@@ -3,6 +3,9 @@ import { z } from "zod";
 
 dotenv.config();
 
+const normalizedOptionalString = z.string().optional().default("").transform((value) => value.trim());
+const localAdminSessionCookieSecret = "proteinbar-local-admin-session-cookie-secret";
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(5000),
@@ -15,16 +18,20 @@ const envSchema = z.object({
   CMI_PUBLIC_BASE_URL: z.string().optional().default(""),
   CUSTOMER_SESSION_COOKIE_NAME: z.string().default("proteinbar_customer_session"),
   CUSTOMER_SESSION_DAYS: z.coerce.number().default(7),
-  SMTP_HOST: z.string().optional().default(""),
+  ADMIN_REFRESH_COOKIE_NAME: z.string().default("proteinbar_admin_refresh"),
+  ADMIN_SESSION_COOKIE_NAME: z.string().default("proteinbar_admin_session"),
+  ADMIN_SESSION_COOKIE_SECRET: z.string().min(32).default(localAdminSessionCookieSecret),
+  ADMIN_COOKIE_DOMAIN: normalizedOptionalString,
+  SMTP_HOST: normalizedOptionalString,
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_SECURE: z
     .union([z.boolean(), z.string()])
     .optional()
     .transform((value) => value === true || value === "true")
     .default(false),
-  SMTP_USER: z.string().optional().default(""),
+  SMTP_USER: normalizedOptionalString,
   SMTP_PASS: z.string().optional().default(""),
-  SMTP_FROM_EMAIL: z.string().optional().default(""),
+  SMTP_FROM_EMAIL: normalizedOptionalString,
   SMTP_FROM_NAME: z.string().optional().default("Proteinbar"),
   ORDER_NOTIFICATION_EMAIL: z.string().optional().default(""),
   CLOUDINARY_CLOUD_NAME: z.string().optional().default(""),
@@ -46,8 +53,29 @@ if (!parsed.success) {
   console.error("Invalid environment variables", parsed.error.flatten().fieldErrors);
   process.exit(1);
 }
+if (
+  parsed.data.NODE_ENV === "production" &&
+  parsed.data.ADMIN_SESSION_COOKIE_SECRET === localAdminSessionCookieSecret
+) {
+  console.error("ADMIN_SESSION_COOKIE_SECRET must be configured in production");
+  process.exit(1);
+}
 
 export const env = {
   ...parsed.data,
-  allowedOrigins: parsed.data.FRONTEND_ORIGINS.split(",").map((x) => x.trim()).filter(Boolean)
+  allowedOrigins: Array.from(
+    new Set([
+      ...parsed.data.FRONTEND_ORIGINS.split(",")
+        .map((origin) => origin.trim().replace(/\/+$/, ""))
+        .filter(Boolean),
+      ...(parsed.data.NODE_ENV === "development"
+        ? [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001"
+          ]
+        : [])
+    ])
+  )
 };

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Request, Response } from "express";
 import { asyncHandler } from "../../common/utils/asyncHandler";
 import { env } from "../../config/env";
@@ -21,6 +22,69 @@ function setCustomerSessionCookie(res: Response, token: string, expiresAt: Date)
     expires: expiresAt,
     path: "/"
   });
+}
+
+type AdminAuthResponseData = Awaited<ReturnType<typeof authService.adminLogin>>;
+
+function setAdminRefreshCookie(res: Response, data: AdminAuthResponseData) {
+  if (!data.refreshToken) return;
+
+  res.cookie(env.ADMIN_REFRESH_COOKIE_NAME, data.refreshToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: env.NODE_ENV === "production",
+    ...(env.ADMIN_COOKIE_DOMAIN ? { domain: env.ADMIN_COOKIE_DOMAIN } : {}),
+    expires: data.session.refreshExpiresAt,
+    path: "/api/v1/auth"
+  });
+}
+
+function setAdminSessionCookie(res: Response, data: AdminAuthResponseData) {
+  const expiresAt = Math.floor(data.session.refreshExpiresAt.getTime() / 1000).toString();
+  const signature = crypto
+    .createHmac("sha256", env.ADMIN_SESSION_COOKIE_SECRET)
+    .update(expiresAt)
+    .digest("base64url");
+
+  res.cookie(env.ADMIN_SESSION_COOKIE_NAME, `${expiresAt}.${signature}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: env.NODE_ENV === "production",
+    ...(env.ADMIN_COOKIE_DOMAIN ? { domain: env.ADMIN_COOKIE_DOMAIN } : {}),
+    expires: data.session.refreshExpiresAt,
+    path: "/"
+  });
+}
+
+function setAdminAuthCookies(res: Response, data: AdminAuthResponseData) {
+  setAdminRefreshCookie(res, data);
+  setAdminSessionCookie(res, data);
+}
+
+function clearAdminAuthCookies(res: Response) {
+  const sharedOptions = {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: env.NODE_ENV === "production",
+    ...(env.ADMIN_COOKIE_DOMAIN ? { domain: env.ADMIN_COOKIE_DOMAIN } : {})
+  };
+
+  res.clearCookie(env.ADMIN_REFRESH_COOKIE_NAME, {
+    ...sharedOptions,
+    path: "/api/v1/auth"
+  });
+  res.clearCookie(env.ADMIN_SESSION_COOKIE_NAME, {
+    ...sharedOptions,
+    path: "/"
+  });
+}
+
+function withoutAdminRefreshToken(data: AdminAuthResponseData) {
+  const safeData = { ...data };
+  delete safeData.refreshToken;
+  safeData.session = { ...data.session };
+  delete safeData.session.refreshToken;
+  return safeData;
 }
 
 function getBearerToken(headerValue: string | undefined) {
@@ -64,23 +128,36 @@ export const authController = {
 
   adminLogin: asyncHandler(async (req: Request, res: Response) => {
     const data = await authService.adminLogin(req.body.email, req.body.password);
-    res.json({ success: true, data });
+    setAdminAuthCookies(res, data);
+    res.json({ success: true, data: withoutAdminRefreshToken(data) });
   }),
 
   adminMe: asyncHandler(async (req: Request, res: Response) => {
     const token = req.currentAdminSessionToken ?? "";
     const data = await authService.getAdminMe(token);
-    res.json({ success: true, data });
+    setAdminAuthCookies(res, data);
+    res.json({ success: true, data: withoutAdminRefreshToken(data) });
   }),
 
   adminRefresh: asyncHandler(async (req: Request, res: Response) => {
-    const data = await authService.refreshAdminSession(req.body.refreshToken);
-    res.json({ success: true, data });
+    try {
+      const refreshToken = getCookieValue(req.headers.cookie, env.ADMIN_REFRESH_COOKIE_NAME);
+      const data = await authService.refreshAdminSession(refreshToken);
+      setAdminAuthCookies(res, data);
+      res.json({ success: true, data: withoutAdminRefreshToken(data) });
+    } catch (error) {
+      clearAdminAuthCookies(res);
+      throw error;
+    }
   }),
 
   adminLogout: asyncHandler(async (req: Request, res: Response) => {
-    const token = req.currentAdminSessionToken || getBearerToken(req.headers.authorization) || String(req.body?.refreshToken ?? "");
+    const token =
+      req.currentAdminSessionToken ||
+      getBearerToken(req.headers.authorization) ||
+      getCookieValue(req.headers.cookie, env.ADMIN_REFRESH_COOKIE_NAME);
     await authService.logoutAdminSession(token);
+    clearAdminAuthCookies(res);
     res.json({ success: true, data: { loggedOut: true } });
   }),
 

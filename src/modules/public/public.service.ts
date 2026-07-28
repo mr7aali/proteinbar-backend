@@ -612,6 +612,11 @@ async function sendCustomerOrderTransactionalEmailsOnce(orderId: string) {
       emailFailures.push(`Customer confirmation: ${message}`);
       console.error(`Customer order confirmation email failed for ${orderId}:`, error);
     }
+  } else if (!customerConfirmationAlreadySent) {
+    await CustomerOrderModel.updateOne(
+      { orderId },
+      { $set: { "transactionalEmails.customerConfirmationSentAt": new Date() } },
+    );
   }
 
   if (!adminNotificationAlreadySent) {
@@ -718,6 +723,11 @@ async function sendStoreOrderTransactionalEmailsOnce(orderId: string) {
       emailFailures.push(`Customer confirmation: ${message}`);
       console.error(`Store order customer confirmation email failed for ${orderId}:`, error);
     }
+  } else if (!customerConfirmationAlreadySent) {
+    await StoreOrderModel.updateOne(
+      { orderId },
+      { $set: { "transactionalEmails.customerConfirmationSentAt": new Date() } },
+    );
   }
 
   if (!adminNotificationAlreadySent) {
@@ -756,6 +766,14 @@ async function sendStoreOrderTransactionalEmailsOnce(orderId: string) {
       },
     },
   );
+}
+
+function scheduleTransactionalEmailDelivery(label: string, task: () => Promise<void>) {
+  setImmediate(() => {
+    void task().catch((error) => {
+      console.error(`${label} transactional email delivery failed:`, error);
+    });
+  });
 }
 
 async function prepareCheckoutPayload(
@@ -1620,7 +1638,9 @@ export const publicService = {
           | null) ?? existingOrder;
 
       await ensureSuccessfulCheckoutArtifacts(latestOrder, responsePayload);
-      await sendCustomerOrderTransactionalEmailsOnce(orderId);
+      scheduleTransactionalEmailDelivery(`Customer order ${orderId}`, () =>
+        sendCustomerOrderTransactionalEmailsOnce(orderId)
+      );
 
       return {
         status: "success" as const,
@@ -1672,7 +1692,9 @@ export const publicService = {
       );
     } else {
       await ensureSuccessfulCheckoutArtifacts(existingOrder, responsePayload);
-      await sendCustomerOrderTransactionalEmailsOnce(orderId);
+      scheduleTransactionalEmailDelivery(`Customer order ${orderId}`, () =>
+        sendCustomerOrderTransactionalEmailsOnce(orderId)
+      );
       return {
         status: "success" as const,
         message: "Payment had already been confirmed earlier.",
@@ -1701,7 +1723,9 @@ export const publicService = {
       currency: "MAD",
     });
 
-    await sendStoreOrderTransactionalEmailsOnce(order.orderId);
+    scheduleTransactionalEmailDelivery(`Store order ${order.orderId}`, () =>
+      sendStoreOrderTransactionalEmailsOnce(order.orderId)
+    );
 
     return order;
   },

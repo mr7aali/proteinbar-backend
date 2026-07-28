@@ -52,7 +52,7 @@ const CustomerSessionSchema = new Schema(
 const AdminSessionSchema = new Schema(
   {
     token: { type: String, required: true, unique: true, trim: true, index: true },
-    refreshToken: { type: String, default: "", trim: true, index: true },
+    refreshToken: { type: String, default: "", trim: true, index: true, select: false },
     userId: { type: Schema.Types.ObjectId, required: true, ref: "User", index: true },
     email: { type: String, required: true, lowercase: true, trim: true, index: true },
     expiresAt: { type: Date, required: true, index: true },
