@@ -21,6 +21,7 @@ import {
   restaurantSchema,
   monthlyPlanAdminFiltersSchema,
   monthlyPlanClientFiltersSchema,
+  monthlyPlanClientParamSchema,
   monthlyPlanClientUpdateSchema,
   monthlyPlanDetailsParamSchema,
   monthlyPlanDetailsUpsertSchema,
@@ -84,8 +85,17 @@ adminRouter.get("/admin/monthly-plan/orders/archived", validate(monthlyPlanOrder
 adminRouter.patch("/admin/monthly-plan/orders/bulk-archive", validate(monthlyPlanOrderBulkArchiveSchema), adminController.bulkArchiveMonthlyPlanOrdersAdmin);
 adminRouter.patch("/admin/monthly-plan/orders/:id", validate(monthlyPlanDetailsParamSchema, "params"), adminController.updateMonthlyPlanOrderAdmin);
 adminRouter.get("/admin/monthly-plan/clients", validate(monthlyPlanClientFiltersSchema, "query"), adminController.listMonthlyPlanClientsAdmin);
-adminRouter.get("/admin/monthly-plan/clients/:clientKey", adminController.getMonthlyPlanClientDetailsAdmin);
-adminRouter.patch("/admin/monthly-plan/clients/:clientKey", validate(monthlyPlanClientUpdateSchema), adminController.updateMonthlyPlanClientAdmin);
+adminRouter.get(
+  "/admin/monthly-plan/clients/:clientKey",
+  validate(monthlyPlanClientParamSchema, "params"),
+  adminController.getMonthlyPlanClientDetailsAdmin
+);
+adminRouter.patch(
+  "/admin/monthly-plan/clients/:clientKey",
+  validate(monthlyPlanClientParamSchema, "params"),
+  validate(monthlyPlanClientUpdateSchema),
+  adminController.updateMonthlyPlanClientAdmin
+);
 adminRouter.get("/admin/monthly-plan/meals", adminController.listMealLibraryAdmin);
 adminRouter.put(
   "/admin/monthly-plan/meals/:id",

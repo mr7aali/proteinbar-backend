@@ -154,6 +154,20 @@ export const monthlyPlanClientUpdateSchema = z.object({
   address: z.string().optional()
 });
 
+export const monthlyPlanClientParamSchema = z.object({
+  clientKey: z.string().min(1).refine(
+    (value) => {
+      try {
+        decodeURIComponent(value);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "Client key contains invalid percent-encoding" }
+  )
+});
+
 export const monthlyPlanOrderArchiveFiltersSchema = z.object({
   search: z.string().optional(),
   planKind: z.enum(["custom", "normal", "all"]).optional(),

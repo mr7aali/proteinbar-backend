@@ -40,6 +40,17 @@ function insertOnly<T extends Record<string, unknown>>(
 }
 
 async function main() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Demo seed is disabled in production.");
+  }
+  if (process.env.ALLOW_DEMO_ADMIN_SEED !== "true") {
+    throw new Error("Set ALLOW_DEMO_ADMIN_SEED=true to run the demo seed outside production.");
+  }
+  const demoAdminPassword = process.env.DEMO_ADMIN_PASSWORD?.trim();
+  if (!demoAdminPassword || demoAdminPassword.length < 6) {
+    throw new Error("DEMO_ADMIN_PASSWORD is required and must contain at least 6 characters.");
+  }
+
   await connectDb();
 
   const subscriptionId = "SUB-DEMO-ADMIN-001";
@@ -108,7 +119,7 @@ async function main() {
         insertOnly(UserModel, { email: "demo.admin@proteinbargroup.com" }, {
           email: "demo.admin@proteinbargroup.com",
           role: "admin",
-          password: "admin12345",
+          password: demoAdminPassword,
           fullName: "Demo Admin",
           adminRoleId: "role-admin",
           allowedPages: [],

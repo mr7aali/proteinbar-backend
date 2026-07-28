@@ -22,16 +22,26 @@ function generateSessionToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
-function buildAdminAuthResponse(user: Awaited<ReturnType<typeof buildAdminUserPayload>>, token: string, refreshToken: string, expiresAt: Date, refreshExpiresAt: Date) {
+function hashRefreshToken(token: string) {
+  return `sha256:${crypto.createHash("sha256").update(token).digest("hex")}`;
+}
+
+function isRefreshTokenDigest(value: string) {
+  return /^sha256:[a-f0-9]{64}$/.test(value);
+}
+
+function buildAdminAuthResponse(user: Awaited<ReturnType<typeof buildAdminUserPayload>>, token: string, refreshToken: string | undefined, expiresAt: Date, refreshExpiresAt: Date) {
+  const refreshTokenPayload = refreshToken ? { refreshToken } : {};
+
   return {
     user,
     token,
     accessToken: token,
-    refreshToken,
+    ...refreshTokenPayload,
     session: {
       token,
       accessToken: token,
-      refreshToken,
+      ...refreshTokenPayload,
       expiresAt,
       refreshExpiresAt
     }
@@ -212,7 +222,7 @@ export const authService = {
 
     await AdminSessionModel.create({
       token,
-      refreshToken,
+      refreshToken: hashRefreshToken(refreshToken),
       userId: user._id,
       email: normalizedEmail,
       expiresAt,
@@ -232,7 +242,7 @@ export const authService = {
     const session = await AdminSessionModel.findOne({
       token: normalizedToken,
       expiresAt: { $gt: new Date() }
-    });
+    }).select("+refreshToken");
 
     if (!session) {
       throw new AppError(401, "Authentication required");
@@ -243,15 +253,25 @@ export const authService = {
       throw new AppError(401, "Authentication required");
     }
 
-    if (!session.refreshToken) {
-      session.refreshToken = generateSessionToken();
-      session.refreshExpiresAt = new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+    let responseRefreshToken = "";
+    if (!isRefreshTokenDigest(session.refreshToken)) {
+      responseRefreshToken = generateSessionToken();
+      session.refreshToken = hashRefreshToken(responseRefreshToken);
+      session.refreshExpiresAt =
+        session.refreshExpiresAt ??
+        new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
       await session.save();
     }
 
     const refreshExpiresAt = session.refreshExpiresAt ?? new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
     const adminUser = await buildAdminUserPayload(user);
-    return buildAdminAuthResponse(adminUser, normalizedToken, session.refreshToken, session.expiresAt, refreshExpiresAt);
+    return buildAdminAuthResponse(
+      adminUser,
+      normalizedToken,
+      responseRefreshToken || undefined,
+      session.expiresAt,
+      refreshExpiresAt
+    );
   },
 
   async logoutAdminSession(token: string) {
@@ -259,7 +279,7 @@ export const authService = {
     if (!normalizedToken) return;
 
     await AdminSessionModel.deleteOne({
-      $or: [{ token: normalizedToken }, { refreshToken: normalizedToken }]
+      $or: [{ token: normalizedToken }, { refreshToken: hashRefreshToken(normalizedToken) }]
     });
   },
 
@@ -273,10 +293,11 @@ export const authService = {
       throw new AppError(401, "Refresh token required");
     }
 
+    const refreshTokenDigest = hashRefreshToken(normalizedToken);
     const session = await AdminSessionModel.findOne({
-      refreshToken: normalizedToken,
+      refreshToken: refreshTokenDigest,
       refreshExpiresAt: { $gt: new Date() }
-    });
+    }).select("+refreshToken");
 
     if (!session) {
       throw new AppError(401, "Invalid or expired refresh token");
@@ -289,18 +310,33 @@ export const authService = {
     }
 
     const nextAccessToken = generateSessionToken();
+    const nextRefreshToken = generateSessionToken();
     const expiresAt = new Date(Date.now() + ADMIN_ACCESS_TOKEN_MINUTES * 60 * 1000);
     const refreshExpiresAt = session.refreshExpiresAt ?? new Date(Date.now() + ADMIN_REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
 
-    session.token = nextAccessToken;
-    session.expiresAt = expiresAt;
-    if (!session.refreshExpiresAt) {
-      session.refreshExpiresAt = refreshExpiresAt;
+    const rotatedSession = await AdminSessionModel.findOneAndUpdate(
+      {
+        _id: session._id,
+        refreshToken: refreshTokenDigest,
+        refreshExpiresAt: { $gt: new Date() }
+      },
+      {
+        $set: {
+          token: nextAccessToken,
+          refreshToken: hashRefreshToken(nextRefreshToken),
+          expiresAt,
+          refreshExpiresAt
+        }
+      },
+      { new: true }
+    );
+
+    if (!rotatedSession) {
+      throw new AppError(401, "Invalid or expired refresh token");
     }
-    await session.save();
 
     const adminUser = await buildAdminUserPayload(user);
-    return buildAdminAuthResponse(adminUser, nextAccessToken, normalizedToken, expiresAt, refreshExpiresAt);
+    return buildAdminAuthResponse(adminUser, nextAccessToken, nextRefreshToken, expiresAt, refreshExpiresAt);
   },
 
   async resetPassword(email: string, newPassword: string) {

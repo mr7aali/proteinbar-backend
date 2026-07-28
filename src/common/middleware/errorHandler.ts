@@ -24,6 +24,14 @@ export function errorHandler(
     });
   }
 
+  if (err instanceof URIError) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid path parameter encoding",
+      details: null,
+    });
+  }
+
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       success: false,

@@ -23,6 +23,28 @@ function setCustomerSessionCookie(res: Response, token: string, expiresAt: Date)
   });
 }
 
+type AdminAuthResponseData = Awaited<ReturnType<typeof authService.adminLogin>>;
+
+function setAdminRefreshCookie(res: Response, data: AdminAuthResponseData) {
+  if (!data.refreshToken) return;
+
+  res.cookie(env.ADMIN_REFRESH_COOKIE_NAME, data.refreshToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: env.NODE_ENV === "production",
+    expires: data.session.refreshExpiresAt,
+    path: "/api/v1/auth"
+  });
+}
+
+function withoutAdminRefreshToken(data: AdminAuthResponseData) {
+  const safeData = { ...data };
+  delete safeData.refreshToken;
+  safeData.session = { ...data.session };
+  delete safeData.session.refreshToken;
+  return safeData;
+}
+
 function getBearerToken(headerValue: string | undefined) {
   if (!headerValue) return "";
   const [scheme, token] = headerValue.split(" ");
@@ -64,23 +86,36 @@ export const authController = {
 
   adminLogin: asyncHandler(async (req: Request, res: Response) => {
     const data = await authService.adminLogin(req.body.email, req.body.password);
-    res.json({ success: true, data });
+    setAdminRefreshCookie(res, data);
+    res.json({ success: true, data: withoutAdminRefreshToken(data) });
   }),
 
   adminMe: asyncHandler(async (req: Request, res: Response) => {
     const token = req.currentAdminSessionToken ?? "";
     const data = await authService.getAdminMe(token);
-    res.json({ success: true, data });
+    setAdminRefreshCookie(res, data);
+    res.json({ success: true, data: withoutAdminRefreshToken(data) });
   }),
 
   adminRefresh: asyncHandler(async (req: Request, res: Response) => {
-    const data = await authService.refreshAdminSession(req.body.refreshToken);
-    res.json({ success: true, data });
+    const refreshToken = getCookieValue(req.headers.cookie, env.ADMIN_REFRESH_COOKIE_NAME);
+    const data = await authService.refreshAdminSession(refreshToken);
+    setAdminRefreshCookie(res, data);
+    res.json({ success: true, data: withoutAdminRefreshToken(data) });
   }),
 
   adminLogout: asyncHandler(async (req: Request, res: Response) => {
-    const token = req.currentAdminSessionToken || getBearerToken(req.headers.authorization) || String(req.body?.refreshToken ?? "");
+    const token =
+      req.currentAdminSessionToken ||
+      getBearerToken(req.headers.authorization) ||
+      getCookieValue(req.headers.cookie, env.ADMIN_REFRESH_COOKIE_NAME);
     await authService.logoutAdminSession(token);
+    res.clearCookie(env.ADMIN_REFRESH_COOKIE_NAME, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.NODE_ENV === "production",
+      path: "/api/v1/auth"
+    });
     res.json({ success: true, data: { loggedOut: true } });
   }),
 
