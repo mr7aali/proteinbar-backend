@@ -2967,7 +2967,7 @@ export const adminService = {
   async createLocation(payload: Record<string, unknown>) {
     const uploadedImage = await uploadImageIfNeeded(
       normalizeImageInput(payload.image ?? payload.imageUrl ?? ""),
-      { folder: "proteinbar/locations" }
+      { folder: "proteinbar/locations", requireCloudinary: true }
     );
     const normalizedPayload = {
       locationId: String(payload.locationId ?? payload.id ?? "").trim(),
@@ -3007,7 +3007,7 @@ export const adminService = {
     if (Object.prototype.hasOwnProperty.call(payload, "image") || Object.prototype.hasOwnProperty.call(payload, "imageUrl")) {
       updatePayload.image = await uploadImageIfNeeded(
         normalizeImageInput(payload.image ?? payload.imageUrl ?? ""),
-        { folder: "proteinbar/locations" }
+        { folder: "proteinbar/locations", requireCloudinary: true }
       );
     }
     if (Object.prototype.hasOwnProperty.call(payload, "phone")) {

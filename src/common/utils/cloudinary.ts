@@ -3,6 +3,7 @@ import { env } from "../../config/env";
 
 type UploadImageOptions = {
   folder?: string;
+  requireCloudinary?: boolean;
 };
 
 let initialized = false;
@@ -51,6 +52,9 @@ export async function uploadImageIfNeeded(value: unknown, options: UploadImageOp
 
   if (!initialized) initializeCloudinary();
   if (!configured) {
+    if (options.requireCloudinary) {
+      throw new Error("Cloudinary is not configured for image uploads.");
+    }
     if (!warnedMissingConfig) {
       warnedMissingConfig = true;
       console.warn("Cloudinary is not configured. Storing image value as-is.");
@@ -64,8 +68,13 @@ export async function uploadImageIfNeeded(value: unknown, options: UploadImageOp
       resource_type: "image"
     });
 
-    return String(uploaded.secure_url || uploaded.url || normalized);
+    const uploadedUrl = String(uploaded.secure_url || uploaded.url || "");
+    if (!uploadedUrl && options.requireCloudinary) {
+      throw new Error("Cloudinary did not return an image URL.");
+    }
+    return uploadedUrl || normalized;
   } catch (error) {
+    if (options.requireCloudinary) throw error;
     console.error("Cloudinary image upload failed. Falling back to original image value.", error);
     return normalized;
   }
