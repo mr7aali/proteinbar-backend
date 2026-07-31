@@ -246,6 +246,7 @@ function normalizeMealImage(value: unknown) {
 }
 
 const maxMealImageDataUrlBytes = 8 * 1024 * 1024;
+const maxMonthlyPlanImageDataUrlBytes = 10 * 1024 * 1024;
 
 function getDataUrlByteSize(value: string) {
   const base64 = value.split(",")[1] ?? "";
@@ -257,6 +258,39 @@ function assertMealImageSize(value: string) {
 
   if (getDataUrlByteSize(value) > maxMealImageDataUrlBytes) {
     throw new AppError(413, "Meal image is too large. Please upload a smaller image.");
+  }
+}
+
+async function uploadMonthlyPlanImage(value: unknown) {
+  const normalized = normalizeImageInput(value);
+  if (!normalized) return "";
+
+  if (
+    normalized.startsWith("data:image/") &&
+    getDataUrlByteSize(normalized) > maxMonthlyPlanImageDataUrlBytes
+  ) {
+    throw new AppError(413, "Plan image is too large. Maximum allowed size is 10 MB.");
+  }
+
+  try {
+    return await uploadImageIfNeeded(normalized, {
+      folder: "proteinbar/monthly-plans",
+      requireCloudinary: true
+    });
+  } catch (error) {
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : "";
+
+    if (message.toLowerCase().includes("file size too large")) {
+      throw new AppError(413, "Plan image is too large. Maximum allowed size is 10 MB.");
+    }
+    if (message.toLowerCase().includes("cloudinary is not configured")) {
+      throw new AppError(503, "Plan image upload is unavailable because Cloudinary is not configured.");
+    }
+
+    throw new AppError(502, "Plan image upload failed. Please try again or choose a different image.");
   }
 }
 
@@ -3212,7 +3246,7 @@ export const adminService = {
     if (hasPlanImage) {
       normalized.plan = {
         ...normalized.plan,
-        image: await uploadImageIfNeeded(normalized.plan.image, { folder: "proteinbar/monthly-plans" })
+        image: await uploadMonthlyPlanImage(normalized.plan.image)
       };
     }
 
