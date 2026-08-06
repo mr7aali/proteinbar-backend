@@ -32,6 +32,11 @@ export const publicController = {
     res.json({ success: true, data });
   }),
   getWebsitePage: asyncHandler(async (req: Request, res: Response) => {
+    if (req.params.slug.trim().toLowerCase() === "footer") {
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.set("Pragma", "no-cache");
+      res.set("Expires", "0");
+    }
     const data = await publicService.getWebsitePage(req.params.slug);
     res.json({ success: true, data });
   }),
