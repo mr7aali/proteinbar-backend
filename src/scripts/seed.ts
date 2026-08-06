@@ -637,6 +637,64 @@ async function seed() {
       sections: []
     },
     {
+      pageId: "footer",
+      slug: "footer",
+      title: "Footer",
+      navLabel: "Footer",
+      summary: "Global footer branding, contact details, and legal links.",
+      kind: "system",
+      status: "published",
+      showInTopNav: false,
+      heroEyebrow: "",
+      heroTitle: "PROTEINBAR",
+      heroSubtitle: "The Real Food Revolution",
+      heroBody: "",
+      heroImage: "",
+      heroPrimaryCtaLabel: "",
+      heroPrimaryCtaLink: "",
+      heroSecondaryCtaLabel: "",
+      heroSecondaryCtaLink: "",
+      seoTitle: "Proteinbar Footer",
+      seoDescription: "Global Proteinbar footer content.",
+      sections: [
+        {
+          id: "footer-contact-details",
+          sectionKey: "contact-details",
+          sectionType: "contactInfo",
+          isVisible: true,
+          sortOrder: 0,
+          heading: "Contact Details",
+          body: "",
+          eyebrow: "",
+          image: "",
+          buttonLabel: "",
+          buttonLink: "",
+          items: [
+            { id: "footer-phone-bourgogne", title: "Bourgogne", label: "T:", value: "05 20 20 63 66", link: "tel:+212520206366" },
+            { id: "footer-phone-val-fleuri", title: "Val-Fleuri", label: "T:", value: "05 22 23 55 39", link: "tel:+212522235539" },
+            { id: "footer-email", title: "Email", label: "E:", value: "Proteinbarmaroc@gmail.com", link: "mailto:Proteinbarmaroc@gmail.com" }
+          ]
+        },
+        {
+          id: "footer-links",
+          sectionKey: "footer-links",
+          sectionType: "cards",
+          isVisible: true,
+          sortOrder: 1,
+          heading: "Footer Links",
+          body: "",
+          eyebrow: "",
+          image: "",
+          buttonLabel: "",
+          buttonLink: "",
+          items: [
+            { id: "footer-terms", title: "Terms & Conditions", link: "/pages/terms-and-conditions" },
+            { id: "footer-privacy", title: "Privacy Policy", link: "/pages/privacy-policy" }
+          ]
+        }
+      ]
+    },
+    {
       pageId: "locations",
       slug: "locations",
       title: "Locations",
